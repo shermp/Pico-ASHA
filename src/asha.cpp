@@ -184,6 +184,8 @@ struct AdvertisingReport {
     uint8_t   length;
     const uint8_t * data;
 
+    AdvertisingReport() {}
+
     AdvertisingReport(uint8_t* packet)
     {
         gap_event_advertising_report_get_address(packet, address);
@@ -245,6 +247,8 @@ enum class ASHAState {
     Start,
     // State when accepting GAP scan advertising reports
     Scan,
+    // Resolving address of previously bonded peripheral
+    IdentityResolving,
     // Service discovery, getting ASHA service
     Service,
     // Connecting to a peripheral to discover ASHA service
@@ -276,11 +280,12 @@ extern "C" void le_handle_advertisement_report(uint8_t *packet, uint16_t size);
 static struct ScanResult {
     bool service_found = false;
     Device device = Device();
-
+    AdvertisingReport report = AdvertisingReport();
     void reset()
     {
         service_found = false;
         device = Device();
+        report = AdvertisingReport();
     }
 } curr_scan;
 
@@ -462,20 +467,22 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     case GAP_EVENT_ADVERTISING_REPORT:
     {
         if (state != ASHAState::Scan) return;
-        AdvertisingReport report(packet);
-        printf("Address: %s\n", bd_addr_to_str(report.address));
-        if (bd_addr_cmp(report.address, left.addr) == 0 || bd_addr_cmp(report.address, right.addr) == 0) {
+        curr_scan.report = AdvertisingReport(packet);
+        printf("Address: %s\n", bd_addr_to_str(curr_scan.report.address));
+        if (bd_addr_cmp(curr_scan.report.address, left.addr) == 0 || bd_addr_cmp(curr_scan.report.address, right.addr) == 0) {
             printf("Already connected to address\n");
             return;
         }
-        if (report.is_hearing_aid()) {
+        
+        if (curr_scan.report.is_hearing_aid()) {
             state = ASHAState::Connecting;
-            printf("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(report.address));
-            bd_addr_copy(curr_scan.device.addr, report.address);
-            gap_connect(report.address, static_cast<bd_addr_type_t>(report.address_type));
+            printf("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
+            bd_addr_copy(curr_scan.device.addr, curr_scan.report.address);
+            gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
         } else {
-            printf("Report does not contain hearing aid services\n");
-            
+            /* Try and identify previously bonded device */
+            state = ASHAState::IdentityResolving;
+            sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);            
         }
         break;
     }
@@ -534,36 +541,58 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
     if (packet_type != HCI_EVENT_PACKET) return;
     auto ev_type = hci_event_packet_get_type(packet);
-    switch (ev_type) {
-    case SM_EVENT_JUST_WORKS_REQUEST:
-        printf("Just Works requested\n");
-        sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
-        break;
-    
-    case SM_EVENT_PAIRING_STARTED:
-        printf("Pairing started\n");
-        break;
-    case SM_EVENT_PAIRING_COMPLETE:
-        switch (sm_event_pairing_complete_get_status(packet)){
-        case ERROR_CODE_SUCCESS:
-            printf("Pairing complete, success\n");
+    if (state == ASHAState::IdentityResolving) {
+        switch(ev_type) {
+        case SM_EVENT_IDENTITY_RESOLVING_STARTED:
+            printf("Identity resolving started\n");
             break;
-        case ERROR_CODE_CONNECTION_TIMEOUT:
-            printf("Pairing failed, timeout\n");
+        case SM_EVENT_IDENTITY_RESOLVING_FAILED:
+            printf("Identity resolving failed\n");
+            state = ASHAState::Scan;
             break;
-        case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
-            printf("Pairing failed, disconnected\n");
+        case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
+        {
+            printf("Identity resolving succeeded\n");
+            state = ASHAState::Connecting;
+            sm_event_identity_resolving_succeeded_get_address(packet, curr_scan.device.addr);
+            auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
+            printf("Connecting to address %s\n", bd_addr_to_str(curr_scan.device.addr));
+            gap_connect(curr_scan.device.addr, static_cast<bd_addr_type_t>(addr_type));
             break;
-        case ERROR_CODE_AUTHENTICATION_FAILURE:
-            printf("Pairing failed, authentication failure with reason: %d\n",
-                    static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
+        }
+        default: break;
+        }
+    } else {
+        switch (ev_type) {
+        case SM_EVENT_JUST_WORKS_REQUEST:
+            printf("Just Works requested\n");
+            sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+            break;
+        case SM_EVENT_PAIRING_STARTED:
+            printf("Pairing started\n");
+            break;
+        case SM_EVENT_PAIRING_COMPLETE:
+            switch (sm_event_pairing_complete_get_status(packet)){
+            case ERROR_CODE_SUCCESS:
+                printf("Pairing complete, success\n");
+                break;
+            case ERROR_CODE_CONNECTION_TIMEOUT:
+                printf("Pairing failed, timeout\n");
+                break;
+            case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
+                printf("Pairing failed, disconnected\n");
+                break;
+            case ERROR_CODE_AUTHENTICATION_FAILURE:
+                printf("Pairing failed, authentication failure with reason: %d\n",
+                        static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
+                break;
+            default:
+                break;
+            }
             break;
         default:
             break;
         }
-        break;
-    default:
-        break;
     }
 }
 
