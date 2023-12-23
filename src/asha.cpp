@@ -9,6 +9,8 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 
+#include "asha-test-tone.hpp"
+
 /* Utility functions */
 
 /* Get bit 'pos' from value */
@@ -258,6 +260,14 @@ enum class ASHAState {
     // Devices are connected and ready for streaming
     Connected,
 };
+
+/* Audio buffers */
+constexpr uint16_t sample_rate_16khz = 16 * 1000;
+constexpr uint16_t bits_per_sample = 16;
+constexpr uint16_t num_frames_16khz_20ms = sample_rate_16khz * 0.02;
+constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * (bits_per_sample / 8);
+
+constexpr uint16_t test_tone_num_20ms_chunks = asha_test_tone_raw.size() / num_frames_16khz_20ms;
 
 static ASHAState state = ASHAState::Start;
 static Device left;
