@@ -456,6 +456,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     /* Power on */
     case BTSTACK_EVENT_STATE:
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING) {
+            // Set 2M PHY
+            gap_set_connection_phys(2);
             gap_local_bd_addr(local_addr);
             printf("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
             start_scan();
