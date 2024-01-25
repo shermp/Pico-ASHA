@@ -10,9 +10,10 @@ pico_sdk_init()
 
 add_executable(asha
   src/asha.cpp
+  lib/g722/g722_encode.cc
 )
 
-target_include_directories(asha PUBLIC "src/")
+target_include_directories(asha PUBLIC "src/" "lib/")
 
 pico_add_extra_outputs(asha)
 

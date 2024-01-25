@@ -8,6 +8,7 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "g722/g722_enc_dec.h"
 
 #include "asha-test-tone.hpp"
 
