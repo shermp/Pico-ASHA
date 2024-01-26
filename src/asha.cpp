@@ -207,7 +207,7 @@ struct AdvertisingReport {
     }
 };
 
-enum class ASHAState {
+enum class GATTState {
     Stop,
     // Starting state, before BT stack has initialized
     Start,
@@ -233,7 +233,7 @@ constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * (bits_per_samp
 
 constexpr uint16_t test_tone_num_20ms_chunks = asha_test_tone_raw.size() / num_frames_16khz_20ms;
 
-static ASHAState state = ASHAState::Start;
+static GATTState gatt_state = GATTState::Start;
 static Device left;
 static Device right;
 
@@ -267,7 +267,7 @@ static struct ScanResult {
 static void start_scan()
 {
     printf("Start scanning.\n");
-    state = ASHAState::Scan;
+    gatt_state = GATTState::Scan;
     gap_set_scan_params(1, 0x0030, 0x0030, 0);
     gap_start_scan();
 }
@@ -275,7 +275,7 @@ static void start_scan()
 /* Handle discovery of ASHA service */
 static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
-    if (state != ASHAState::Service) return;
+    if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_SERVICE_QUERY_RESULT:
         curr_scan.service_found = true;
@@ -287,7 +287,7 @@ static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint
         // Older hearing aids may support MFI but not ASHA
         if (!curr_scan.service_found) {
             printf("ASHA service not found. Continuing scanning\n");
-            state = ASHAState::Disconnecting;
+            gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
             break;
         }
@@ -299,7 +299,7 @@ static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint
         );
         if (res != ERROR_CODE_SUCCESS) {
             printf("Could not register characteristics query: %d\n", static_cast<int>(res));
-            state = ASHAState::Disconnecting;
+            gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
         }
         break;
@@ -312,7 +312,7 @@ static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint
 /* Handle discovery of ASHA characteristics */
 static void handle_characteristic_discovery(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
-    if (state != ASHAState::Service) return;
+    if (gatt_state != GATTState::Service) return;
     gatt_client_characteristic_t characteristic;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
@@ -351,7 +351,7 @@ static void handle_characteristic_discovery(uint8_t packet_type, uint16_t channe
 /* Handle reading of "Read Only Properties characteristic" */
 static void handle_rop_value_read(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
-    if (state != ASHAState::Service) return;
+    if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
         printf("Getting ReadOnlyProperties value\n");
@@ -377,7 +377,7 @@ static void handle_rop_value_read(uint8_t packet_type, uint16_t channel, uint8_t
 /* Handle reading of PSM characteristic */
 static void handle_psm_value_read(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
-    if (state != ASHAState::Service) return;
+    if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
         printf("Getting PSM value\n");
@@ -409,13 +409,13 @@ static void finalise_curr_discovery()
     }
     if (left.status != DeviceStatus::None && right.status != DeviceStatus::None) {
         printf("Both left and right hearing aids connected.\n");
-        state = ASHAState::Connected;
+        gatt_state = GATTState::Connected;
     } else if (mode == DeviceMode::Monaural) {
         printf("Connected to Mono hearing aid.\n");
-        state = ASHAState::Connected;
+        gatt_state = GATTState::Connected;
     } else {
         printf("Continue scanning.\n");
-        state = ASHAState::Scan;
+        gatt_state = GATTState::Scan;
     }
 }
 
@@ -436,13 +436,13 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             printf("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
             start_scan();
         } else {
-            state = ASHAState::Stop;
+            gatt_state = GATTState::Stop;
         }
         break;
     /* Every time a GAP advertising report is received, handle it here */
     case GAP_EVENT_ADVERTISING_REPORT:
     {
-        if (state != ASHAState::Scan) return;
+        if (gatt_state != GATTState::Scan) return;
         curr_scan.report = AdvertisingReport(packet);
         printf("Address: %s\n", bd_addr_to_str(curr_scan.report.address));
         if (bd_addr_cmp(curr_scan.report.address, left.addr) == 0 || bd_addr_cmp(curr_scan.report.address, right.addr) == 0) {
@@ -451,13 +451,13 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         }
         
         if (curr_scan.report.is_hearing_aid()) {
-            state = ASHAState::Connecting;
+            gatt_state = GATTState::Connecting;
             printf("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
             bd_addr_copy(curr_scan.device.addr, curr_scan.report.address);
             gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
         } else {
             /* Try and identify previously bonded device */
-            state = ASHAState::IdentityResolving;
+            gatt_state = GATTState::IdentityResolving;
             sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);            
         }
         break;
@@ -466,20 +466,20 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         switch(hci_event_le_meta_get_subevent_code(packet)) {
         case HCI_SUBEVENT_LE_CONNECTION_COMPLETE:
         {
-            if (state != ASHAState::Connecting) return;
+            if (gatt_state != GATTState::Connecting) return;
             curr_scan.device.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
-            state = ASHAState::Service;
+            gatt_state = GATTState::Service;
             printf("Device connected. Discovering ASHA service\n");
             auto res = gatt_client_discover_primary_services_by_uuid128(handle_service_discovery, curr_scan.device.conn_handle, AshaUUID::service);
             if (res != ERROR_CODE_SUCCESS) {
                 printf("Could not register service query: %d\n", static_cast<int>(res));
-                state = ASHAState::Disconnecting;
+                gatt_state = GATTState::Disconnecting;
                 gap_disconnect(curr_scan.device.conn_handle);
             }
             break;
         }
         case HCI_SUBEVENT_LE_ADVERTISING_REPORT:
-            if (state != ASHAState::Scan) return;
+            if (gatt_state != GATTState::Scan) return;
             le_handle_advertisement_report(packet, size);
             break;
         default:
@@ -491,7 +491,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
         printf("Received disconnection event.\n");
         // Expected disconnection, reenable scanning
-        if (state == ASHAState::Disconnecting) {
+        if (gatt_state == GATTState::Disconnecting) {
             printf("Expected disconnection\n");
         } else {
             printf("Disconnected with reason: %d\n", static_cast<int>(reason));
@@ -504,7 +504,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             printf("Right device disconnected.\n");
             right = Device();
         }
-        state = ASHAState::Scan;
+        gatt_state = GATTState::Scan;
         curr_scan.reset();
         break;
     }
@@ -517,19 +517,19 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
     if (packet_type != HCI_EVENT_PACKET) return;
     auto ev_type = hci_event_packet_get_type(packet);
-    if (state == ASHAState::IdentityResolving) {
+    if (gatt_state == GATTState::IdentityResolving) {
         switch(ev_type) {
         case SM_EVENT_IDENTITY_RESOLVING_STARTED:
             printf("Identity resolving started\n");
             break;
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
             printf("Identity resolving failed\n");
-            state = ASHAState::Scan;
+            gatt_state = GATTState::Scan;
             break;
         case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
         {
             printf("Identity resolving succeeded\n");
-            state = ASHAState::Connecting;
+            gatt_state = GATTState::Connecting;
             sm_event_identity_resolving_succeeded_get_address(packet, curr_scan.device.addr);
             auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
             printf("Connecting to address %s\n", bd_addr_to_str(curr_scan.device.addr));
