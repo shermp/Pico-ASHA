@@ -24,7 +24,7 @@ static int get_bit(T value, const int pos)
 
 /* Get value from (sub) array of bytes */
 template<typename T>
-static T get_val(uint8_t *start)
+static T get_val(const uint8_t *start)
 {
     T val;
     std::memcpy(&val, start, sizeof(val));
@@ -68,76 +68,41 @@ enum DeviceSide { Left = 0, Right = 1 };
 enum DeviceMode { Monaural = 0, Binaural = 1 };
 enum DeviceStatus { None, Connected, Disconnected, Streaming };
 
-/* Class to represent the ReadOnlyProperties characteristic
-
-   Note, methods are used to access fields stored in an array 
-   to avoid potential issues with packed structs and 
-   unaligned memory access. */
+/* Class to represent the ReadOnlyProperties characteristic */
 struct ReadOnlyProperties
 {
+    uint8_t version;
+    DeviceSide side;
+    DeviceMode mode;
+    bool csis_supported;
+    uint16_t manufacturer_id;
+    std::array<uint8_t, 6> unique_id;
+    bool le_coc_supported;
+    uint16_t render_delay;
+    bool codec_16khz;
+    bool codec_24khz;
+
     ReadOnlyProperties() {}
 
     ReadOnlyProperties(const uint8_t* data)
     {
-        std::memcpy(rop.data(), data, rop.size());
-    }
+        version = data[0];
+        side = get_bit(data[1], 0) ? DeviceSide::Right : DeviceSide::Left;
+        mode = get_bit(data[1], 1) ? DeviceMode::Binaural : DeviceMode::Monaural;
+        csis_supported = get_bit(data[1], 2) ? true : false;
+        manufacturer_id = get_val<uint16_t>(&data[2]);
+        memcpy(unique_id.data(), &data[4], unique_id.size());
+        le_coc_supported = get_bit(data[10], 0) ? true : false;
+        render_delay = get_val<uint16_t>(&data[11]);
 
-    uint8_t version() { return rop[0]; }
-
-    DeviceSide device_side() 
-    { 
-        return get_bit(rop[1], 0) ? DeviceSide::Right : DeviceSide::Left; 
-    };
-
-    DeviceMode device_mode() 
-    { 
-        return get_bit(rop[1], 1) ? DeviceMode::Binaural : DeviceMode::Monaural; 
-    };
-
-    bool supports_csis()
-    {
-        return get_bit(rop[1], 2) ? true : false;
-    }
-
-    uint16_t manufacture_id()
-    {
-        return get_val<uint16_t>(&rop[2]);
-    }
-
-    std::array<uint8_t, 6> unique_id()
-    {
-        return std::array<uint8_t, 6> {rop[4], rop[5], rop[6], rop[7], rop[8], rop[9]};
-    }
-
-    bool supports_le_coc_audio()
-    {
-        return get_bit(rop[10], 0) ? true : false;
-    }
-
-    uint16_t render_delay()
-    {
-        return get_val<uint16_t>(&rop[11]);
-    }
-
-    /* Check that the hearing aid supports the mandatory 
-       G.722 @ 16KHz codec. */
-    bool supports_16KHz()
-    {
-        uint16_t codecs = get_val<uint16_t>(&rop[15]);
-        return get_bit(codecs, 1);
-    }
-
-    /* Check if hearing aid supports G.722 @ 24KHz sample rate.
-       This is NOT in the ASHA spec, but Android checks for it. */
-    bool supports_24KHz()
-    {
-        uint16_t codecs = get_val<uint16_t>(&rop[15]);
-        return get_bit(codecs, 2);
+        uint16_t codecs = get_val<uint16_t>(&data[15]);
+        codec_16khz = get_bit(codecs, 1);
+        codec_24khz = get_bit(codecs, 2);
     }
 
     void dump_values()
     {
-        printf("Read Only Properties\n"
+         printf("Read Only Properties\n"
                "  Version:        %d\n"
                "  Side:           %s\n"
                "  Mode:           %s\n"
@@ -147,18 +112,16 @@ struct ReadOnlyProperties
                "  Render delay:   %hu\n"
                "  Supports 16KHz: %s\n"
                "  Supports 24KHz: %s\n",
-               version(), 
-               (device_side() == DeviceSide::Left ? "Left" : "Right"),
-               (device_mode() == DeviceMode::Binaural ? "Binaural" : "Monaural"),
-               (supports_csis() ? "Yes" : "No"),
-               manufacture_id(),
-               supports_le_coc_audio() ? "Yes" : "No",
-               render_delay(),
-               supports_16KHz() ? "Yes" : "No",
-               supports_24KHz() ? "Yes" : "No");
+               version, 
+               (side == DeviceSide::Left ? "Left" : "Right"),
+               (mode == DeviceMode::Binaural ? "Binaural" : "Monaural"),
+               (csis_supported ? "Yes" : "No"),
+               manufacturer_id,
+               le_coc_supported ? "Yes" : "No",
+               render_delay,
+               codec_16khz ? "Yes" : "No",
+               codec_24khz ? "Yes" : "No");
     }
-private:
-    std::array<uint8_t, 17> rop;
 };
 
 struct Device {
@@ -435,8 +398,8 @@ static void handle_psm_value_read(uint8_t packet_type, uint16_t channel, uint8_t
    searching for another aid. */
 static void finalise_curr_discovery()
 {
-    auto side = curr_scan.device.read_only_props.device_side();
-    auto mode = curr_scan.device.read_only_props.device_mode();
+    auto side = curr_scan.device.read_only_props.side;
+    auto mode = curr_scan.device.read_only_props.mode;
     if (side == DeviceSide::Left && left.status == DeviceStatus::None) {
         left = curr_scan.device;
         left.status = DeviceStatus::Connected;
