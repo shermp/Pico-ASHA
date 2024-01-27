@@ -129,6 +129,8 @@ struct Device {
     hci_con_handle_t conn_handle = 0;
     bd_addr_t addr = {};
     gatt_client_service_t service = {};
+    uint16_t orig_conn_interval = 0;
+    uint16_t orig_conn_latency = 0;
     struct Characteristics {
         gatt_client_characteristic_t rop = {};
         gatt_client_characteristic_t acp = {};
@@ -468,6 +470,10 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         {
             if (gatt_state != GATTState::Connecting) return;
             curr_scan.device.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
+            curr_scan.device.orig_conn_interval = hci_subevent_le_connection_complete_get_conn_interval(packet);
+            curr_scan.device.orig_conn_latency = hci_subevent_le_connection_complete_get_conn_latency(packet);
+            printf("Original connection parameters: Interval: %hu Latency: %hu\n", 
+                curr_scan.device.orig_conn_interval, curr_scan.device.orig_conn_latency);
             gatt_state = GATTState::Service;
             printf("Device connected. Discovering ASHA service\n");
             auto res = gatt_client_discover_primary_services_by_uuid128(handle_service_discovery, curr_scan.device.conn_handle, AshaUUID::service);
@@ -476,6 +482,13 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
                 gatt_state = GATTState::Disconnecting;
                 gap_disconnect(curr_scan.device.conn_handle);
             }
+            break;
+        }
+        case HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE:
+        {
+            uint16_t conn_interval = hci_subevent_le_connection_update_complete_get_conn_interval(packet);
+            uint16_t conn_latency = hci_subevent_le_connection_update_complete_get_conn_latency(packet);
+            printf("Connection parameter update complete: Interval: %hu Latency: %hu\n", conn_interval, conn_latency);
             break;
         }
         case HCI_SUBEVENT_LE_ADVERTISING_REPORT:
