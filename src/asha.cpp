@@ -235,6 +235,11 @@ constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * (bits_per_samp
 
 constexpr uint16_t test_tone_num_20ms_chunks = asha_test_tone_raw.size() / num_frames_16khz_20ms;
 
+/* Connection parameters for ASHA
+   Note, connection interval is in units of 1.25ms */
+constexpr uint16_t asha_conn_interval = 20 / 1.25f;
+constexpr uint16_t asha_conn_latency  = 0;
+
 static GATTState gatt_state = GATTState::Start;
 static Device left;
 static Device right;
@@ -472,8 +477,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             curr_scan.device.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
             curr_scan.device.orig_conn_interval = hci_subevent_le_connection_complete_get_conn_interval(packet);
             curr_scan.device.orig_conn_latency = hci_subevent_le_connection_complete_get_conn_latency(packet);
-            printf("Original connection parameters: Interval: %hu Latency: %hu\n", 
-                curr_scan.device.orig_conn_interval, curr_scan.device.orig_conn_latency);
+            curr_scan.device.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
+            printf("Original connection parameters: Interval: %hu, Latency: %hu, Supervision Timeout: %hu\n", 
+                curr_scan.device.orig_conn_interval, curr_scan.device.orig_conn_latency, curr_scan.device.supervision_timeout);
             gatt_state = GATTState::Service;
             printf("Device connected. Discovering ASHA service\n");
             auto res = gatt_client_discover_primary_services_by_uuid128(handle_service_discovery, curr_scan.device.conn_handle, AshaUUID::service);
@@ -488,7 +494,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         {
             uint16_t conn_interval = hci_subevent_le_connection_update_complete_get_conn_interval(packet);
             uint16_t conn_latency = hci_subevent_le_connection_update_complete_get_conn_latency(packet);
-            printf("Connection parameter update complete: Interval: %hu Latency: %hu\n", conn_interval, conn_latency);
+            uint16_t supervision_timeout = hci_subevent_le_connection_update_complete_get_supervision_timeout(packet);
+            printf("Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
+                conn_interval, conn_latency, supervision_timeout);
             break;
         }
         case HCI_SUBEVENT_LE_ADVERTISING_REPORT:
