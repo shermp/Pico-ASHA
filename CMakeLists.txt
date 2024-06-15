@@ -9,6 +9,7 @@ set(PICO_BOARD pico_w)
 pico_sdk_init()
 
 add_executable(asha
+  src/pcm_audio.c
   src/asha.cpp
   src/usb_audio.c
   src/usb_descriptors.c
