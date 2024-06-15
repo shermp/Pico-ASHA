@@ -10,6 +10,8 @@ pico_sdk_init()
 
 add_executable(asha
   src/asha.cpp
+  src/usb_audio.c
+  src/usb_descriptors.c
   lib/g722/g722_encode.cc
 )
 
@@ -22,6 +24,8 @@ target_link_libraries(asha
   pico_btstack_ble
   pico_btstack_cyw43
   pico_cyw43_arch_none
+  tinyusb_device
+  tinyusb_board
 )
 
 pico_enable_stdio_usb(asha 0)
