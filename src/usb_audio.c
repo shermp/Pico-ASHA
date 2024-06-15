@@ -47,20 +47,6 @@ uint32_t current_sample_rate  = 16000;
 
 #define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
 
-/* Blink pattern
- * - 25 ms   : streaming data
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
- */
-enum
-{
-  BLINK_STREAMING = 25,
-  BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
-};
-
 /* ASHA volume range is -48dB to 0dB, and is set as an int8_t
  * with a range of -128 to 0. This gives steps of 0.375 dB.
 
@@ -76,8 +62,6 @@ enum
   USB_VOLUME_MUTE = 0x8000,
   ASHA_VOLUME_MUTE = 128,
 };
-
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
@@ -96,7 +80,6 @@ const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_
 // Current resolution, update on format change
 uint8_t current_resolution;
 
-void led_blinking_task(void);
 void audio_task(void);
 
 /*------------- MAIN -------------*/
@@ -113,7 +96,6 @@ void usb_main(void)
   {
     tud_task(); // TinyUSB device task
     audio_task();
-    led_blinking_task();
   }
 }
 
@@ -124,13 +106,11 @@ void usb_main(void)
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
@@ -139,13 +119,11 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void)remote_wakeup_en;
-  blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Helper for clock get requests
@@ -333,9 +311,6 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
   uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
-  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt == 0)
-      blink_interval_ms = BLINK_MOUNTED;
-
   return true;
 }
 
@@ -346,9 +321,7 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
   TU_LOG2("Set interface %d alt %d\n", itf, alt);
-  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt != 0)
-      blink_interval_ms = BLINK_STREAMING;
-
+  
   // Clear buffer when streaming format is changed
   spk_data_size = 0;
   if(alt != 0)
@@ -389,7 +362,7 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
 void audio_task(void)
 {
   //TU_LOG1("Raw Volume: %hd\n", volume[0]);
-  
+
   // Dividing the USB volume by 96 gives a volume in the ASHA range.
   pcm_buff.volume = (int8_t)(volume[1] / 96);
   if (mute[1]) {
@@ -407,20 +380,4 @@ void audio_task(void)
     //pcm_buff.streaming = false;
   //}
   //TU_LOG1("Streaming: %s\n", pcm_buff.streaming ? "Yes" : "No");
-}
-
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
-  static uint32_t start_ms = 0;
-  static bool led_state = false;
-
-  // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return;
-  start_ms += blink_interval_ms;
-
-  board_led_write(led_state);
-  led_state = 1 - led_state;
 }
