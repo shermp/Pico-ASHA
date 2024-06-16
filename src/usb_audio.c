@@ -30,7 +30,7 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-#include "pico_asha.h"
+#include "asha_audio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -364,17 +364,20 @@ void audio_task(void)
   //TU_LOG1("Raw Volume: %hd\n", volume[0]);
 
   // Dividing the USB volume by 96 gives a volume in the ASHA range.
-  pcm_buff.volume = (int8_t)(volume[1] / 96);
+  asha_shared.volume = (int8_t)(volume[1] / 96);
   if (mute[1]) {
-    pcm_buff.volume = -ASHA_VOLUME_MUTE;
+    asha_shared.volume = -ASHA_VOLUME_MUTE;
   }
 
   if (spk_data_size) {
-    if (spk_data_size != ASHA_PCM_AUDIO_STEREO_FRAME_SIZE * 2) {
+    if (spk_data_size != ASHA_PCM_STEREO_PACKET_SIZE * 2) {
       return;
     }
-    asha_pcm_audio_write_audio(&pcm_buff, spk_buf);
-    pcm_buff.streaming = true;
+    if (asha_shared.encode_audio) {
+      
+      asha_audio_g_enc_1ms(&asha_shared, spk_buf);
+    }
+    asha_shared.pcm_streaming = true;
     spk_data_size = 0;
   } //else {
     //pcm_buff.streaming = false;

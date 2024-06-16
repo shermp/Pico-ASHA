@@ -1,6 +1,7 @@
+#include <pico/stdio.h>
 #include <pico/multicore.h>
 
-#include "pico_asha.h"
+#include "asha_audio.h"
 
 void asha_main();
 void usb_main(void);
@@ -9,11 +10,11 @@ void usb_main(void);
 void perf_main(void);
 #endif
 
-struct asha_pcm_audio pcm_buff = {};
+struct asha_audio asha_shared;
 
 int main()
 {
-    asha_pcm_audio_init(&pcm_buff);
+    asha_audio_init(&asha_shared);
     stdio_init_all();
     sleep_ms(2000);
 #ifdef ASHA_PERF_TEST

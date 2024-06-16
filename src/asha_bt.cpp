@@ -8,11 +8,31 @@
 #include <cstring>
 #include <cinttypes>
 #include "btstack.h"
-#include "hci_dump_embedded_stdout.h"
 #include "pico/cyw43_arch.h"
-#include "g722/g722_enc_dec.h"
+#ifdef ASHA_HCI_DUMP
+#include "hci_dump_embedded_stdout.h"
+#endif
 
-#include "pico_asha.h"
+#include "asha_audio.h"
+
+#if defined (ASHA_LOG_ERROR)
+    #define LOG_ERROR(...) printf(__VA_ARGS__)
+    #define LOG_INFO(...)
+    #define LOG_AUDIO(...)
+#elif defined (ASHA_LOG_INFO)
+    #define LOG_ERROR(...) printf(__VA_ARGS__)
+    #define LOG_INFO(...) printf(__VA_ARGS__)
+    #define LOG_AUDIO(...)
+#elif defined (ASHA_LOG_AUDIO)
+    #define LOG_ERROR(...) printf(__VA_ARGS__)
+    #define LOG_INFO(...) printf(__VA_ARGS__)
+    #define LOG_AUDIO(...) printf(__VA_ARGS__)
+#else
+    #define LOG_ERROR(...)
+    #define LOG_INFO(...)
+    #define LOG_AUDIO(...)
+#endif
+
 
 /* Utility functions */
 
@@ -101,10 +121,11 @@ namespace ACPStatus
 enum EncodeState { Reset, Idle, Encode, ResetEncode };
 
 /* Audio buffers */
-constexpr uint16_t num_frames_16khz_20ms = ASHA_PCM_AUDIO_FRAME_SIZE * 20;
-constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * 2;
-constexpr uint16_t buff_size_g722_20ms = buff_size_16khz_20ms / 4; // 4:1 compression ratio
-constexpr uint16_t buff_size_pdu = buff_size_g722_20ms + 1;
+// constexpr uint16_t num_frames_16khz_20ms = ASHA_PCM_AUDIO_FRAME_SIZE * 20;
+// constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * 2;
+// constexpr uint16_t buff_size_g722_20ms = buff_size_16khz_20ms / 4; // 4:1 compression ratio
+constexpr int num_pdu_to_buffer = 4;
+constexpr uint16_t buff_size_sdu = ASHA_SDU_SIZE_BYTES;
 constexpr int ms_20 = 20;
 
 /* Class to represent the ReadOnlyProperties characteristic */
@@ -141,7 +162,7 @@ struct ReadOnlyProperties
 
     void dump_values()
     {
-         printf("Read Only Properties\n"
+         LOG_INFO("Read Only Properties\n"
                "  Version:        %d\n"
                "  Side:           %s\n"
                "  Mode:           %s\n"
@@ -202,8 +223,10 @@ struct Device {
     ReadOnlyProperties read_only_props;
     uint8_t psm;
     std::array<uint8_t ,5> acp_command_packet = {};
-    std::array<uint8_t, buff_size_pdu> recv_buff = {};
-    bool send_audio_packet_pending = false;
+    std::array<uint8_t, buff_size_sdu> recv_buff = {};
+    bool audio_send_pending = false;
+    uint32_t curr_g_packet_index = 0;
+    uint32_t pre_buff = num_pdu_to_buffer;
 
     bool operator==(const Device& other) const
     {
@@ -222,19 +245,19 @@ struct Device {
                                                                               sizeof(int8_t), 
                                                                               (uint8_t*)&volume);
         if (res != ERROR_CODE_SUCCESS) {
-            printf("Writing to volume char failed with %d\n", res);
+            LOG_ERROR("Writing to volume char failed with %d\n", res);
         }
     }
     void send_status_update(int8_t update)
     {
         if (status != DeviceStatus::Streaming) {
-            printf("Device not streaming. Not sending status update\n");
+            LOG_INFO("Device not streaming. Not sending status update\n");
             return;
         }
         if (update != ACPStatus::conn_param_updated && 
             update != ACPStatus::other_connected && 
             update != ACPStatus::other_disconnected) {
-                printf("Unknown status command\n");
+                LOG_ERROR("Unknown status command\n");
                 return;
             }
         std::array<uint8_t,2> cmd = {ACPOpCode::status, update};
@@ -243,7 +266,7 @@ struct Device {
                                                                               cmd.size(),
                                                                               cmd.data());
         if (res != ERROR_CODE_SUCCESS) {
-            printf("Updating status via ACP failed with %d\n", res);
+            LOG_ERROR("Updating status via ACP failed with %d\n", res);
         }
         return;
     }
@@ -296,10 +319,6 @@ struct DeviceManager {
         }
         return nullptr;
     }
-    bool audio_send_pending()
-    {
-        return (leftOrMono.send_audio_packet_pending || right.send_audio_packet_pending);
-    }
     bool have_complete_set()
     {
         if (num_devices == 0) { return false; }
@@ -317,16 +336,16 @@ struct DeviceManager {
     Device* add_connected_device(const Device& dev)
     {
         if (have_complete_set()) {
-            printf("Already have complete set\n");
+            LOG_INFO("Already have complete set\n");
             return nullptr;
         }
         if (dev.status == DeviceStatus::None) {
-            printf("Cannot add non-connected device\n");
+            LOG_INFO("Cannot add non-connected device\n");
             return nullptr;
         }
         if (dev.read_only_props.mode == DeviceMode::Monaural) {
             if (num_devices > 0) {
-                printf("Cannot add mono device when a device has been added\n");
+                LOG_INFO("Cannot add mono device when a device has been added\n");
                 return nullptr;
             }
             set_mode = DeviceMode::Monaural;
@@ -337,24 +356,24 @@ struct DeviceManager {
         Device& same = (dev.read_only_props.side == DeviceSide::Left) ? leftOrMono : right;
         Device& other = (dev.read_only_props.side == DeviceSide::Left) ? right : leftOrMono;
         if (dev == same) {
-            printf("Identical device already in DeviceManager\n");
+            LOG_INFO("Identical device already in DeviceManager\n");
             return nullptr;
         }
         if (same.status != DeviceStatus::None) {
-            printf("Another device device already in DeviceManager\n");
+            LOG_INFO("Another device device already in DeviceManager\n");
             return nullptr;
         }
         if (other.status != DeviceStatus::None && dev.read_only_props.unique_id != other.read_only_props.unique_id) {
-            printf("Device not part of same set\n");
+            LOG_INFO("Device not part of same set\n");
             return nullptr; 
         }
         num_devices++;
         if (dev.read_only_props.side == DeviceSide::Left) {
-            printf("Adding left device\n");
+            LOG_INFO("Adding left device\n");
             leftOrMono = dev;
             return &leftOrMono;
         } else {
-            printf("Adding right device\n");
+            LOG_INFO("Adding right device\n");
             right = dev;
             return &right;
         }
@@ -363,88 +382,32 @@ struct DeviceManager {
     bool remove_device(const Device& dev)
     {
         if (dev == leftOrMono) {
-            printf("Removing left device\n");
+            LOG_INFO("Removing left device\n");
             leftOrMono = Device();
             num_devices--;
             return true;
         } else if (dev == right) {
-            printf("Right left device\n");
+            LOG_INFO("Right left device\n");
             right = Device();
             num_devices--;
             return true;
         }
         if (num_devices == 0) {
-            printf("All devices removed\n");
+            LOG_INFO("All devices removed\n");
             set_mode = DeviceMode::Binaural;
         }
         return false;
+    }
+    bool audio_send_pending()
+    {
+        return  (leftOrMono.status == DeviceStatus::Streaming && leftOrMono.audio_send_pending) ||
+                (right.status == DeviceStatus::Streaming && right.audio_send_pending);
     }
 private:
     Device leftOrMono;
     Device right;
     DeviceMode set_mode = DeviceMode::Binaural;
     size_t num_devices = 0;
-};
-
-struct Encoder 
-{
-    std::array<uint8_t, buff_size_pdu> left_g722;
-    std::array<uint8_t, buff_size_pdu> right_g722;
-    std::array<uint8_t, buff_size_pdu> mono_g722;
-
-    void audio_init() 
-    {
-        seq_num = 0;
-        first = true;
-        g722_encode_init(&left_enc_state, 64000, G722_PACKED);
-        g722_encode_init(&right_enc_state, 64000, G722_PACKED);
-        g722_encode_init(&mono_enc_state, 64000, G722_PACKED);
-        std::fill(left_g722.begin(), left_g722.end(), 0);
-        std::fill(right_g722.begin(), right_g722.end(), 0);
-        std::fill(mono_g722.begin(), mono_g722.end(), 0);
-    }
-
-    void encode_next_20ms()
-    {
-        left_g722[0] = seq_num;
-        right_g722[0] = seq_num;
-        mono_g722[0] = seq_num;
-
-        if (first) {
-            if (pcm_buff.write_index < 40) {
-                pcm_index = 40;
-            } else {
-                pcm_index = pcm_buff.write_index - 5 - ms_20;
-            }
-            first = false;
-        }
-        while (pcm_buff.write_index < pcm_index) {
-            ;
-        }
-        //printf("A:%d U:%d ", pcm_index, pcm_buff.write_index);
-        
-        // asha_pcm_copy_audio(pcm_buff.left, pcm_index, tmp_pcm.data(), ms_20);
-        // g722_encode(&left_enc_state, left_g722.data() + 1, tmp_pcm.data(), tmp_pcm.size());
-
-        asha_pcm_copy_audio(pcm_buff.right, pcm_index, tmp_pcm.data(), ms_20);
-        g722_encode(&right_enc_state, right_g722.data() + 1, tmp_pcm.data(), tmp_pcm.size());
-
-        // asha_pcm_copy_audio(pcm_buff.mono, pcm_index, tmp_pcm.data(), ms_20);
-        // g722_encode(&mono_enc_state, mono_g722.data() + 1, tmp_pcm.data(), tmp_pcm.size());
-
-        pcm_index += ms_20;
-        ++seq_num;
-    }
-
-private:
-    g722_encode_state_t left_enc_state = {};
-    g722_encode_state_t right_enc_state = {};
-    g722_encode_state_t mono_enc_state = {};
-    uint8_t seq_num = 0;
-    uint32_t pcm_index = 0;
-    bool first = false;
-
-    std::array<int16_t, ASHA_PCM_AUDIO_FRAME_SIZE * 20> tmp_pcm;
 };
 
 /* Struct to hold data from a GAP advertisment report */
@@ -488,7 +451,7 @@ struct AdvertisingReport {
             case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
                 for (i = 0; i < size; i += sizeof(uint16_t)) {
                     if (little_endian_read_16(adv_data, i) == AshaUUID::service16) {
-                        printf("ASHA 16 bit service discovered\n");
+                        LOG_INFO("ASHA 16 bit service discovered\n");
                         return true;
                     }
                 }
@@ -498,10 +461,10 @@ struct AdvertisingReport {
                 for (i = 0; i < size; i += sizeof(AshaUUID::service)) {
                     reverse_128(adv_data + i, tmp_uuid128);
                     if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
-                        printf("ASHA 128 bit UUID service discovered\n");
+                        LOG_INFO("ASHA 128 bit UUID service discovered\n");
                         return true;
                     } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
-                        printf("MFI UUID discovered\n");
+                        LOG_INFO("MFI UUID discovered\n");
                         return true;
                     }
                 }
@@ -548,13 +511,7 @@ static GATTState gatt_state = GATTState::Start;
 //static Device right;
 static DeviceManager device_mgr;
 
-static Encoder encoder;
-static volatile EncodeState encode_state = EncodeState::Reset;
-
 static int8_t curr_volume = -127;
-static std::array<uint8_t, buff_size_pdu> curr_left_buff = {};
-static std::array<uint8_t, buff_size_pdu> curr_right_buff = {};
-static std::array<uint8_t, buff_size_pdu> curr_mono_buff = {};
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static btstack_packet_callback_registration_t sm_event_callback_registration;
@@ -597,7 +554,7 @@ static struct ScanResult {
 /* Start scanning for suitable peripherals */
 static void start_scan()
 {
-    printf("Start scanning.\n");
+    LOG_INFO("Start scanning.\n");
     gatt_state = GATTState::Scan;
     gap_set_scan_params(1, 0x0030, 0x0030, 0);
     gap_start_scan();
@@ -610,14 +567,14 @@ static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_SERVICE_QUERY_RESULT:
         curr_scan.service_found = true;
-        printf("ASHA service found\n");
+        LOG_INFO("ASHA service found\n");
         gatt_event_service_query_result_get_service(packet, &curr_scan.device.service);
         break;
     case GATT_EVENT_QUERY_COMPLETE:
     {
         // Older hearing aids may support MFI but not ASHA
         if (!curr_scan.service_found) {
-            printf("ASHA service not found. Continuing scanning\n");
+            LOG_INFO("ASHA service not found. Continuing scanning\n");
             gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
             break;
@@ -629,7 +586,7 @@ static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint
                 &curr_scan.device.service
         );
         if (res != ERROR_CODE_SUCCESS) {
-            printf("Could not register characteristics query: %d\n", static_cast<int>(res));
+            LOG_ERROR("Could not register characteristics query: %d\n", static_cast<int>(res));
             gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
         }
@@ -649,24 +606,24 @@ static void handle_characteristic_discovery(uint8_t packet_type, uint16_t channe
     case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
         gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
         if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
-            printf("Got ROP Characteristic\n");
+            LOG_INFO("Got ROP Characteristic\n");
             curr_scan.device.chars.rop = characteristic;
         } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioControlPoint)) {
-            printf("Got ACP Characteristic\n");
+            LOG_INFO("Got ACP Characteristic\n");
             curr_scan.device.chars.acp = characteristic;
         } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioStatus)) {
-            printf("Got AUS Characteristic\n");
+            LOG_INFO("Got AUS Characteristic\n");
             curr_scan.device.chars.aus = characteristic;
         } else if (uuid_eq(characteristic.uuid128, AshaUUID::volume)) {
-            printf("Got VOL Characteristic\n");
+            LOG_INFO("Got VOL Characteristic\n");
             curr_scan.device.chars.vol = characteristic;
         } else if (uuid_eq(characteristic.uuid128, AshaUUID::psm)) {
-            printf("Got PSM Characteristic\n");
+            LOG_INFO("Got PSM Characteristic\n");
             curr_scan.device.chars.psm = characteristic;
         }
         break;
     case GATT_EVENT_QUERY_COMPLETE:
-        printf("ASHA characteristic discovery complete\n");
+        LOG_INFO("ASHA characteristic discovery complete\n");
         // Start reading the Read Only Properties characteristic
         gatt_client_read_value_of_characteristic(
             handle_rop_value_read, 
@@ -685,14 +642,14 @@ static void handle_rop_value_read(uint8_t packet_type, uint16_t channel, uint8_t
     if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-        printf("Getting ReadOnlyProperties value\n");
+        LOG_INFO("Getting ReadOnlyProperties value\n");
         curr_scan.device.read_only_props = ReadOnlyProperties(
             gatt_event_characteristic_value_query_result_get_value(packet)
         );
         curr_scan.device.read_only_props.dump_values();
         break;
     case GATT_EVENT_QUERY_COMPLETE:
-        printf("Completed value read of ReadOnlyProperties\n");
+        LOG_INFO("Completed value read of ReadOnlyProperties\n");
         /* Next get the PSM value */
         gatt_client_read_value_of_characteristic(
             handle_psm_value_read,
@@ -711,12 +668,12 @@ static void handle_psm_value_read(uint8_t packet_type, uint16_t channel, uint8_t
     if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-        printf("Getting PSM value\n");
+        LOG_INFO("Getting PSM value\n");
         curr_scan.device.psm = gatt_event_characteristic_value_query_result_get_value(packet)[0];
-        printf("PSM: %d\n", static_cast<int>(curr_scan.device.psm));
+        LOG_INFO("PSM: %d\n", static_cast<int>(curr_scan.device.psm));
         break;
     case GATT_EVENT_QUERY_COMPLETE:
-        printf("Completed value read of PSM\n");
+        LOG_INFO("Completed value read of PSM\n");
         gatt_state = GATTState::ASPNotification;
         enable_asp_notification();
         break;
@@ -755,12 +712,12 @@ static void handle_char_config_write_packet(uint8_t packet_type, uint16_t channe
     {
         auto att_status = gatt_event_query_complete_get_att_status(packet);
         if (att_status != ATT_ERROR_SUCCESS) {
-            printf("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n"
+            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n"
                    "Disconnecting\n", att_status);
             gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
         }
-        printf("AudioStatusPoint notification enabled.\n");
+        LOG_INFO("AudioStatusPoint notification enabled.\n");
         gatt_state = GATTState::Finalizing;
         finalise_curr_discovery();
         break;
@@ -777,24 +734,24 @@ static void finalise_curr_discovery()
 {
     // This shouldn't be the case, but best be sure.
     if (device_mgr.have_complete_set()) {
-        printf("Already have complete set. Not adding current device.\n");
+        LOG_INFO("Already have complete set. Not adding current device.\n");
         gatt_state = GATTState::CompleteConnected;
         return;
     }
     if (device_mgr.device_exists(curr_scan.device)) {
-        printf("Already connected to this device.\n");
+        LOG_INFO("Already connected to this device.\n");
         gatt_state = GATTState::Scan;
         return;
     }
     curr_scan.device.status = DeviceStatus::Connected;
     Device *d = device_mgr.add_connected_device(curr_scan.device);
     if (!d) {
-        printf("Error adding this device.\n");
+        LOG_ERROR("Error adding this device.\n");
         gatt_state = GATTState::Scan;
         return;
     }
     if (device_mgr.have_complete_set()) {
-        printf("Connected to all aid(s) in set.\n");
+        LOG_INFO("Connected to all aid(s) in set.\n");
         gatt_state = GATTState::CompleteConnected;
     } else {
         gatt_state = GATTState::Scan;
@@ -803,27 +760,27 @@ static void finalise_curr_discovery()
 
 static void audio_starter()
 {
-    if (pcm_buff.streaming) {
+    if (asha_shared.pcm_streaming) {
         auto l = device_mgr.get_left_or_mono();
         auto r = device_mgr.get_right();
         if (l) {
             if (l->status == DeviceStatus::Connected) {
-                printf("Setting connection params for left side.\n");
+                LOG_INFO("Setting connection params for left side.\n");
                 l->status = DeviceStatus::ConnParam;
                 change_conn_params(*l);
             } else if (l->status == DeviceStatus::L2Connected) {
-                printf("Start streaming on left side.\n");
+                LOG_INFO("Start streaming on left side.\n");
                 l->status = DeviceStatus::StreamStarting;
                 write_acp(*l, ACPOpCode::start);
             }
         }
         if (r) {
             if (r->status == DeviceStatus::Connected) {
-                printf("Setting connection params for right side.\n");
+                LOG_INFO("Setting connection params for right side.\n");
                 r->status = DeviceStatus::ConnParam;
                 change_conn_params(*r);
             } else if (r->status == DeviceStatus::L2Connected) {
-                printf("Start streaming on right side.\n");
+                LOG_INFO("Start streaming on right side.\n");
                 r->status = DeviceStatus::StreamStarting;
                 write_acp(*r, ACPOpCode::start);
             }
@@ -850,7 +807,7 @@ static void change_conn_params(Device& dev)
 static void create_l2cap_conn(Device& dev)
 {
     if (dev.status != DeviceStatus::L2Connecting) { return; }
-    printf("Connecting to L2CAP\n");
+    LOG_INFO("Connecting to L2CAP\n");
     auto res = l2cap_cbm_create_channel(&handle_cbm_l2cap_packet, 
                                         dev.conn_handle, 
                                         dev.psm, 
@@ -860,7 +817,7 @@ static void create_l2cap_conn(Device& dev)
                                         LEVEL_2,
                                         &dev.cid);
     if (res != ERROR_CODE_SUCCESS) {
-        printf("Failure creating l2cap channel with error code: %d", res);
+        LOG_ERROR("Failure creating l2cap channel with error code: %d", res);
     }
 }
 
@@ -880,15 +837,15 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             Device *d = device_mgr.get_by_conn_handle(handle);
             if (!d || d->status != DeviceStatus::L2Connecting) { return; }
             if (status != ERROR_CODE_SUCCESS) {
-                printf("L2CAP CoC for device %s failed with status code: 0x%02x\n", bd_addr_to_str(event_address), status);
+                LOG_ERROR("L2CAP CoC for device %s failed with status code: 0x%02x\n", bd_addr_to_str(event_address), status);
                 // Try again
                 create_l2cap_conn(*d);
                 return;
             }
             if (cid != d->cid || handle != d->conn_handle) {
-                printf("l2CAP CoC: connected device does not match current device!\n");
+                LOG_ERROR("l2CAP CoC: connected device does not match current device!\n");
             }
-            printf("L2CAP CoC for device %s succeeded\n", bd_addr_to_str(event_address));
+            LOG_INFO("L2CAP CoC for device %s succeeded\n", bd_addr_to_str(event_address));
             d->status = DeviceStatus::L2Connected;
             break;
         }
@@ -897,27 +854,40 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             auto cid = l2cap_event_can_send_now_get_local_cid(packet);
             Device *dev = device_mgr.get_by_cid(cid);
             if (!dev) {
-                printf("Could not find device with cid '%hd'\n", cid);
+                LOG_ERROR("Could not find device with cid '%hd'\n", cid);
                 return;
             }
             uint8_t *data;
+            uint32_t index = ASHA_RING_BUFF_INDEX(dev->curr_g_packet_index);
             if (dev->read_only_props.mode == DeviceMode::Monaural) {
-                data = curr_mono_buff.data();
+                data = asha_shared.g_m_buff[index];
             } else {
-                data = (dev->read_only_props.side == DeviceSide::Left) ? curr_left_buff.data() : curr_right_buff.data();
+                data = (dev->read_only_props.side == DeviceSide::Left)
+                       ? asha_shared.g_l_buff[index]
+                       : asha_shared.g_r_buff[index];
             }
-            auto res = l2cap_send(dev->cid, data, curr_left_buff.size());
+            //printf("%u ", data[0]);
+            auto res = l2cap_send(dev->cid, data, buff_size_sdu);
             if (res != ERROR_CODE_SUCCESS) {
-                printf("Failed to send l2cap data with reason: %d\n", res);
+                dev->audio_send_pending = false;
+                LOG_ERROR("Failed to send l2cap data with reason: %d\n", res);
             }
+            dev->curr_g_packet_index++;
             //printf("%hu ", (uint16_t)(data[0]));
             break;
         }
-        // case L2CAP_EVENT_PACKET_SENT:
-        // {
-        //     printf("|");
-        //     break;
-        // }
+        case L2CAP_EVENT_PACKET_SENT:
+        {
+            auto cid = l2cap_event_packet_sent_get_local_cid(packet);
+            Device *dev = device_mgr.get_by_cid(cid);
+            if (!dev) {
+                LOG_ERROR("Could not find device with cid '%hd'\n", cid);
+                return;
+            }
+            //printf("Audio packet sent\n");
+            dev->audio_send_pending = false;
+            break;
+        }
         default:
             break;
         }
@@ -929,19 +899,19 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
 /* Handle characteristic notification packet */
 static void handle_char_notification_packet(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
-    printf("Got Notification packet.\n");
+    LOG_INFO("Got Notification packet.\n");
     if (hci_event_packet_get_type(packet) != GATT_EVENT_NOTIFICATION) { 
-        printf("Not GATT notification event.\n");
+        LOG_ERROR("Not GATT notification event.\n");
         return; 
     }
     auto device_handle = gatt_event_notification_get_handle(packet);
     auto dev = device_mgr.get_by_conn_handle(device_handle);
     if (!dev) {
-        printf("ASP notification: cannot get device\n");
+        LOG_ERROR("ASP notification: cannot get device\n");
         return;
     }
     if (dev->status != DeviceStatus::StreamStarting && dev->status != DeviceStatus::StreamStopping) {
-        printf("Device Status is not stopping or starting. It is: %d\n", dev->status);
+        LOG_INFO("Device Status is not stopping or starting. It is: %d\n", dev->status);
         return; 
     }
     
@@ -950,26 +920,34 @@ static void handle_char_notification_packet(uint8_t packet_type, uint16_t channe
     switch(status) {
     case ASPStatus::ok:
     {
-        printf("ASP Ok.\n");
-        auto es = EncodeState::Encode;
-        Device *other = device_mgr.get_other(*dev);
-        if (other && other->status != DeviceStatus::Streaming) {
-            es = EncodeState::ResetEncode;
-        }
+        LOG_INFO("ASP Ok.\n");
+        // auto es = EncodeState::Encode;
+        // Device *other = device_mgr.get_other(*dev);
+        // if (other && other->status != DeviceStatus::Streaming) {
+        //     es = EncodeState::ResetEncode;
+        // }
         if (dev->status == DeviceStatus::StreamStarting) {
             dev->status = DeviceStatus::Streaming;
         }
-        encode_state = es;
+        asha_shared.encode_audio = true;
+        uint32_t asha_index = asha_shared.packet_index;
+        Device *other = device_mgr.get_other(*dev);
+        if (other && other->status == DeviceStatus::Streaming) {
+            dev->curr_g_packet_index = other->curr_g_packet_index;
+            dev->pre_buff = 0;
+        } else {
+            dev->curr_g_packet_index = (asha_index > 0) ? asha_index - 1 : 0;
+        }
         break;
     }
     case ASPStatus::unkown_command:
-        printf("ASP: Unknown command\n");
+        LOG_INFO("ASP: Unknown command\n");
         break;
     case ASPStatus::illegal_params:
-        printf("ASP: Illegal parameters\n");
+        LOG_INFO("ASP: Illegal parameters\n");
         break;
     default:
-        printf("ASP: Status: %d\n", status);
+        LOG_INFO("ASP: Status: %d\n", status);
         break;
     }
 }
@@ -981,10 +959,10 @@ static void write_acp(Device& dev, uint8_t opcode)
     case ACPOpCode::start:
     {
         if (dev.status != DeviceStatus::StreamStarting) {
-            printf("Device not in stream starting mode.\n");
+            LOG_INFO("Device not in stream starting mode.\n");
             return;
         }
-        curr_volume = pcm_buff.volume;
+        curr_volume = asha_shared.volume;
         dev.acp_command_packet[0] = opcode;
         dev.acp_command_packet[1] = 1U;
         dev.acp_command_packet[2] = 0U;
@@ -1000,7 +978,7 @@ static void write_acp(Device& dev, uint8_t opcode)
     case ACPOpCode::stop:
     {
         if (dev.status != DeviceStatus::StreamStopping) {
-            printf("Device not in stream stopping mode.\n");
+            LOG_INFO("Device not in stream stopping mode.\n");
             return;
         }
         dev.acp_command_packet[0] = opcode;
@@ -1015,7 +993,7 @@ static void write_acp(Device& dev, uint8_t opcode)
         break;
     }
     if (res != ERROR_CODE_SUCCESS) {
-        printf("Error registering ACP write.\n");
+        LOG_ERROR("Error registering ACP write.\n");
         dev.status = DeviceStatus::L2Connected;
     }
 }
@@ -1028,15 +1006,15 @@ static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *pa
         auto handle = gatt_event_query_complete_get_handle(packet);
         Device *dev = device_mgr.get_by_conn_handle(handle);
         if (!dev) {
-            printf("Could not get device with connection handle %hu.\n", handle);
+            LOG_ERROR("Could not get device with connection handle %hu.\n", handle);
             return;
         }
         auto status = gatt_event_query_complete_get_att_status(packet);
         if (status != ATT_ERROR_SUCCESS) {
-            printf("Write to ACP failed with error: %d", status);
+            LOG_ERROR("Write to ACP failed with error: %d", status);
             dev->status = DeviceStatus::L2Connected;
         }
-        printf("ACP write succeeded.\n");
+        LOG_INFO("ACP write succeeded.\n");
         break;
     }
     }
@@ -1044,28 +1022,40 @@ static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *pa
 
 static void send_audio_packets()
 {
+    if (!asha_shared.encode_audio) {
+        return;
+    }
     Device *l = device_mgr.get_left_or_mono();
     Device *r = device_mgr.get_right();
-    curr_left_buff = encoder.left_g722;
-    curr_right_buff = encoder.right_g722;
-    curr_mono_buff = encoder.mono_g722;
     bool change_vol = false;
-    if (curr_volume != pcm_buff.volume) {
-        curr_volume = pcm_buff.volume;
+    if (curr_volume != asha_shared.volume) {
+        curr_volume = asha_shared.volume;
         change_vol = true;
     }
-    if (l && l->status == DeviceStatus::Streaming) {
+    uint32_t packet_index = asha_shared.packet_index;
+    if (l && l->status == DeviceStatus::Streaming && !l->audio_send_pending) {
         if (change_vol) {
             l->set_volume(curr_volume);
         }
-        l2cap_request_can_send_now_event(l->cid);
+        if ((l->curr_g_packet_index + l->pre_buff) < packet_index) {
+            l->pre_buff = 0;
+            l->audio_send_pending = true;
+            //printf("%d:%d ", l->curr_g_packet_index, packet_index);
+            l2cap_request_can_send_now_event(l->cid);
+        }
     }
-    if (r && r->status == DeviceStatus::Streaming) {
+    if (r && r->status == DeviceStatus::Streaming && !r->audio_send_pending) {
         if (change_vol) {
             r->set_volume(curr_volume);
         }
-        l2cap_request_can_send_now_event(r->cid);
+        if ((r->curr_g_packet_index + r->pre_buff) < packet_index) {
+            r->pre_buff = 0;
+            r->audio_send_pending = true;
+            //printf("%d:%d ", r->curr_g_packet_index, packet_index);
+            l2cap_request_can_send_now_event(r->cid);
+        }
     }
+    return;
 }
 
 /* Main btstack HCI event handler */
@@ -1084,7 +1074,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             // Set defaults, except min_ce_length & max_ce_length
             // gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 10, 16);
             gap_local_bd_addr(local_addr);
-            printf("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
+            LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
             start_scan();
             // btstack_run_loop_add_timer(&audio_timer);
         } else {
@@ -1102,7 +1092,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         // printf("Address: %s\n", bd_addr_to_str(curr_scan.report.address));
         if (curr_scan.report.is_hearing_aid()) {
             gatt_state = GATTState::Connecting;
-            printf("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
+            LOG_INFO("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
             bd_addr_copy(curr_scan.device.addr, curr_scan.report.address);
             gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
         } else {
@@ -1121,13 +1111,13 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             curr_scan.device.orig_conn_interval = hci_subevent_le_connection_complete_get_conn_interval(packet);
             curr_scan.device.orig_conn_latency = hci_subevent_le_connection_complete_get_conn_latency(packet);
             curr_scan.device.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
-            printf("Original connection parameters: Interval: %hu, Latency: %hu, Supervision Timeout: %hu\n", 
+            LOG_INFO("Original connection parameters: Interval: %hu, Latency: %hu, Supervision Timeout: %hu\n", 
                 curr_scan.device.orig_conn_interval, curr_scan.device.orig_conn_latency, curr_scan.device.supervision_timeout);
             gatt_state = GATTState::Service;
-            printf("Device connected. Discovering ASHA service\n");
+            LOG_INFO("Device connected. Discovering ASHA service\n");
             auto res = gatt_client_discover_primary_services_by_uuid128(handle_service_discovery, curr_scan.device.conn_handle, AshaUUID::service);
             if (res != ERROR_CODE_SUCCESS) {
-                printf("Could not register service query: %d\n", static_cast<int>(res));
+                LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
                 gatt_state = GATTState::Disconnecting;
                 gap_disconnect(curr_scan.device.conn_handle);
             }
@@ -1139,7 +1129,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             uint16_t conn_latency = hci_subevent_le_connection_update_complete_get_conn_latency(packet);
             uint16_t supervision_timeout = hci_subevent_le_connection_update_complete_get_supervision_timeout(packet);
             hci_con_handle_t handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
-            printf("Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
+            LOG_INFO("Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
                 conn_interval, conn_latency, supervision_timeout);
             Device *d = device_mgr.get_by_conn_handle(handle);
             if (d) {
@@ -1159,17 +1149,17 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     case HCI_EVENT_DISCONNECTION_COMPLETE:
     {
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
-        printf("Received disconnection event.\n");
+        LOG_INFO("Received disconnection event.\n");
         // Expected disconnection, reenable scanning
         if (gatt_state == GATTState::Disconnecting) {
-            printf("Expected disconnection\n");
+            LOG_INFO("Expected disconnection\n");
         } else {
-            printf("Disconnected with reason: %d\n", static_cast<int>(reason));
+            LOG_ERROR("Disconnected with reason: %d\n", static_cast<int>(reason));
         }
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto d = device_mgr.get_by_conn_handle(c);
         if (d != nullptr) {
-            printf("%s device disconnected.\n", (d->read_only_props.side == DeviceSide::Left) ? "Left" : "Right");
+            LOG_INFO("%s device disconnected.\n", (d->read_only_props.side == DeviceSide::Left) ? "Left" : "Right");
             device_mgr.remove_device(*d);
         }
         gatt_state = GATTState::Scan;
@@ -1196,15 +1186,15 @@ static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *p
             break;
         case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
         {
-            printf("Identity resolving succeeded\n");
+            LOG_INFO("Identity resolving succeeded\n");
             sm_event_identity_resolving_succeeded_get_address(packet, curr_scan.device.addr);
             if (device_mgr.get_by_address(curr_scan.device.addr)) {
-                printf("Device already connected.\n");
+                LOG_INFO("Device already connected.\n");
                 return;
             }
             gatt_state = GATTState::Connecting;
             auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
-            printf("Connecting to address %s\n", bd_addr_to_str(curr_scan.device.addr));
+            LOG_INFO("Connecting to address %s\n", bd_addr_to_str(curr_scan.device.addr));
             gap_connect(curr_scan.device.addr, static_cast<bd_addr_type_t>(addr_type));
             break;
         }
@@ -1213,25 +1203,25 @@ static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *p
     } else {
         switch (ev_type) {
         case SM_EVENT_JUST_WORKS_REQUEST:
-            printf("Just Works requested\n");
+            LOG_INFO("Just Works requested\n");
             sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
             break;
         case SM_EVENT_PAIRING_STARTED:
-            printf("Pairing started\n");
+            LOG_INFO("Pairing started\n");
             break;
         case SM_EVENT_PAIRING_COMPLETE:
             switch (sm_event_pairing_complete_get_status(packet)){
             case ERROR_CODE_SUCCESS:
-                printf("Pairing complete, success\n");
+                LOG_INFO("Pairing complete, success\n");
                 break;
             case ERROR_CODE_CONNECTION_TIMEOUT:
-                printf("Pairing failed, timeout\n");
+                LOG_ERROR("Pairing failed, timeout\n");
                 break;
             case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
-                printf("Pairing failed, disconnected\n");
+                LOG_ERROR("Pairing failed, disconnected\n");
                 break;
             case ERROR_CODE_AUTHENTICATION_FAILURE:
-                printf("Pairing failed, authentication failure with reason: %d\n",
+                LOG_ERROR("Pairing failed, authentication failure with reason: %d\n",
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
                 break;
             default:
@@ -1246,21 +1236,23 @@ static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *p
 
 extern "C" void asha_main()
 {
-    printf("BT ASHA starting.\n");
+    LOG_INFO("BT ASHA starting.\n");
     if (cyw43_arch_init()) {
-        printf("failed to initialise cyw43_arch\n");
+        LOG_ERROR("failed to initialise cyw43_arch\n");
         return;
     }
-    //hci_dump_init(hci_dump_embedded_stdout_get_instance());
-    //audio_mgr.init();
-    printf("L2CAP Init.\n");
+#ifdef ASHA_HCI_DUMP
+    hci_dump_init(hci_dump_embedded_stdout_get_instance());
+#endif
+    LOG_INFO("L2CAP Init.\n");
     l2cap_init();
-    printf("SM Init.\n");
+    LOG_INFO("SM Init.\n");
+    l2cap_set_max_le_mtu(buff_size_sdu);
     sm_init();
     sm_set_secure_connections_only_mode(true);
     sm_set_io_capabilities(IO_CAPABILITY_DISPLAY_YES_NO);
     sm_set_authentication_requirements(SM_AUTHREQ_SECURE_CONNECTION | SM_AUTHREQ_MITM_PROTECTION | SM_AUTHREQ_BONDING);
-    printf("GATT Client Init.\n");
+    LOG_INFO("GATT Client Init.\n");
     gatt_client_init();
     gatt_client_set_required_security_level(LEVEL_2);
 
@@ -1270,28 +1262,13 @@ extern "C" void asha_main()
     sm_event_callback_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&sm_event_callback_registration);
 
-    // btstack_run_loop_set_timer(&audio_timer, 20);
-    // btstack_run_loop_set_timer_handler(&audio_timer, &handle_audio_start_timer);
-    // btstack_run_loop_add_timer(&audio_timer);
-
-    printf("HCI power on.\n");
+    LOG_INFO("HCI power on.\n");
     hci_power_control(HCI_POWER_ON);
 
     // Run the encoder in the main loop to avoid blocking BTStack
     while(1) {
-        if (encode_state == EncodeState::Reset) {
-            encoder.audio_init();
-            encode_state = EncodeState::Idle;
-        } else if (encode_state == EncodeState::ResetEncode) {
-            encoder.audio_init();
-            encoder.encode_next_20ms();
-            send_audio_packets();
-            encode_state = EncodeState::Encode;
-        } else if (encode_state == EncodeState::Encode) {
-            encoder.encode_next_20ms();
-            send_audio_packets();
-        }
         audio_starter();
+        send_audio_packets();
     }
 }
 
