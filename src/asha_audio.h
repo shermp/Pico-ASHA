@@ -30,6 +30,7 @@ struct asha_audio {
 
     int write_offset;
     volatile uint32_t packet_index;
+    volatile bool pcm_stereo_data_ready;
     uint8_t seq_num;
 
     uint8_t g_l_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES];
@@ -43,6 +44,8 @@ struct asha_audio {
     int16_t tmp_l_pcm[ASHA_PCM_PACKET_SIZE];
     int16_t tmp_r_pcm[ASHA_PCM_PACKET_SIZE];
     int16_t tmp_m_pcm[ASHA_PCM_PACKET_SIZE];
+
+    int16_t stereo_pcm_buff[ASHA_PCM_STEREO_PACKET_SIZE];
 };
 
 void asha_audio_init(struct asha_audio *audio);
@@ -53,6 +56,8 @@ void asha_audio_g_m_reset(struct asha_audio *audio);
 void asha_audio_g_reset(struct asha_audio *audio);
 
 void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_STEREO_PACKET_SIZE]);
+
+void asha_audio_encode_loop(void);
 
 //uint32_t asha_audio_latest_index(struct asha_audio *audio);
 //uint8_t* asha_audio_g_get_20ms(struct asha_audio *audio, uint32_t index);

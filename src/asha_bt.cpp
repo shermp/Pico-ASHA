@@ -13,6 +13,7 @@
 #include "hci_dump_embedded_stdout.h"
 #endif
 
+#include "usb_audio.h"
 #include "asha_audio.h"
 
 #if defined (ASHA_LOG_ERROR)
@@ -866,7 +867,7 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
                        ? asha_shared.g_l_buff[index]
                        : asha_shared.g_r_buff[index];
             }
-            //printf("%u ", data[0]);
+            LOG_AUDIO("%u ", data[0]);
             auto res = l2cap_send(dev->cid, data, buff_size_sdu);
             if (res != ERROR_CODE_SUCCESS) {
                 dev->audio_send_pending = false;
@@ -1040,7 +1041,7 @@ static void send_audio_packets()
         if ((l->curr_g_packet_index + l->pre_buff) < packet_index) {
             l->pre_buff = 0;
             l->audio_send_pending = true;
-            //printf("%d:%d ", l->curr_g_packet_index, packet_index);
+            LOG_AUDIO("%d:%d ", l->curr_g_packet_index, packet_index);
             l2cap_request_can_send_now_event(l->cid);
         }
     }
@@ -1051,7 +1052,7 @@ static void send_audio_packets()
         if ((r->curr_g_packet_index + r->pre_buff) < packet_index) {
             r->pre_buff = 0;
             r->audio_send_pending = true;
-            //printf("%d:%d ", r->curr_g_packet_index, packet_index);
+            LOG_AUDIO("%d:%d ", r->curr_g_packet_index, packet_index);
             l2cap_request_can_send_now_event(r->cid);
         }
     }
@@ -1236,6 +1237,8 @@ static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *p
 
 extern "C" void asha_main()
 {
+    LOG_INFO("TinyUSB Staring.\n");
+    init_usb();
     LOG_INFO("BT ASHA starting.\n");
     if (cyw43_arch_init()) {
         LOG_ERROR("failed to initialise cyw43_arch\n");
@@ -1267,6 +1270,8 @@ extern "C" void asha_main()
 
     // Run the encoder in the main loop to avoid blocking BTStack
     while(1) {
+        run_tud_task();
+        audio_task();
         audio_starter();
         send_audio_packets();
     }

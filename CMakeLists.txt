@@ -10,8 +10,8 @@ pico_sdk_init()
 
 add_executable(asha
   src/main.c
-  src/asha_audio.c
   src/asha_bt.cpp
+  src/asha_audio.c
   src/usb_audio.c
   src/usb_descriptors.c
   src/perf_test.c
@@ -22,6 +22,7 @@ target_include_directories(asha PUBLIC src/ lib/)
 # target_compile_definitions(asha PUBLIC CFG_TUSB_DEBUG=1)
 # target_compile_definitions(asha PUBLIC ASHA_PERF_TEST)
 target_compile_definitions(asha PUBLIC ASHA_LOG_INFO)
+# target_compile_definitions(asha PUBLIC ASHA_LOG_AUDIO)
 
 pico_add_extra_outputs(asha)
 

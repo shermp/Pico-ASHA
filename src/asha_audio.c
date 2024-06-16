@@ -3,6 +3,8 @@
 
 #include "asha_audio.h"
 
+absolute_time_t prev_time = {._private_us_since_boot = 0};
+
 void asha_audio_init(struct asha_audio *audio)
 {
     audio->volume = -128;
@@ -11,6 +13,7 @@ void asha_audio_init(struct asha_audio *audio)
     audio->seq_num = 0;
     audio->pcm_streaming = false;
     audio->encode_audio = false;
+    audio->pcm_stereo_data_ready = false;
 
     asha_audio_g_reset(audio);
 }
@@ -51,7 +54,7 @@ void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_
     uint32_t packet_index = ASHA_RING_BUFF_INDEX(audio->packet_index);
     g722_encode(&audio->g_l_state, &(audio->g_l_buff[packet_index][offset]), audio->tmp_l_pcm, ASHA_PCM_PACKET_SIZE);
     g722_encode(&audio->g_r_state, &(audio->g_r_buff[packet_index][offset]), audio->tmp_r_pcm, ASHA_PCM_PACKET_SIZE);
-    //g722_encode(&audio->g_m_state, &(audio->g_m_buff[packet_index][offset]), audio->tmp_m_pcm, ASHA_PCM_PACKET_SIZE);
+    g722_encode(&audio->g_m_state, &(audio->g_m_buff[packet_index][offset]), audio->tmp_m_pcm, ASHA_PCM_PACKET_SIZE);
     
     audio->write_offset += ASHA_G722_1MS_SIZE_BYTES;
     if (audio->write_offset >= (ASHA_SDU_SIZE_BYTES)) {
@@ -62,6 +65,26 @@ void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_
         audio->write_offset = 1;
         audio->seq_num++;
         audio->packet_index++;
+        absolute_time_t curr_time = get_absolute_time();
+        printf("%lld ", absolute_time_diff_us(prev_time, curr_time));
+        prev_time = curr_time;
+    }
+}
+
+void asha_audio_encode_loop()
+{
+    while(1) {
+        if (!asha_shared.pcm_streaming) {
+            continue;
+        }
+        if (!asha_shared.encode_audio) {
+            continue;
+        }
+        if (!asha_shared.pcm_stereo_data_ready) {
+            continue;
+        }
+        asha_shared.pcm_stereo_data_ready = false;
+        asha_audio_g_enc_1ms(&asha_shared, asha_shared.stereo_pcm_buff);        
     }
 }
 

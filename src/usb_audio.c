@@ -26,10 +26,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
 #include "tusb.h"
+#include "bsp/board.h"
 #include "usb_descriptors.h"
 
+#include "usb_audio.h"
 #include "asha_audio.h"
 
 //--------------------------------------------------------------------+
@@ -80,23 +81,19 @@ const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_
 // Current resolution, update on format change
 uint8_t current_resolution;
 
-void audio_task(void);
-
 /*------------- MAIN -------------*/
-void usb_main(void)
+void init_usb(void)
 {
   board_init();
-
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
   TU_LOG1("Headset running\n");
+}
 
-  while (1)
-  {
-    tud_task(); // TinyUSB device task
-    audio_task();
-  }
+void run_tud_task(void)
+{
+  tud_task();
 }
 
 //--------------------------------------------------------------------+
@@ -374,8 +371,8 @@ void audio_task(void)
       return;
     }
     if (asha_shared.encode_audio) {
-      
-      asha_audio_g_enc_1ms(&asha_shared, spk_buf);
+      memcpy(asha_shared.stereo_pcm_buff, spk_buf, spk_data_size);
+      asha_shared.pcm_stereo_data_ready = true;
     }
     asha_shared.pcm_streaming = true;
     spk_data_size = 0;
