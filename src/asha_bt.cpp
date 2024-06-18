@@ -124,7 +124,7 @@ enum EncodeState { Reset, Idle, Encode, ResetEncode };
 // constexpr uint16_t num_frames_16khz_20ms = ASHA_PCM_AUDIO_FRAME_SIZE * 20;
 // constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * 2;
 // constexpr uint16_t buff_size_g722_20ms = buff_size_16khz_20ms / 4; // 4:1 compression ratio
-constexpr int num_pdu_to_buffer = 4;
+constexpr int num_pdu_to_buffer = 8;
 constexpr uint16_t buff_size_sdu = ASHA_SDU_SIZE_BYTES;
 constexpr int ms_20 = 20;
 
@@ -786,7 +786,7 @@ static void audio_starter()
                 write_acp(*r, ACPOpCode::start);
             }
         }
-    }
+    } 
 }
 
 /* Change connection parameters for device */
