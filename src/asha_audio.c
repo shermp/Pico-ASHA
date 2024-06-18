@@ -65,6 +65,14 @@ void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_
     }
 }
 
+uint8_t* asha_audio_get_l_buff_at_index(struct asha_audio *audio, uint32_t index)
+{
+    return audio->g_l_buff[ASHA_RING_BUFF_INDEX(index)];
+}
+uint8_t* asha_audio_get_r_buff_at_index(struct asha_audio *audio, uint32_t index)
+{
+    return audio->g_r_buff[ASHA_RING_BUFF_INDEX(index)];
+}
 // uint32_t asha_audio_latest_index(struct asha_audio *audio)
 // {
 //     return audio->packet_index - 1;

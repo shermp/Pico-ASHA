@@ -53,6 +53,8 @@ void asha_audio_g_m_reset(struct asha_audio *audio);
 void asha_audio_g_reset(struct asha_audio *audio);
 
 void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_STEREO_PACKET_SIZE]);
+uint8_t* asha_audio_get_l_buff_at_index(struct asha_audio *audio, uint32_t index);
+uint8_t* asha_audio_get_r_buff_at_index(struct asha_audio *audio, uint32_t index);
 
 //uint32_t asha_audio_latest_index(struct asha_audio *audio);
 //uint8_t* asha_audio_g_get_20ms(struct asha_audio *audio, uint32_t index);
