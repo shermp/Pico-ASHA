@@ -1,0 +1,53 @@
+name: Build Pico-ASHA
+
+on:
+    push:
+    pull_request:
+
+jobs:
+    build_pico_asha:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                path: pico-asha
+            
+            - name: Checkout Pico SDK
+              uses: actions/checkout@v4
+              with:
+                repository: raspberrypi/pico-sdk
+                path: pico-sdk
+                submodules: recursive
+            
+            - name: Install dependencies
+              run: |
+                apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+            
+            - name: Set PICO_SDK_PATH env variable
+              run: |
+                echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
+            
+            - name: Apply Bluetooth DLE patch
+              run: |
+                wget https://github.com/raspberrypi/pico-sdk/files/12750460/0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
+                unzip 0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
+                cd pico-sdk/lib/cyw43-driver
+                git am ../../../0001-Update-firmware-for-Data-Length-Extension-fix.patch
+            
+            - name: Configure build
+              run: |
+                mkdir pico-asha/build
+                cd pico-asha/build
+                cmake -DCMAKE_BUILD_TYPE=Release ..
+                
+            - name: Compile
+              run: |
+                cd pico-asha/build
+                cmake --build .
+
+            - name: Upload UF2 artifact
+              uses: actions/upload-artifact@v4
+              with:
+                path: pico-asha/build/pico-asha.uf2
