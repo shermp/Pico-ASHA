@@ -535,6 +535,7 @@ static void create_l2cap_conn(Device& dev);
 static void write_acp(Device& dev, uint8_t opcode);
 static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void enable_asp_notification();
+static void send_audio_packet(Device& dev);
 static void send_audio_packets();
 
 extern "C" void le_handle_advertisement_report(uint8_t *packet, uint16_t size);
@@ -849,33 +850,6 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             d->status = DeviceStatus::L2Connected;
             break;
         }
-        case L2CAP_EVENT_CAN_SEND_NOW:
-        {
-            auto cid = l2cap_event_can_send_now_get_local_cid(packet);
-            Device *dev = device_mgr.get_by_cid(cid);
-            if (!dev) {
-                LOG_ERROR("Could not find device with cid '%hd'\n", cid);
-                return;
-            }
-            uint8_t *data;
-            uint32_t index = ASHA_RING_BUFF_INDEX(dev->curr_g_packet_index);
-            if (dev->read_only_props.mode == DeviceMode::Monaural) {
-                data = asha_shared.g_m_buff[index];
-            } else {
-                data = (dev->read_only_props.side == DeviceSide::Left)
-                       ? asha_shared.g_l_buff[index]
-                       : asha_shared.g_r_buff[index];
-            }
-            //printf("%u ", data[0]);
-            auto res = l2cap_send(dev->cid, data, buff_size_sdu);
-            if (res != ERROR_CODE_SUCCESS) {
-                dev->audio_send_pending = false;
-                LOG_ERROR("Failed to send l2cap data with reason: %d\n", res);
-            }
-            dev->curr_g_packet_index++;
-            //printf("%hu ", (uint16_t)(data[0]));
-            break;
-        }
         case L2CAP_EVENT_PACKET_SENT:
         {
             auto cid = l2cap_event_packet_sent_get_local_cid(packet);
@@ -1020,6 +994,28 @@ static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *pa
     }
 }
 
+static void send_audio_packet(Device& dev)
+{
+    dev.pre_buff = 0;
+    dev.audio_send_pending = true;
+    uint8_t *data;
+    //uint32_t index = ASHA_RING_BUFF_INDEX(dev.curr_g_packet_index);
+    // if (dev.read_only_props.mode == DeviceMode::Monaural) {
+    //     data = asha_shared.g_m_buff[index];
+    // } else {
+        data = (dev.read_only_props.side == DeviceSide::Left)
+                ? asha_audio_get_l_buff_at_index(&asha_shared, dev.curr_g_packet_index)
+                : asha_audio_get_r_buff_at_index(&asha_shared, dev.curr_g_packet_index);
+    //}
+    //printf("%u ", data[0]);
+    auto res = l2cap_send(dev.cid, data, buff_size_sdu);
+    if (res != ERROR_CODE_SUCCESS) {
+        dev.audio_send_pending = false;
+        LOG_ERROR("Failed to send l2cap data with reason: %d\n", res);
+    }
+    dev.curr_g_packet_index++;
+}
+
 static void send_audio_packets()
 {
     if (!asha_shared.encode_audio) {
@@ -1038,10 +1034,9 @@ static void send_audio_packets()
             l->set_volume(curr_volume);
         }
         if ((l->curr_g_packet_index + l->pre_buff) < packet_index) {
-            l->pre_buff = 0;
-            l->audio_send_pending = true;
-            //printf("%d:%d ", l->curr_g_packet_index, packet_index);
-            l2cap_request_can_send_now_event(l->cid);
+            if (l2cap_can_send_packet_now(l->cid)) {
+                send_audio_packet(*l);
+            }
         }
     }
     if (r && r->status == DeviceStatus::Streaming && !r->audio_send_pending) {
@@ -1049,10 +1044,9 @@ static void send_audio_packets()
             r->set_volume(curr_volume);
         }
         if ((r->curr_g_packet_index + r->pre_buff) < packet_index) {
-            r->pre_buff = 0;
-            r->audio_send_pending = true;
-            //printf("%d:%d ", r->curr_g_packet_index, packet_index);
-            l2cap_request_can_send_now_event(r->cid);
+            if (l2cap_can_send_packet_now(r->cid)) {
+                send_audio_packet(*r);
+            }
         }
     }
     return;
