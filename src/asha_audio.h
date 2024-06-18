@@ -20,6 +20,7 @@ extern "C" {
 #define ASHA_G722_1MS_SIZE_BYTES (ASHA_PCM_PACKET_SIZE_BYTES / 4)
 #define ASHA_G722_20MS_SIZE_BYTES (ASHA_G722_1MS_SIZE_BYTES * 20)
 #define ASHA_SDU_SIZE_BYTES (ASHA_G722_20MS_SIZE_BYTES + 1)
+#define ASHA_SDU_SIZE_BYTES_ALIGN (ASHA_G722_20MS_SIZE_BYTES + 4)
 
 #define ASHA_RING_BUFF_INDEX(x) ((x) & ASHA_G722_RING_BUFF_SIZE_MASK)
 
@@ -32,9 +33,9 @@ struct asha_audio {
     volatile uint32_t packet_index;
     uint8_t seq_num;
 
-    uint8_t g_l_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES];
-    uint8_t g_r_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES];
-    uint8_t g_m_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES];
+    uint8_t g_l_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
+    uint8_t g_r_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
+    uint8_t g_m_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
 
     g722_encode_state_t g_l_state;
     g722_encode_state_t g_r_state;
