@@ -22,8 +22,8 @@ Build pico-asha
 ```sh
 mkdir build
 cd build
-cmake ..
-make
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build .
 ```
 
 To load the program onto your Pico W, press the `BOOTSEL` button while plugging it into the PC over USB. Then copy the `asha.uf2` onto the mass storage device.
