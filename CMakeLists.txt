@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(PICO_BOARD pico_w)
 pico_sdk_init()
 
-add_executable(asha
+add_executable(pico-asha
   src/main.c
   src/asha_audio.c
   src/asha_bt.cpp
@@ -18,14 +18,14 @@ add_executable(asha
   lib/g722/g722_encode.cc
 )
 
-target_include_directories(asha PUBLIC src/ lib/)
+target_include_directories(pico-asha PUBLIC src/ lib/)
 # target_compile_definitions(asha PUBLIC CFG_TUSB_DEBUG=1)
 # target_compile_definitions(asha PUBLIC ASHA_PERF_TEST)
-target_compile_definitions(asha PUBLIC ASHA_LOG_INFO)
+target_compile_definitions(pico-asha PUBLIC ASHA_LOG_INFO)
 
-pico_add_extra_outputs(asha)
+pico_add_extra_outputs(pico-asha)
 
-target_link_libraries(asha
+target_link_libraries(pico-asha
   pico_stdlib
   pico_btstack_ble
   pico_btstack_cyw43
@@ -35,7 +35,7 @@ target_link_libraries(asha
   tinyusb_board
 )
 
-target_link_options(asha PUBLIC -Wl,--print-memory-usage)
+target_link_options(pico-asha PUBLIC -Wl,--print-memory-usage)
 
-pico_enable_stdio_usb(asha 0)
-pico_enable_stdio_uart(asha 1)
+pico_enable_stdio_usb(pico-asha 0)
+pico_enable_stdio_uart(pico-asha 1)
