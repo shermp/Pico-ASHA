@@ -23,7 +23,7 @@ jobs:
             
             - name: Install dependencies
               run: |
-                apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+                sudo apt-get update && sudo apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
             
             - name: Set PICO_SDK_PATH env variable
               run: |
