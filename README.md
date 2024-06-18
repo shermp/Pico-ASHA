@@ -30,24 +30,11 @@ To load the program onto your Pico W, press the `BOOTSEL` button while plugging 
 
 ### Serial
 
-By default, Pico-ASHA logs output via UART. If you do not have a means of connecting to the GPIO pins, you may enable USB serial instead. In `CMakeLists.txt`, change the following lines:
-
-```
-pico_enable_stdio_usb(asha 0)
-pico_enable_stdio_uart(asha 1)
-```
-To
-
-```
-pico_enable_stdio_usb(asha 1)
-pico_enable_stdio_uart(asha 0)
-```
-
-Note that in the future, USB serial may not be available once USB audio is implemented.
+Pico-ASHA logs output via UART. Due to the use of USB audio, serial output over USB is currently not possible. Therefore to view debugging info, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
 
 ### Reloading program
 
-It is possbile to load new versions of the software without having to press the `BOOTSEL` button. On Linux, [picotool](https://github.com/raspberrypi/picotool) can be used with USB serial to upload new versions. Alternatively, if you have a SWD connection setup (by using a debug probe), you can use OpenOCD to upload new files instead.
+It is possbile to load new versions of the software without having to press the `BOOTSEL` button. If you have a SWD connection setup (by using a debug probe), you can use OpenOCD to upload new firmware.
 
 ## Licence
 
