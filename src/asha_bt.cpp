@@ -793,7 +793,9 @@ static void audio_starter()
                 write_acp(*r, ACPOpCode::start);
             }
         }
-    } 
+    } else {
+        LOG_AUDIO("pcm_streaming: false\n");
+    }
 }
 
 /* Change connection parameters for device */

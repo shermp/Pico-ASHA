@@ -370,6 +370,7 @@ void audio_task(void)
   }
 
   if (spk_data_size) {
+    asha_shared.pcm_streaming = true;
     if (spk_data_size != ASHA_PCM_STEREO_PACKET_SIZE * 2) {
       return;
     }
@@ -377,7 +378,6 @@ void audio_task(void)
       
       asha_audio_g_enc_1ms(&asha_shared, spk_buf);
     }
-    asha_shared.pcm_streaming = true;
     spk_data_size = 0;
   } //else {
     //pcm_buff.streaming = false;
