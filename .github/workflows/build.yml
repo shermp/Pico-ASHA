@@ -62,7 +62,8 @@ jobs:
                 cd pico-asha/build
                 cmake --build .
 
-            - name: Upload UF2 artifact
+            - name: Upload UF2 and ELF binaries
               uses: actions/upload-artifact@v4
               with:
+                name: pico-asha-bin
                 path: pico-asha/build/pico-asha.[ue][fl][2f]
