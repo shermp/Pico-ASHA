@@ -4,6 +4,9 @@ on:
     push:
     pull_request:
 
+env:
+    PICO_SDK_COMMIT_HASH: 6a7db34ff63345a7badec79ebea3aaef1712f374
+
 jobs:
     build_pico_asha:
         name: Build
@@ -14,12 +17,31 @@ jobs:
               with:
                 path: pico-asha
             
+            - name: Cache Pico SDK
+              id: cache-pico-sdk
+              uses: actions/cache@v4
+              with:
+                path: pico-sdk
+                key: pico-sdk-${{ env.PICO_SDK_COMMIT_HASH }}
+
             - name: Checkout Pico SDK
+              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               uses: actions/checkout@v4
               with:
                 repository: raspberrypi/pico-sdk
                 path: pico-sdk
                 submodules: recursive
+                ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
+
+            - name: Apply Bluetooth DLE patch
+              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
+              run: |
+                wget https://github.com/raspberrypi/pico-sdk/files/12750460/0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
+                unzip 0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
+                cd pico-sdk/lib/cyw43-driver
+                git config --global user.email "gh@localhost"
+                git config --global user.name "GH Actions"
+                git am ../../../0001-Update-firmware-for-Data-Length-Extension-fix.patch
             
             - name: Install dependencies
               run: |
@@ -28,13 +50,6 @@ jobs:
             - name: Set PICO_SDK_PATH env variable
               run: |
                 echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
-            
-            - name: Apply Bluetooth DLE patch
-              run: |
-                wget https://github.com/raspberrypi/pico-sdk/files/12750460/0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
-                unzip 0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
-                cd pico-sdk/lib/cyw43-driver
-                git am ../../../0001-Update-firmware-for-Data-Length-Extension-fix.patch
             
             - name: Configure build
               run: |
@@ -50,4 +65,4 @@ jobs:
             - name: Upload UF2 artifact
               uses: actions/upload-artifact@v4
               with:
-                path: pico-asha/build/pico-asha.uf2
+                path: pico-asha/build/pico-asha.[ue][fl][2f]
