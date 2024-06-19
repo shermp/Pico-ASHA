@@ -128,6 +128,12 @@ constexpr int num_pdu_to_buffer = 8;
 constexpr uint16_t buff_size_sdu = ASHA_SDU_SIZE_BYTES;
 constexpr int ms_20 = 20;
 
+#ifdef ASHA_DELETE_PAIRINGS
+constexpr bool delete_pairings = true;
+#else
+constexpr bool delete_pairings = false;
+#endif
+
 /* Class to represent the ReadOnlyProperties characteristic */
 struct ReadOnlyProperties
 {
@@ -521,6 +527,7 @@ static void audio_starter();
 
 static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void delete_paired_devices();
 
 static void handle_service_discovery(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void handle_characteristic_discovery(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
@@ -1069,6 +1076,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             // gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 10, 16);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
+            if (delete_pairings) {
+                delete_paired_devices();
+            }
             start_scan();
             // btstack_run_loop_add_timer(&audio_timer);
         } else {
@@ -1224,6 +1234,22 @@ static void sm_packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *p
             break;
         default:
             break;
+        }
+    }
+}
+
+static void delete_paired_devices()
+{
+    LOG_INFO("Removing paired devices\n");
+    int addr_type;
+    bd_addr_t addr; 
+    sm_key_t irk;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
+            LOG_INFO("Removing: %s\n", bd_addr_to_str(addr));
+            le_device_db_remove(i);
         }
     }
 }

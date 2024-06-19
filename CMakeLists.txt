@@ -22,6 +22,7 @@ target_include_directories(pico-asha PUBLIC src/ lib/)
 # target_compile_definitions(asha PUBLIC CFG_TUSB_DEBUG=1)
 # target_compile_definitions(asha PUBLIC ASHA_PERF_TEST)
 target_compile_definitions(pico-asha PUBLIC ASHA_LOG_INFO)
+# target_compile_definitions(pico-asha PUBLIC ASHA_DELETE_PAIRINGS)
 
 pico_add_extra_outputs(pico-asha)
 
