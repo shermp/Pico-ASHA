@@ -510,7 +510,7 @@ enum class GATTState {
 /* Connection parameters for ASHA
    Note, connection interval is in units of 1.25ms */
 constexpr uint16_t asha_conn_interval = 20 / 1.25f;
-constexpr uint16_t asha_conn_latency  = 0;
+constexpr uint16_t asha_conn_latency  = 10;
 
 static GATTState gatt_state = GATTState::Start;
 //static Device left;
