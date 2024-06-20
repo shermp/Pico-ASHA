@@ -56,9 +56,9 @@ uint32_t current_sample_rate  = 16000;
  */
 enum
 {
-  USB_ASHA_VOLUME_MAX_0_DB = 0,
-  USB_ASHA_VOLUME_MIN_47_625_DB = 12192,
-  USB_ASHA_VOLUME_RES = 96,
+  USB_ASHA_VOLUME_MAX = 0,
+  USB_ASHA_VOLUME_MIN = 32767,
+  USB_ASHA_VOLUME_RES = 256,
   USB_VOLUME_MUTE = 0x8000,
   ASHA_VOLUME_MUTE = 128,
 };
@@ -213,7 +213,7 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
     {
       audio_control_range_2_n_t(1) range_vol = {
         .wNumSubRanges = tu_htole16(1),
-        .subrange[0] = { .bMin = tu_htole16(-USB_ASHA_VOLUME_MIN_47_625_DB), tu_htole16(USB_ASHA_VOLUME_MAX_0_DB), tu_htole16(USB_ASHA_VOLUME_RES) }
+        .subrange[0] = { .bMin = tu_htole16(-USB_ASHA_VOLUME_MIN), tu_htole16(USB_ASHA_VOLUME_MAX), tu_htole16(USB_ASHA_VOLUME_RES) }
       };
       TU_LOG1("Get channel %u volume range (%d, %d, %u) dB\n", request->bChannelNumber,
               range_vol.subrange[0].bMin / 256, range_vol.subrange[0].bMax / 256, range_vol.subrange[0].bRes / 256);
@@ -363,8 +363,8 @@ void audio_task(void)
 {
   //TU_LOG1("Raw Volume: %hd\n", volume[0]);
 
-  // Dividing the USB volume by 96 gives a volume in the ASHA range.
-  asha_shared.volume = (int8_t)(volume[1] / 96);
+    // Dividing the USB volume by 256 gives a volume in the ASHA range.
+    asha_shared.volume = (int8_t)(volume[1] / 256);
   if (mute[1]) {
     asha_shared.volume = -ASHA_VOLUME_MUTE;
   }
