@@ -55,7 +55,7 @@ jobs:
               run: |
                 mkdir pico-asha/build
                 cd pico-asha/build
-                cmake -DCMAKE_BUILD_TYPE=Release ..
+                cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
                 
             - name: Compile
               run: |
