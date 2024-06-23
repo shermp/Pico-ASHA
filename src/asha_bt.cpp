@@ -1075,7 +1075,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             // Set 2M PHY
             gap_set_connection_phys(2);
             // Set defaults, except min_ce_length & max_ce_length
-            // gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 10, 16);
+            gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 12, 12);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
             if (delete_pairings) {
