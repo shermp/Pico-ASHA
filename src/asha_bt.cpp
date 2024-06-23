@@ -387,13 +387,13 @@ struct DeviceManager {
     }
     bool remove_device(const Device& dev)
     {
-        if (dev == leftOrMono) {
+        if (&dev == &leftOrMono) {
             LOG_INFO("Removing left device\n");
             leftOrMono = Device();
             num_devices--;
             return true;
-        } else if (dev == right) {
-            LOG_INFO("Right left device\n");
+        } else if (&dev == &right) {
+            LOG_INFO("Removing right device\n");
             right = Device();
             num_devices--;
             return true;
