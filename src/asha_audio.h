@@ -4,14 +4,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <g722/g722_enc_dec.h>
+#include <pico/util/queue.h>
+
+#include "g722/g722_enc_dec.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define ASHA_G722_RING_BUFF_SIZE 16U
-#define ASHA_G722_RING_BUFF_SIZE_MASK (ASHA_G722_RING_BUFF_SIZE - 1U)
+#define ASHA_G722_QUEUE_SIZE 16U
+#define ASHA_COMMAND_QUEUE_SIZE 4U
+#define ASHA_USB_STATUS_QUEUE_SIZE 4U
 
 #define ASHA_PCM_PACKET_SIZE 16 // 16 samples per ms
 #define ASHA_PCM_STEREO_PACKET_SIZE (ASHA_PCM_PACKET_SIZE * 2)
@@ -22,45 +25,35 @@ extern "C" {
 #define ASHA_SDU_SIZE_BYTES (ASHA_G722_20MS_SIZE_BYTES + 1)
 #define ASHA_SDU_SIZE_BYTES_ALIGN (ASHA_G722_20MS_SIZE_BYTES + 4)
 
-#define ASHA_RING_BUFF_INDEX(x) ((x) & ASHA_G722_RING_BUFF_SIZE_MASK)
+// Offset that G.722 encoded packet starts to allow
+// for ASHA sequence number
+#define ASHA_SDU_START_OFFSET 1
 
-struct asha_audio {
-    volatile int8_t volume;
-    volatile bool pcm_streaming;
-    volatile bool encode_audio;
+typedef struct asha_g722_sdu {
+    uint8_t l_packet[ASHA_SDU_SIZE_BYTES_ALIGN];
+    uint8_t r_packet[ASHA_SDU_SIZE_BYTES_ALIGN];
+    int8_t  l_volume;
+    int8_t  r_volume;
+} asha_g722_sdu_t;
 
-    int write_offset;
-    volatile uint32_t packet_index;
-    uint8_t seq_num;
-
-    uint8_t g_l_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
-    uint8_t g_r_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
-    uint8_t g_m_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
-
-    g722_encode_state_t g_l_state;
-    g722_encode_state_t g_r_state;
-    g722_encode_state_t g_m_state;
-
-    int16_t tmp_l_pcm[ASHA_PCM_PACKET_SIZE];
-    int16_t tmp_r_pcm[ASHA_PCM_PACKET_SIZE];
-    int16_t tmp_m_pcm[ASHA_PCM_PACKET_SIZE];
+enum ASHAEncodeCmd {
+    StartEnc,
+    StopEnc,
 };
 
-void asha_audio_init(struct asha_audio *audio);
+enum ASHAUsbStatus {
+    PCMStreaming,
+    PCMNotStreaming,
+};
 
-void asha_audio_g_l_reset(struct asha_audio *audio);
-void asha_audio_g_r_reset(struct asha_audio *audio);
-void asha_audio_g_m_reset(struct asha_audio *audio);
-void asha_audio_g_reset(struct asha_audio *audio);
+// G722 Encoded packet and volume: left and right side
+extern queue_t asha_g_queue;
 
-void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_STEREO_PACKET_SIZE]);
-uint8_t* asha_audio_get_l_buff_at_index(struct asha_audio *audio, uint32_t index);
-uint8_t* asha_audio_get_r_buff_at_index(struct asha_audio *audio, uint32_t index);
+// Command to USB core to start/stop encoding
+extern queue_t asha_command_queue;
 
-//uint32_t asha_audio_latest_index(struct asha_audio *audio);
-//uint8_t* asha_audio_g_get_20ms(struct asha_audio *audio, uint32_t index);
-
-extern struct asha_audio asha_shared;
+// Status to bluetooth to determine PCM state
+extern queue_t asha_usb_status_queue;
 
 #ifdef __cplusplus
 }

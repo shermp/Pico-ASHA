@@ -10,7 +10,6 @@ pico_sdk_init()
 
 add_executable(pico-asha
   src/main.c
-  src/asha_audio.c
   src/asha_bt.cpp
   src/usb_audio.c
   src/usb_descriptors.c

@@ -12,13 +12,21 @@ void usb_main(void);
 void perf_main(void);
 #endif
 
-struct asha_audio asha_shared;
+queue_t asha_g_queue;
+queue_t asha_command_queue;
+queue_t asha_usb_status_queue;
 
 int main()
 {
-    asha_audio_init(&asha_shared);
     stdio_init_all();
     sleep_ms(2000);
+
+    // Setup the audio, command and status queues between
+    // the Bluetooth core and USB core
+    queue_init(&asha_g_queue, sizeof(asha_g722_sdu_t), ASHA_G722_QUEUE_SIZE);
+    queue_init(&asha_command_queue, sizeof(enum ASHAEncodeCmd), ASHA_COMMAND_QUEUE_SIZE);
+    queue_init(&asha_usb_status_queue, sizeof(enum ASHAUsbStatus), ASHA_USB_STATUS_QUEUE_SIZE);
+
     // Apparently there be dragons when using flash and
     // multicore. And guess where BTStack saves pairing
     // info? Calling this function on the current core

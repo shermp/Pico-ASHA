@@ -25,12 +25,14 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <pico/time.h>
 
 #include "bsp/board.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
 #include "asha_audio.h"
+#include "g722/g722_enc_dec.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -80,6 +82,21 @@ const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_
 // Current resolution, update on format change
 uint8_t current_resolution;
 
+static int16_t tmp_l_pcm[ASHA_PCM_PACKET_SIZE];
+static int16_t tmp_r_pcm[ASHA_PCM_PACKET_SIZE];
+
+static g722_encode_state_t g_l_state;
+static g722_encode_state_t g_r_state;
+
+static asha_g722_sdu_t g_packet;
+static int g_offset = ASHA_SDU_START_OFFSET;
+
+static bool encode;
+enum ASHAUsbStatus pcm_status;
+
+static absolute_time_t prev_time = 0;
+static int zero_data_count = 0;
+
 void audio_task(void);
 
 /*------------- MAIN -------------*/
@@ -91,6 +108,11 @@ void usb_main(void)
   tud_init(BOARD_TUD_RHPORT);
 
   TU_LOG1("Headset running\n");
+
+  encode = false;
+  pcm_status = PCMNotStreaming;
+
+  queue_add_blocking(&asha_usb_status_queue, &pcm_status);
 
   while (1)
   {
@@ -361,26 +383,73 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
 
 void audio_task(void)
 {
-  //TU_LOG1("Raw Volume: %hd\n", volume[0]);
-
-    // Dividing the USB volume by 256 gives a volume in the ASHA range.
-    asha_shared.volume = (int8_t)(volume[1] / 256);
-  if (mute[1]) {
-    asha_shared.volume = -ASHA_VOLUME_MUTE;
-  }
-
-  if (spk_data_size) {
-    asha_shared.pcm_streaming = true;
-    if (spk_data_size != ASHA_PCM_STEREO_PACKET_SIZE * 2) {
-      return;
+    if (spk_data_size == 0) {
+        absolute_time_t curr_time = get_absolute_time();
+        if (zero_data_count == 0) {
+            prev_time = curr_time;
+        }
+        int64_t time_diff = absolute_time_diff_us(prev_time, curr_time);
+        if (time_diff >= 5000 && pcm_status == PCMStreaming) {
+            pcm_status = PCMNotStreaming;
+            queue_add_blocking(&asha_usb_status_queue, &pcm_status);
+        }
+        ++zero_data_count;
+    } else {
+        zero_data_count = 0;
+        if (pcm_status == PCMNotStreaming) {
+            pcm_status = PCMStreaming;
+            queue_add_blocking(&asha_usb_status_queue, &pcm_status);
+        }
     }
-    if (asha_shared.encode_audio) {
-      
-      asha_audio_g_enc_1ms(&asha_shared, spk_buf);
+    while (!queue_is_empty(&asha_command_queue)) {
+        enum ASHAEncodeCmd cmd;
+        queue_remove_blocking(&asha_command_queue, &cmd);
+        switch (cmd) {
+            case StartEnc:
+                g722_encode_init(&g_l_state, 64000, G722_PACKED);
+                g722_encode_init(&g_r_state, 64000, G722_PACKED);
+                encode = true;
+                g_offset = ASHA_SDU_START_OFFSET;
+                break;
+            case StopEnc:
+                encode = false;
+                break;
+            default:
+                encode = false;
+                break;
+        }
     }
+    if (!encode) {
+        return;
+    }
+    // Set left and right volumes
+    g_packet.l_volume = (int8_t)(volume[1] / 256);
+    if (mute[1]) {
+        g_packet.l_volume = -ASHA_VOLUME_MUTE;
+    }
+    g_packet.r_volume = (int8_t)(volume[2] / 256);
+    if (mute[2]) {
+        g_packet.r_volume = -ASHA_VOLUME_MUTE;
+    }
+    // Deinterleave stereo audio to separate buffers
+    int pcm_index;
+    for (int i = 0; i < ASHA_PCM_STEREO_PACKET_SIZE; i += 2) {
+        pcm_index = i / 2;
+        tmp_l_pcm[pcm_index] = spk_buf[i];
+        tmp_r_pcm[pcm_index] = spk_buf[i + 1];
+    }
+
+    // Encode left and right PCM audio to G.722
+    g722_encode(&g_l_state, g_packet.l_packet + g_offset, tmp_l_pcm, ASHA_PCM_PACKET_SIZE);
+    g722_encode(&g_r_state, g_packet.r_packet + g_offset, tmp_r_pcm, ASHA_PCM_PACKET_SIZE);
+
+    // Increment offset by one MS worth of G.722 encoded audio
+    g_offset += ASHA_G722_1MS_SIZE_BYTES;
+
+    // Reset offset and push 20ms G.722 audio packet to queue
+    if (g_offset >= (ASHA_SDU_SIZE_BYTES)) {
+        g_offset = ASHA_SDU_START_OFFSET;
+        queue_try_add(&asha_g_queue, &g_packet);
+    }    
     spk_data_size = 0;
-  } //else {
-    //pcm_buff.streaming = false;
-  //}
-  //TU_LOG1("Streaming: %s\n", pcm_buff.streaming ? "Yes" : "No");
 }
