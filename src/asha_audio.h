@@ -35,11 +35,9 @@ struct asha_audio {
 
     uint8_t g_l_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
     uint8_t g_r_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
-    uint8_t g_m_buff[ASHA_G722_RING_BUFF_SIZE][ASHA_SDU_SIZE_BYTES_ALIGN];
 
     g722_encode_state_t g_l_state;
     g722_encode_state_t g_r_state;
-    g722_encode_state_t g_m_state;
 
     int16_t tmp_l_pcm[ASHA_PCM_PACKET_SIZE];
     int16_t tmp_r_pcm[ASHA_PCM_PACKET_SIZE];
@@ -50,7 +48,6 @@ void asha_audio_init(struct asha_audio *audio);
 
 void asha_audio_g_l_reset(struct asha_audio *audio);
 void asha_audio_g_r_reset(struct asha_audio *audio);
-void asha_audio_g_m_reset(struct asha_audio *audio);
 void asha_audio_g_reset(struct asha_audio *audio);
 
 void asha_audio_g_enc_1ms(struct asha_audio *audio, int16_t stereo_pcm[ASHA_PCM_STEREO_PACKET_SIZE]);
