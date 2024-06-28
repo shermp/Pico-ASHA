@@ -18,12 +18,20 @@ void perf_main(void);
 #endif
 
 struct asha_audio asha_shared;
+#ifdef ASHA_USB_SERIAL
+char pico_uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1 + 4];
+#else
 char pico_uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
+#endif
 
 int main()
 {
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
+#ifdef ASHA_USB_SERIAL
+    const char uid_suffix[4] = "-CDC";
+    memcpy(pico_uid + (sizeof(pico_uid) - sizeof(uid_suffix) - 1), uid_suffix, sizeof(uid_suffix));
+#endif
     // Init TinyUSB before stdio init
     board_init();
     // init device stack on configured roothub port
