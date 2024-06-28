@@ -14,7 +14,6 @@ add_executable(pico-asha
   src/asha_bt.cpp
   src/usb_audio.c
   src/usb_descriptors.c
-  src/perf_test.c
   lib/g722/g722_encode.cc
 )
 
