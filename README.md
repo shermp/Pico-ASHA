@@ -30,14 +30,16 @@ To load the program onto your Pico W, press the `BOOTSEL` button while plugging 
 
 ### Serial
 
-By default, Pico-ASHA logs output via USB serial using the standard Raspberry Pi Pico serial settings:
+By default, Pico-ASHA logs output via UART. To view debugging info over UART, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
+
+Alternatively, Pico-ASHA can log output via USB serial using the standard Raspberry Pi Pico serial settings:
 - **Baud Rate:** 115200
 - **Data Bits:** 8
 - **Stop Bits:"** 1
 - **Parity:** None
 - **DTR** and **RTS** enabled
 
-Pico-ASHA can also log output via UART. To view debugging info over UART, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
+Pass `-DENABLE_USB_SERIAL=ON` to cmake during configure to enable USB serial.
 
 ### Reloading program
 

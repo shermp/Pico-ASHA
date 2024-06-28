@@ -25,6 +25,7 @@ option(ENABLE_BLE_LOG_AUDIO "Enable audio logging" OFF)
 option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
+option(ENABLE_USB_SERIAL "Enable USB serial support" OFF)
 
 if(ENABLE_BLE_LOG_AUDIO)
   list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
@@ -46,6 +47,15 @@ if(ENABLE_PAIR_DEL)
   list(APPEND pico_asha_defines "ASHA_DELETE_PAIRINGS")
 endif()
 
+if(ENABLE_USB_SERIAL)
+  list(APPEND pico_asha_defines "ASHA_USB_SERIAL")
+  pico_enable_stdio_usb(pico-asha 1)
+  pico_enable_stdio_uart(pico-asha 0)
+else()
+  pico_enable_stdio_usb(pico-asha 0)
+  pico_enable_stdio_uart(pico-asha 1)
+endif()
+
 target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
 
 pico_add_extra_outputs(pico-asha)
@@ -61,6 +71,3 @@ target_link_libraries(pico-asha
 )
 
 target_link_options(pico-asha PUBLIC -Wl,--print-memory-usage)
-
-pico_enable_stdio_usb(pico-asha 1)
-pico_enable_stdio_uart(pico-asha 0)
