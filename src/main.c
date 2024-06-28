@@ -2,6 +2,7 @@
 #include <pico/stdio.h>
 #include <pico/multicore.h>
 #include <pico/flash.h>
+#include "pico_asha.h"
 
 #include "asha_audio.h"
 
@@ -13,9 +14,12 @@ void perf_main(void);
 #endif
 
 struct asha_audio asha_shared;
+char pico_uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
 
 int main()
 {
+    // Get serial
+    pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
     asha_audio_init(&asha_shared);
     stdio_init_all();
     sleep_ms(2000);
