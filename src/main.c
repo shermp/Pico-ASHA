@@ -2,6 +2,10 @@
 #include <pico/stdio.h>
 #include <pico/multicore.h>
 #include <pico/flash.h>
+// TinyUSB
+#include "bsp/board.h"
+#include "tusb.h"
+
 #include "pico_asha.h"
 
 #include "asha_audio.h"
@@ -20,6 +24,11 @@ int main()
 {
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
+    // Init TinyUSB before stdio init
+    board_init();
+    // init device stack on configured roothub port
+    tud_init(BOARD_TUD_RHPORT);
+
     asha_audio_init(&asha_shared);
     stdio_init_all();
     sleep_ms(2000);
