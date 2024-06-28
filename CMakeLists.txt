@@ -19,30 +19,30 @@ add_executable(pico-asha
 
 target_include_directories(pico-asha PUBLIC src/ lib/)
 
-option(ASHA_BLE_LOG_ERROR "Enable error logging." OFF)
-option(ASHA_BLE_LOG_INFO "Enable info logging (default)." ON)
-option(ASHA_BLE_LOG_AUDIO "Enable audio logging" OFF)
-option(HCI_DUMP "Enable HCI dump." OFF)
-option(ASHA_USB_LOG "Enable USB logging" OFF)
-option(ASHA_DEL_PAIRINGS "Delete all HA pairings" OFF)
+option(ENABLE_BLE_LOG_ERROR "Enable error logging." OFF)
+option(ENABLE_BLE_LOG_INFO "Enable info logging (default)." ON)
+option(ENABLE_BLE_LOG_AUDIO "Enable audio logging" OFF)
+option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
+option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
+option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
 
-if(ASHA_BLE_LOG_AUDIO)
+if(ENABLE_BLE_LOG_AUDIO)
   list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
-elseif(ASHA_BLE_LOG_INFO)
+elseif(ENABLE_BLE_LOG_INFO)
   list(APPEND pico_asha_defines "ASHA_LOG_INFO")
-elseif(ASHA_BLE_LOG_ERROR)
+elseif(ENABLE_BLE_LOG_ERROR)
   list(APPEND pico_asha_defines "ASHA_LOG_ERROR")
 endif()
 
-if(HCI_DUMP)
+if(ENABLE_HCI_DUMP)
   list(APPEND pico_asha_defines "ASHA_HCI_DUMP")
 endif()
 
-if (ASHA_USB_LOG)
+if (ENABLE_UAC2_LOG)
   list(APPEND pico_asha_defines "CFG_TUSB_DEBUG=1")
 endif()
 
-if(ASHA_DEL_PAIRINGS)
+if(ENABLE_PAIR_DEL)
   list(APPEND pico_asha_defines "ASHA_DELETE_PAIRINGS")
 endif()
 
