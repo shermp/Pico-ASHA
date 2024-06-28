@@ -4,7 +4,7 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 ## Status
 
-**This project is still highly experimental.** Currently, it is possible to discover (Oticon) hearing aids. Audio streaming has not yet been attempted.
+**This project is still highly experimental.** Currently, it is possible to discover (Oticon) hearing aids, and limited audio streaming has been implemented.
 
 **It should be safe, but I cannot guarantee it will not mess up your hearing aids!**
 
