@@ -18,11 +18,35 @@ add_executable(pico-asha
 )
 
 target_include_directories(pico-asha PUBLIC src/ lib/)
-# target_compile_definitions(pico-asha PUBLIC CFG_TUSB_DEBUG=1)
-# target_compile_definitions(asha PUBLIC ASHA_PERF_TEST)
-target_compile_definitions(pico-asha PUBLIC ASHA_LOG_INFO)
-# target_compile_definitions(pico-asha PUBLIC ASHA_HCI_DUMP)
-# target_compile_definitions(pico-asha PUBLIC ASHA_DELETE_PAIRINGS)
+
+option(ASHA_BLE_LOG_ERROR "Enable error logging." OFF)
+option(ASHA_BLE_LOG_INFO "Enable info logging (default)." ON)
+option(ASHA_BLE_LOG_AUDIO "Enable audio logging" OFF)
+option(HCI_DUMP "Enable HCI dump." OFF)
+option(ASHA_USB_LOG "Enable USB logging" OFF)
+option(ASHA_DEL_PAIRINGS "Delete all HA pairings" OFF)
+
+if(ASHA_BLE_LOG_AUDIO)
+  list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
+elseif(ASHA_BLE_LOG_INFO)
+  list(APPEND pico_asha_defines "ASHA_LOG_INFO")
+elseif(ASHA_BLE_LOG_ERROR)
+  list(APPEND pico_asha_defines "ASHA_LOG_ERROR")
+endif()
+
+if(HCI_DUMP)
+  list(APPEND pico_asha_defines "ASHA_HCI_DUMP")
+endif()
+
+if (ASHA_USB_LOG)
+  list(APPEND pico_asha_defines "CFG_TUSB_DEBUG=1")
+endif()
+
+if(ASHA_DEL_PAIRINGS)
+  list(APPEND pico_asha_defines "ASHA_DELETE_PAIRINGS")
+endif()
+
+target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
 
 pico_add_extra_outputs(pico-asha)
 
