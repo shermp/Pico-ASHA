@@ -19,9 +19,10 @@ add_executable(pico-asha
 )
 
 target_include_directories(pico-asha PUBLIC src/ lib/)
-# target_compile_definitions(asha PUBLIC CFG_TUSB_DEBUG=1)
+# target_compile_definitions(pico-asha PUBLIC CFG_TUSB_DEBUG=1)
 # target_compile_definitions(asha PUBLIC ASHA_PERF_TEST)
 target_compile_definitions(pico-asha PUBLIC ASHA_LOG_INFO)
+# target_compile_definitions(pico-asha PUBLIC ASHA_HCI_DUMP)
 # target_compile_definitions(pico-asha PUBLIC ASHA_DELETE_PAIRINGS)
 
 pico_add_extra_outputs(pico-asha)
@@ -38,5 +39,5 @@ target_link_libraries(pico-asha
 
 target_link_options(pico-asha PUBLIC -Wl,--print-memory-usage)
 
-pico_enable_stdio_usb(pico-asha 0)
-pico_enable_stdio_uart(pico-asha 1)
+pico_enable_stdio_usb(pico-asha 1)
+pico_enable_stdio_uart(pico-asha 0)

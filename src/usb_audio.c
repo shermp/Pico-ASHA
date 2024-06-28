@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -85,11 +84,6 @@ void audio_task(void);
 /*------------- MAIN -------------*/
 void usb_main(void)
 {
-  board_init();
-
-  // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
-
   TU_LOG1("Headset running\n");
 
   while (1)
