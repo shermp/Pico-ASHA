@@ -189,19 +189,7 @@ struct ReadOnlyProperties
                codec_24khz ? "Yes" : "No");
     }
 
-    bool operator==(const ReadOnlyProperties& other) const
-    {
-        return version == other.version &&
-               side == other.side &&
-               mode == other.mode &&
-               csis_supported == other.csis_supported &&
-               manufacturer_id == other.manufacturer_id &&
-               unique_id == other.unique_id &&
-               le_coc_supported == other.le_coc_supported &&
-               render_delay == other.render_delay &&
-               codec_16khz == other.codec_16khz &&
-               codec_24khz == other.codec_24khz;
-    }
+    bool operator==(const ReadOnlyProperties& other) const = default;
     bool operator!=(const ReadOnlyProperties& other) const
     {
         return !(operator==(other));
