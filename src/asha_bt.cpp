@@ -231,6 +231,10 @@ struct Device {
     {
         return !(operator==(other));
     }
+    const char* get_side_str() const
+    {
+        return (read_only_props.side == DeviceSide::Left) ? "Left" : "Right";
+    }
     void set_volume(int8_t volume)
     {
         if (volume > 0) { return; }
@@ -239,19 +243,19 @@ struct Device {
                                                                               sizeof(int8_t), 
                                                                               (uint8_t*)&volume);
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("Writing to volume char failed with %d\n", res);
+            LOG_ERROR("%s: Writing to volume char failed with %d\n", get_side_str(), res);
         }
     }
     void send_status_update(int8_t update)
     {
         if (status != DeviceStatus::Streaming) {
-            LOG_INFO("Device not streaming. Not sending status update\n");
+            LOG_INFO("%s: Device not streaming. Not sending status update\n", get_side_str());
             return;
         }
         if (update != ACPStatus::conn_param_updated && 
             update != ACPStatus::other_connected && 
             update != ACPStatus::other_disconnected) {
-                LOG_ERROR("Unknown status command\n");
+                LOG_ERROR("%s: Unknown status command\n", get_side_str());
                 return;
             }
         std::array<uint8_t,2> cmd = {ACPOpCode::status, update};
@@ -260,7 +264,7 @@ struct Device {
                                                                               cmd.size(),
                                                                               cmd.data());
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("Updating status via ACP failed with %d\n", res);
+            LOG_ERROR("%s: Updating status via ACP failed with %d\n", get_side_str(), res);
         }
         return;
     }
@@ -335,12 +339,12 @@ struct DeviceManager {
             return nullptr;
         }
         if (dev.status == DeviceStatus::None) {
-            LOG_INFO("Cannot add non-connected device\n");
+            LOG_INFO("%s: Cannot add non-connected device\n", dev.get_side_str());
             return nullptr;
         }
         if (dev.read_only_props.mode == DeviceMode::Monaural) {
             if (num_devices > 0) {
-                LOG_INFO("Cannot add mono device when a device has been added\n");
+                LOG_INFO("%s: Cannot add mono device when a device has been added\n", dev.get_side_str());
                 return nullptr;
             }
             set_mode = DeviceMode::Monaural;
@@ -351,24 +355,24 @@ struct DeviceManager {
         Device& same = (dev.read_only_props.side == DeviceSide::Left) ? leftOrMono : right;
         Device& other = (dev.read_only_props.side == DeviceSide::Left) ? right : leftOrMono;
         if (dev == same) {
-            LOG_INFO("Identical device already in DeviceManager\n");
+            LOG_INFO("%s: Identical device already in DeviceManager\n", dev.get_side_str());
             return nullptr;
         }
         if (same.status != DeviceStatus::None) {
-            LOG_INFO("Another device device already in DeviceManager\n");
+            LOG_INFO("%s: Another device device already in DeviceManager\n", dev.get_side_str());
             return nullptr;
         }
         if (other.status != DeviceStatus::None && dev.read_only_props.unique_id != other.read_only_props.unique_id) {
-            LOG_INFO("Device not part of same set\n");
+            LOG_INFO("%s: Device not part of same set\n", dev.get_side_str());
             return nullptr; 
         }
         num_devices++;
         if (dev.read_only_props.side == DeviceSide::Left) {
-            LOG_INFO("Adding left device\n");
+            LOG_INFO("%s: Adding device\n", dev.get_side_str());
             leftOrMono = dev;
             return &leftOrMono;
         } else {
-            LOG_INFO("Adding right device\n");
+            LOG_INFO("%s: Adding device\n", dev.get_side_str());
             right = dev;
             return &right;
         }
@@ -377,12 +381,12 @@ struct DeviceManager {
     bool remove_device(const Device& dev)
     {
         if (dev == leftOrMono) {
-            LOG_INFO("Removing left device\n");
+            LOG_INFO("%s: Removing device\n", dev.get_side_str());
             leftOrMono = Device();
             num_devices--;
             return true;
         } else if (dev == right) {
-            LOG_INFO("Removing right device\n");
+            LOG_INFO("%s: Removing device\n", dev.get_side_str());
             right = Device();
             num_devices--;
             return true;
@@ -646,7 +650,7 @@ static void handle_rop_value_read(uint8_t packet_type, uint16_t channel, uint8_t
         curr_scan.device.read_only_props.dump_values();
         break;
     case GATT_EVENT_QUERY_COMPLETE:
-        LOG_INFO("Completed value read of ReadOnlyProperties\n");
+        LOG_INFO("%s: Completed value read of ReadOnlyProperties\n", curr_scan.device.get_side_str());
         /* Next get the PSM value */
         gatt_client_read_value_of_characteristic(
             handle_psm_value_read,
@@ -665,12 +669,12 @@ static void handle_psm_value_read(uint8_t packet_type, uint16_t channel, uint8_t
     if (gatt_state != GATTState::Service) return;
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-        LOG_INFO("Getting PSM value\n");
+        LOG_INFO("%s: Getting PSM value\n", curr_scan.device.get_side_str());
         curr_scan.device.psm = gatt_event_characteristic_value_query_result_get_value(packet)[0];
-        LOG_INFO("PSM: %d\n", static_cast<int>(curr_scan.device.psm));
+        LOG_INFO("%s: PSM: %d\n", curr_scan.device.get_side_str(), static_cast<int>(curr_scan.device.psm));
         break;
     case GATT_EVENT_QUERY_COMPLETE:
-        LOG_INFO("Completed value read of PSM\n");
+        LOG_INFO("%s: Completed value read of PSM\n", curr_scan.device.get_side_str());
         gatt_state = GATTState::ASPNotification;
         enable_asp_notification();
         break;
@@ -709,12 +713,12 @@ static void handle_char_config_write_packet(uint8_t packet_type, uint16_t channe
     {
         auto att_status = gatt_event_query_complete_get_att_status(packet);
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n"
-                   "Disconnecting\n", att_status);
+            LOG_ERROR("%s: Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n"
+                   "Disconnecting\n", curr_scan.device.get_side_str(), att_status);
             gatt_state = GATTState::Disconnecting;
             gap_disconnect(curr_scan.device.conn_handle);
         }
-        LOG_INFO("AudioStatusPoint notification enabled.\n");
+        LOG_INFO("%s: AudioStatusPoint notification enabled.\n", curr_scan.device.get_side_str());
         gatt_state = GATTState::Finalizing;
         finalise_curr_discovery();
         break;
@@ -731,19 +735,19 @@ static void finalise_curr_discovery()
 {
     // This shouldn't be the case, but best be sure.
     if (device_mgr.have_complete_set()) {
-        LOG_INFO("Already have complete set. Not adding current device.\n");
+        LOG_INFO("%s: Already have complete set. Not adding current device.\n", curr_scan.device.get_side_str());
         gatt_state = GATTState::CompleteConnected;
         return;
     }
     if (device_mgr.device_exists(curr_scan.device)) {
-        LOG_INFO("Already connected to this device.\n");
+        LOG_INFO("%s: Already connected to this device.\n", curr_scan.device.get_side_str());
         gatt_state = GATTState::Scan;
         return;
     }
     curr_scan.device.status = DeviceStatus::Connected;
     Device *d = device_mgr.add_connected_device(curr_scan.device);
     if (!d) {
-        LOG_ERROR("Error adding this device.\n");
+        LOG_ERROR("%s: Error adding this device.\n", curr_scan.device.get_side_str());
         gatt_state = GATTState::Scan;
         return;
     }
@@ -806,7 +810,7 @@ static void change_conn_params(Device& dev)
 static void create_l2cap_conn(Device& dev)
 {
     if (dev.status != DeviceStatus::L2Connecting) { return; }
-    LOG_INFO("Connecting to L2CAP\n");
+    LOG_INFO("%s: Connecting to L2CAP\n", dev.get_side_str());
     auto res = l2cap_cbm_create_channel(&handle_cbm_l2cap_packet, 
                                         dev.conn_handle, 
                                         dev.psm, 
@@ -816,7 +820,7 @@ static void create_l2cap_conn(Device& dev)
                                         LEVEL_2,
                                         &dev.cid);
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("Failure creating l2cap channel with error code: %d", res);
+        LOG_ERROR("%s: Failure creating l2cap channel with error code: %d", dev.get_side_str(), res);
     }
 }
 
@@ -836,15 +840,15 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             Device *d = device_mgr.get_by_conn_handle(handle);
             if (!d || d->status != DeviceStatus::L2Connecting) { return; }
             if (status != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("L2CAP CoC for device %s failed with status code: 0x%02x\n", bd_addr_to_str(event_address), status);
+                LOG_ERROR("%s: L2CAP CoC for device %s failed with status code: 0x%02x\n", d->get_side_str(), bd_addr_to_str(event_address), status);
                 // Try again
                 create_l2cap_conn(*d);
                 return;
             }
             if (cid != d->cid || handle != d->conn_handle) {
-                LOG_ERROR("l2CAP CoC: connected device does not match current device!\n");
+                LOG_ERROR("%s: l2CAP CoC: connected device does not match current device!\n", d->get_side_str());
             }
-            LOG_INFO("L2CAP CoC for device %s succeeded\n", bd_addr_to_str(event_address));
+            LOG_INFO("%s: L2CAP CoC for device %s succeeded\n", d->get_side_str(), bd_addr_to_str(event_address));
             d->status = DeviceStatus::L2Connected;
             break;
         }
@@ -869,10 +873,10 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
                 return;
             }
             if (dev->status == DeviceStatus::Streaming) {
-                LOG_ERROR("Unexpected close of L2CAP channel\n");
+                LOG_ERROR("%s: Unexpected close of L2CAP channel\n", dev->get_side_str());
                 dev->status = DeviceStatus::L2Connecting;
             } else {
-                LOG_INFO("L2CAP channel closed\n");
+                LOG_INFO("%s: L2CAP channel closed\n", dev->get_side_str());
             }
             break;
         }
@@ -899,7 +903,7 @@ static void handle_char_notification_packet(uint8_t packet_type, uint16_t channe
         return;
     }
     if (dev->status != DeviceStatus::StreamStarting && dev->status != DeviceStatus::StreamStopping) {
-        LOG_INFO("Device Status is not stopping or starting. It is: %d\n", dev->status);
+        LOG_INFO("%s: Device Status is not stopping or starting. It is: %d\n", dev->get_side_str(), dev->status);
         return; 
     }
     
@@ -908,7 +912,7 @@ static void handle_char_notification_packet(uint8_t packet_type, uint16_t channe
     switch(status) {
     case ASPStatus::ok:
     {
-        LOG_INFO("ASP Ok.\n");
+        LOG_INFO("%s: ASP Ok.\n", dev->get_side_str());
         // auto es = EncodeState::Encode;
         // Device *other = device_mgr.get_other(*dev);
         // if (other && other->status != DeviceStatus::Streaming) {
@@ -929,13 +933,13 @@ static void handle_char_notification_packet(uint8_t packet_type, uint16_t channe
         break;
     }
     case ASPStatus::unkown_command:
-        LOG_INFO("ASP: Unknown command\n");
+        LOG_INFO("%s: ASP: Unknown command\n", dev->get_side_str());
         break;
     case ASPStatus::illegal_params:
-        LOG_INFO("ASP: Illegal parameters\n");
+        LOG_INFO("%s: ASP: Illegal parameters\n", dev->get_side_str());
         break;
     default:
-        LOG_INFO("ASP: Status: %d\n", status);
+        LOG_INFO("%s: ASP: Status: %d\n", dev->get_side_str(), status);
         break;
     }
 }
@@ -947,7 +951,7 @@ static void write_acp(Device& dev, uint8_t opcode)
     case ACPOpCode::start:
     {
         if (dev.status != DeviceStatus::StreamStarting) {
-            LOG_INFO("Device not in stream starting mode.\n");
+            LOG_INFO("%s: Device not in stream starting mode.\n", dev.get_side_str());
             return;
         }
         curr_volume = asha_shared.volume;
@@ -966,7 +970,7 @@ static void write_acp(Device& dev, uint8_t opcode)
     case ACPOpCode::stop:
     {
         if (dev.status != DeviceStatus::StreamStopping) {
-            LOG_INFO("Device not in stream stopping mode.\n");
+            LOG_INFO("%s: Device not in stream stopping mode.\n", dev.get_side_str());
             return;
         }
         dev.acp_command_packet[0] = opcode;
@@ -981,7 +985,7 @@ static void write_acp(Device& dev, uint8_t opcode)
         break;
     }
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("Error registering ACP write.\n");
+        LOG_ERROR("%s: Error registering ACP write.\n", dev.get_side_str());
         dev.status = DeviceStatus::L2Connected;
     }
 }
@@ -999,10 +1003,10 @@ static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *pa
         }
         auto status = gatt_event_query_complete_get_att_status(packet);
         if (status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("Write to ACP failed with error: %d", status);
+            LOG_ERROR("%s: Write to ACP failed with error: %d", dev->get_side_str(), status);
             dev->status = DeviceStatus::L2Connected;
         }
-        LOG_INFO("ACP write succeeded.\n");
+        LOG_INFO("%s: ACP write succeeded.\n", dev->get_side_str());
         break;
     }
     }
@@ -1025,7 +1029,7 @@ static void send_audio_packet(Device& dev)
     auto res = l2cap_send(dev.cid, data, buff_size_sdu);
     if (res != ERROR_CODE_SUCCESS) {
         dev.audio_send_pending = false;
-        LOG_ERROR("Failed to send l2cap data with reason: %d\n", res);
+        LOG_ERROR("%s: Failed to send l2cap data with reason: %d\n", dev.get_side_str(), res);
     }
     dev.curr_g_packet_index++;
 }
@@ -1140,10 +1144,10 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             uint16_t conn_latency = hci_subevent_le_connection_update_complete_get_conn_latency(packet);
             uint16_t supervision_timeout = hci_subevent_le_connection_update_complete_get_supervision_timeout(packet);
             hci_con_handle_t handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
-            LOG_INFO("Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
-                conn_interval, conn_latency, supervision_timeout);
             Device *d = device_mgr.get_by_conn_handle(handle);
             if (d) {
+                LOG_INFO("%s: Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
+                          d->get_side_str(), conn_interval, conn_latency, supervision_timeout);
                 d->status = DeviceStatus::L2Connecting;
                 create_l2cap_conn(*d);
             }
