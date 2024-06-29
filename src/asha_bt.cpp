@@ -221,6 +221,7 @@ struct Device {
     bool audio_send_pending = false;
     uint32_t curr_g_packet_index = 0;
     uint32_t pre_buff = num_pdu_to_buffer;
+    int8_t curr_vol = -128;
 
     bool operator==(const Device& other) const
     {
@@ -509,8 +510,6 @@ static GATTState gatt_state = GATTState::Start;
 //static Device left;
 //static Device right;
 static DeviceManager device_mgr;
-
-static int8_t curr_volume = -127;
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static btstack_packet_callback_registration_t sm_event_callback_registration;
@@ -948,7 +947,7 @@ static void write_acp(Device& dev, uint8_t opcode)
         dev.acp_command_packet[0] = opcode;
         dev.acp_command_packet[1] = 1U;
         dev.acp_command_packet[2] = 0U;
-        dev.acp_command_packet[3] = (uint8_t)curr_volume;
+        dev.acp_command_packet[3] = (uint8_t)dev.curr_vol; // Volume
         dev.acp_command_packet[4] = device_mgr.get_other(dev) ? 1 : 0;
         res = gatt_client_write_value_of_characteristic(&handle_acp_packet, 
                                                         dev.conn_handle, 
@@ -1031,15 +1030,11 @@ static void send_audio_packets()
     }
     Device *l = device_mgr.get_left_or_mono();
     Device *r = device_mgr.get_right();
-    bool change_vol = false;
-    if (curr_volume != asha_shared.volume) {
-        curr_volume = asha_shared.volume;
-        change_vol = true;
-    }
     uint32_t packet_index = asha_shared.packet_index;
     if (l && l->status == DeviceStatus::Streaming && !l->audio_send_pending) {
-        if (change_vol) {
-            l->set_volume(curr_volume);
+        if (l->curr_vol != asha_shared.l_volume) {
+            l->curr_vol = asha_shared.l_volume;
+            l->set_volume(l->curr_vol);
         }
         if ((l->curr_g_packet_index + l->pre_buff) < packet_index) {
             if (l2cap_can_send_packet_now(l->cid)) {
@@ -1048,8 +1043,9 @@ static void send_audio_packets()
         }
     }
     if (r && r->status == DeviceStatus::Streaming && !r->audio_send_pending) {
-        if (change_vol) {
-            r->set_volume(curr_volume);
+        if (r->curr_vol != asha_shared.r_volume) {
+            r->curr_vol = asha_shared.r_volume;
+            r->set_volume(r->curr_vol);
         }
         if ((r->curr_g_packet_index + r->pre_buff) < packet_index) {
             if (l2cap_can_send_packet_now(r->cid)) {

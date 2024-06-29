@@ -5,7 +5,8 @@
 
 void asha_audio_init(struct asha_audio *audio)
 {
-    audio->volume = -128;
+    audio->l_volume = -128;
+    audio->r_volume = -128;
     audio->packet_index = 0;
     audio->write_offset = 1;
     audio->seq_num = 0;

@@ -358,9 +358,13 @@ void audio_task(void)
   //TU_LOG1("Raw Volume: %hd\n", volume[0]);
 
     // Dividing the USB volume by 256 gives a volume in the ASHA range.
-    asha_shared.volume = (int8_t)(volume[1] / 256);
+  asha_shared.l_volume = (int8_t)(volume[1] / 256);
+  asha_shared.r_volume = (int8_t)(volume[2] / 256);
   if (mute[1]) {
-    asha_shared.volume = -ASHA_VOLUME_MUTE;
+    asha_shared.l_volume = -ASHA_VOLUME_MUTE;
+  }
+  if (mute[2]) {
+    asha_shared.r_volume = -ASHA_VOLUME_MUTE;
   }
 
   if (spk_data_size) {

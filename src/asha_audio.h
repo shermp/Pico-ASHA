@@ -25,7 +25,8 @@ extern "C" {
 #define ASHA_RING_BUFF_INDEX(x) ((x) & ASHA_G722_RING_BUFF_SIZE_MASK)
 
 struct asha_audio {
-    volatile int8_t volume;
+    volatile int8_t l_volume;
+    volatile int8_t r_volume;
     volatile bool pcm_streaming;
     volatile bool encode_audio;
 
