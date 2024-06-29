@@ -1289,10 +1289,15 @@ extern "C" void asha_main()
         NULL
     );
 
+    absolute_time_t ble_start_time = get_absolute_time();
     LOG_INFO("HCI power on.\n");
     hci_power_control(HCI_POWER_ON);
 
-    // Run the encoder in the main loop to avoid blocking BTStack
+    // Wait for all devices to connect if possible
+    const int64_t max_delay_us = 10'000'000LL;
+    while (!device_mgr.have_complete_set() && absolute_time_diff_us(ble_start_time, get_absolute_time()) < max_delay_us) {
+        sleep_ms(500);
+    }
     while(1) {
         audio_starter();
         send_audio_packets();
