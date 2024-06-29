@@ -7,8 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cinttypes>
-#include "btstack.h"
-#include "pico/cyw43_arch.h"
+#include <pico/time.h>
 #ifdef ASHA_HCI_DUMP
 #include "hci_dump_embedded_stdout.h"
 #endif
