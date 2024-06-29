@@ -246,7 +246,7 @@ struct Device {
             LOG_ERROR("%s: Writing to volume char failed with %d\n", get_side_str(), res);
         }
     }
-    void send_status_update(int8_t update)
+    void send_status_update(uint8_t update)
     {
         if (status != DeviceStatus::Streaming) {
             LOG_INFO("%s: Device not streaming. Not sending status update\n", get_side_str());
