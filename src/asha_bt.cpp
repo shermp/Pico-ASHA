@@ -88,7 +88,7 @@ constexpr uint8_t mfiUUID[] = {125U, 116U, 244U, 189U, 199U, 74U, 68U, 49U, 134U
 
 enum DeviceSide { Left = 0, Right = 1 };
 enum DeviceMode { Monaural = 0, Binaural = 1 };
-enum DeviceStatus { None, Connected, ConnParam, L2Connecting, L2Connected, StreamStarting, StreamStopping, Streaming };
+enum DeviceStatus { None, Connected, ConnParam, ConnParamChanged, L2Connecting, L2Connected, StreamStarting, StreamStopping, Streaming };
 
 namespace AshaVol
 {
@@ -764,26 +764,22 @@ static void audio_starter()
     if (asha_shared.pcm_streaming) {
         auto l = device_mgr.get_left_or_mono();
         auto r = device_mgr.get_right();
-        if (l) {
-            if (l->status == DeviceStatus::Connected) {
-                LOG_INFO("Setting connection params for left side.\n");
-                l->status = DeviceStatus::ConnParam;
-                change_conn_params(*l);
-            } else if (l->status == DeviceStatus::L2Connected) {
-                LOG_INFO("Start streaming on left side.\n");
-                l->status = DeviceStatus::StreamStarting;
-                write_acp(*l, ACPOpCode::start);
-            }
-        }
-        if (r) {
-            if (r->status == DeviceStatus::Connected) {
-                LOG_INFO("Setting connection params for right side.\n");
-                r->status = DeviceStatus::ConnParam;
-                change_conn_params(*r);
-            } else if (r->status == DeviceStatus::L2Connected) {
-                LOG_INFO("Start streaming on right side.\n");
-                r->status = DeviceStatus::StreamStarting;
-                write_acp(*r, ACPOpCode::start);
+        for (Device* d : {l, r}) {
+            if (d) {
+                const char* side_str = d->get_side_str();
+                if (d->status == DeviceStatus::Connected) {
+                    LOG_INFO("%s: Setting connection params.\n", side_str);
+                    d->status = DeviceStatus::ConnParam;
+                    change_conn_params(*d);
+                } else if (d->status == DeviceStatus::ConnParamChanged) {
+                    LOG_INFO("%s: Connecting to L2CAP\n", side_str);
+                    d->status = DeviceStatus::L2Connecting;
+                    create_l2cap_conn(*d);
+                } else if (d->status == DeviceStatus::L2Connected) {
+                    LOG_INFO("%s: Start streaming on left side.\n", side_str);
+                    d->status = DeviceStatus::StreamStarting;
+                    write_acp(*d, ACPOpCode::start);
+                }
             }
         }
     } else {
@@ -810,7 +806,6 @@ static void change_conn_params(Device& dev)
 static void create_l2cap_conn(Device& dev)
 {
     if (dev.status != DeviceStatus::L2Connecting) { return; }
-    LOG_INFO("%s: Connecting to L2CAP\n", dev.get_side_str());
     auto res = l2cap_cbm_create_channel(&handle_cbm_l2cap_packet, 
                                         dev.conn_handle, 
                                         dev.psm, 
@@ -1148,8 +1143,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             if (d) {
                 LOG_INFO("%s: Connection parameter update complete: Interval: %hu Latency: %hu, Supervision Timeout: %hu\n", 
                           d->get_side_str(), conn_interval, conn_latency, supervision_timeout);
-                d->status = DeviceStatus::L2Connecting;
-                create_l2cap_conn(*d);
+                d->status = DeviceStatus::ConnParamChanged;
             }
             break;
         }
