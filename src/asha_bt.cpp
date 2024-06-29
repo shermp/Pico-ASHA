@@ -515,7 +515,8 @@ static int8_t curr_volume = -127;
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static btstack_packet_callback_registration_t sm_event_callback_registration;
 
-static btstack_timer_source_t audio_timer;
+static gatt_client_notification_t notification_listener = {};
+
 static void audio_starter();
 
 static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
@@ -689,12 +690,6 @@ static void enable_asp_notification()
     if (gatt_state != GATTState::ASPNotification) { return; }
     Device& dev = curr_scan.device;
     dev.listener_registered = true;
-    gatt_client_listen_for_characteristic_value_updates(
-        &dev.notification_listener, 
-        handle_char_notification_packet,
-        dev.conn_handle,
-        &dev.chars.aus
-    );
 
     gatt_client_write_client_characteristic_configuration(
         handle_char_config_write_packet,
@@ -1286,6 +1281,13 @@ extern "C" void asha_main()
 
     sm_event_callback_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&sm_event_callback_registration);
+
+    gatt_client_listen_for_characteristic_value_updates(
+        &notification_listener, 
+        &handle_char_notification_packet,
+        GATT_CLIENT_ANY_CONNECTION,
+        NULL
+    );
 
     LOG_INFO("HCI power on.\n");
     hci_power_control(HCI_POWER_ON);
