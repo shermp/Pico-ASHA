@@ -211,7 +211,6 @@ struct Device {
         gatt_client_characteristic_t vol = {};
         gatt_client_characteristic_t psm = {};
     } chars;
-    gatt_client_notification_t notification_listener = {};
     bool listener_registered = false;
     ReadOnlyProperties read_only_props;
     uint8_t psm;
