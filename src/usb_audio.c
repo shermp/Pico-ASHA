@@ -333,7 +333,6 @@ bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, ui
   (void)ep_out;
   (void)cur_alt_setting;
 
-  //printf("tud_audio_rx_done_pre_read_cb\n");
   spk_data_size = tud_audio_read(spk_buf, n_bytes_received);
   return true;
 }
@@ -357,7 +356,7 @@ void audio_task(void)
 {
   //TU_LOG1("Raw Volume: %hd\n", volume[0]);
 
-    // Dividing the USB volume by 256 gives a volume in the ASHA range.
+  // Dividing the USB volume by 256 gives a volume in the ASHA range.
   asha_shared.l_volume = (int8_t)(volume[1] / 256);
   asha_shared.r_volume = (int8_t)(volume[2] / 256);
   if (mute[1]) {
@@ -367,11 +366,8 @@ void audio_task(void)
     asha_shared.r_volume = -ASHA_VOLUME_MUTE;
   }
 
-  if (spk_data_size) {
+  if (spk_data_size == (ASHA_PCM_STEREO_PACKET_SIZE * 2)) {
     asha_shared.pcm_streaming = true;
-    if (spk_data_size != ASHA_PCM_STEREO_PACKET_SIZE * 2) {
-      return;
-    }
     if (asha_shared.encode_audio) {
       
       asha_audio_g_enc_1ms(&asha_shared, spk_buf);
