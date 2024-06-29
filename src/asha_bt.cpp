@@ -225,7 +225,7 @@ struct Device {
     bool operator==(const Device& other) const
     {
         return read_only_props == other.read_only_props &&
-               bd_addr_cmp(addr, other.addr);
+               bd_addr_cmp(addr, other.addr) == 0;
     }
     bool operator!=(const Device& other) const
     {
@@ -327,6 +327,7 @@ struct DeviceManager {
     {
         return dev == leftOrMono || dev == right;
     }
+    
     Device* add_connected_device(const Device& dev)
     {
         if (have_complete_set()) {
@@ -375,12 +376,12 @@ struct DeviceManager {
     }
     bool remove_device(const Device& dev)
     {
-        if (&dev == &leftOrMono) {
+        if (dev == leftOrMono) {
             LOG_INFO("Removing left device\n");
             leftOrMono = Device();
             num_devices--;
             return true;
-        } else if (&dev == &right) {
+        } else if (dev == right) {
             LOG_INFO("Removing right device\n");
             right = Device();
             num_devices--;
@@ -857,6 +858,22 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             }
             //printf("Audio packet sent\n");
             dev->audio_send_pending = false;
+            break;
+        }
+        case L2CAP_EVENT_CHANNEL_CLOSED:
+        {
+            auto cid = l2cap_event_channel_closed_get_local_cid(packet);
+            Device *dev = device_mgr.get_by_cid(cid);
+            if (!dev) {
+                LOG_ERROR("Could not find device with cid '%hd'\n", cid);
+                return;
+            }
+            if (dev->status == DeviceStatus::Streaming) {
+                LOG_ERROR("Unexpected close of L2CAP channel\n");
+                dev->status = DeviceStatus::L2Connecting;
+            } else {
+                LOG_INFO("L2CAP channel closed\n");
+            }
             break;
         }
         default:
