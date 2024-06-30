@@ -7,9 +7,11 @@
 #include <algorithm>
 #include <cstring>
 #include <cinttypes>
+#include <btstack.h>
+#include <pico/cyw43_arch.h>
 #include <pico/time.h>
 #ifdef ASHA_HCI_DUMP
-#include "hci_dump_embedded_stdout.h"
+#include <hci_dump_embedded_stdout.h>
 #endif
 
 #include "asha_audio.h"
@@ -87,7 +89,18 @@ constexpr uint8_t mfiUUID[] = {125U, 116U, 244U, 189U, 199U, 74U, 68U, 49U, 134U
 
 enum DeviceSide { Left = 0, Right = 1 };
 enum DeviceMode { Monaural = 0, Binaural = 1 };
-enum DeviceStatus { None, Connected, ConnParam, ConnParamChanged, L2Connecting, L2Connected, StreamStarting, StreamStopping, Streaming };
+enum DeviceStatus { 
+    None, 
+    Connected, 
+    ConnParam, 
+    ConnParamChanged, 
+    L2Connecting, 
+    L2Connected, 
+    StreamStarting, 
+    StreamReady, 
+    Streaming, 
+    StreamStopping 
+};
 
 namespace AshaVol
 {
@@ -217,8 +230,7 @@ struct Device {
     std::array<uint8_t ,5> acp_command_packet = {};
     std::array<uint8_t, buff_size_sdu> recv_buff = {};
     bool audio_send_pending = false;
-    uint32_t curr_g_packet_index = 0;
-    uint32_t pre_buff = num_pdu_to_buffer;
+    uint8_t *audio_packet = nullptr;
     int8_t curr_vol = -128;
 
     bool operator==(const Device& other) const
@@ -504,10 +516,14 @@ enum class GATTState {
 constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 constexpr uint16_t asha_conn_latency  = 10;
 
+static uint32_t pre_buff = num_pdu_to_buffer;
+static uint32_t curr_packet_index = 0;
+
 static GATTState gatt_state = GATTState::Start;
 //static Device left;
 //static Device right;
 static DeviceManager device_mgr;
+static std::array<Device*, 2> prepared_send = {};
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static btstack_packet_callback_registration_t sm_event_callback_registration;
@@ -534,6 +550,7 @@ static void write_acp(Device& dev, uint8_t opcode);
 static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void enable_asp_notification();
 static void send_audio_packet(Device& dev);
+static void prep_audio_packets();
 static void send_audio_packets();
 
 extern "C" void le_handle_advertisement_report(uint8_t *packet, uint16_t size);
@@ -754,24 +771,56 @@ static void finalise_curr_discovery()
 static void audio_starter()
 {
     if (asha_shared.pcm_streaming) {
-        auto l = device_mgr.get_left_or_mono();
-        auto r = device_mgr.get_right();
+        Device* l = device_mgr.get_left_or_mono();
+        Device* r = device_mgr.get_right();
+        uint32_t packet_index = (asha_shared.packet_index > 0) ? asha_shared.packet_index - 1 : 0;
         for (Device* d : {l, r}) {
             if (d) {
                 const char* side_str = d->get_side_str();
-                if (d->status == DeviceStatus::Connected) {
+                Device *o = device_mgr.get_other(*d);
+                switch (d->status) {
+                case DeviceStatus::Connected:
                     LOG_INFO("%s: Setting connection params.\n", side_str);
                     d->status = DeviceStatus::ConnParam;
                     change_conn_params(*d);
-                } else if (d->status == DeviceStatus::ConnParamChanged) {
+                    break;
+                case DeviceStatus::ConnParamChanged:
                     LOG_INFO("%s: Connecting to L2CAP\n", side_str);
                     d->status = DeviceStatus::L2Connecting;
                     create_l2cap_conn(*d);
-                } else if (d->status == DeviceStatus::L2Connected) {
+                    break;
+                case DeviceStatus::L2Connected:
                     LOG_INFO("%s: Start streaming on left side.\n", side_str);
                     d->status = DeviceStatus::StreamStarting;
                     write_acp(*d, ACPOpCode::start);
+                    break;
+                case DeviceStatus::StreamReady:
+                {
+                    uint32_t p_index = (asha_shared.packet_index > 0) ? asha_shared.packet_index - 1 : 0;
+                    if (!o) {
+                        d->status = DeviceStatus::Streaming;
+                        curr_packet_index = p_index;
+                        pre_buff = num_pdu_to_buffer;
+                        asha_shared.encode_audio = true;
+                    } else {
+                        if (o->status == DeviceStatus::StreamReady) {
+                            d->status = DeviceStatus::Streaming;
+                            d->send_status_update(ACPStatus::other_connected);
+
+                            o->status = DeviceStatus::Streaming;
+                            o->send_status_update(ACPStatus::other_connected);
+
+                            curr_packet_index = p_index;
+                            pre_buff = num_pdu_to_buffer;
+                            asha_shared.encode_audio = true;
+                        }
+                    }
+                    break;
                 }
+                default:
+                    break;
+                }
+                
             }
         }
     } else {
@@ -839,16 +888,29 @@ static void handle_cbm_l2cap_packet(uint8_t packet_type, uint16_t channel, uint8
             d->status = DeviceStatus::L2Connected;
             break;
         }
+        // case L2CAP_EVENT_CAN_SEND_NOW:
+        // {
+        //     auto cid = l2cap_event_can_send_now_get_local_cid(packet);
+        //     Device* d = device_mgr.get_by_conn_handle(cid);
+        //     if (!d) return;
+        //     LOG_AUDIO("%s: Can send now event\n", d->get_side_str());
+        //     auto res = l2cap_send(d->cid, d->audio_packet, buff_size_sdu);
+        //     if (res != ERROR_CODE_SUCCESS) {
+        //         d->audio_send_pending = false;
+        //         LOG_ERROR("%s: Failed to send l2cap data with reason: %d\n", d->get_side_str(), res);
+        //     }
+        //     break;
+        // }
         case L2CAP_EVENT_PACKET_SENT:
         {
             auto cid = l2cap_event_packet_sent_get_local_cid(packet);
-            Device *dev = device_mgr.get_by_cid(cid);
-            if (!dev) {
+            Device *d = device_mgr.get_by_cid(cid);
+            if (!d) {
                 LOG_ERROR("Could not find device with cid '%hd'\n", cid);
                 return;
             }
-            //printf("Audio packet sent\n");
-            dev->audio_send_pending = false;
+            LOG_AUDIO("%s: Packet sent event\n", d->get_side_str());
+            d->audio_send_pending = false;
             break;
         }
         case L2CAP_EVENT_CHANNEL_CLOSED:
@@ -900,22 +962,11 @@ static void handle_char_notification_packet(uint8_t packet_type, uint16_t channe
     case ASPStatus::ok:
     {
         LOG_INFO("%s: ASP Ok.\n", dev->get_side_str());
-        // auto es = EncodeState::Encode;
-        // Device *other = device_mgr.get_other(*dev);
-        // if (other && other->status != DeviceStatus::Streaming) {
-        //     es = EncodeState::ResetEncode;
-        // }
+
         if (dev->status == DeviceStatus::StreamStarting) {
-            dev->status = DeviceStatus::Streaming;
-        }
-        asha_shared.encode_audio = true;
-        uint32_t asha_index = asha_shared.packet_index;
-        Device *other = device_mgr.get_other(*dev);
-        if (other && other->status == DeviceStatus::Streaming) {
-            dev->curr_g_packet_index = other->curr_g_packet_index;
-            dev->pre_buff = 0;
-        } else {
-            dev->curr_g_packet_index = (asha_index > 0) ? asha_index - 1 : 0;
+            dev->status = DeviceStatus::StreamReady;
+        } else if (dev->status == DeviceStatus::StreamStopping) {
+            dev->status = DeviceStatus::L2Connected;
         }
         break;
     }
@@ -941,12 +992,12 @@ static void write_acp(Device& dev, uint8_t opcode)
             LOG_INFO("%s: Device not in stream starting mode.\n", dev.get_side_str());
             return;
         }
-        curr_volume = asha_shared.volume;
-        dev.acp_command_packet[0] = opcode;
-        dev.acp_command_packet[1] = 1U;
-        dev.acp_command_packet[2] = 0U;
+        Device* o = device_mgr.get_other(dev);
+        dev.acp_command_packet[0] = opcode; // Start
+        dev.acp_command_packet[1] = 1U;     // Codec
+        dev.acp_command_packet[2] = 0U;     // Audio type
         dev.acp_command_packet[3] = (uint8_t)dev.curr_vol; // Volume
-        dev.acp_command_packet[4] = device_mgr.get_other(dev) ? 1 : 0;
+        dev.acp_command_packet[4] = (o && (o->status == DeviceStatus::StreamReady || o->status == DeviceStatus::Streaming)) ? 1 : 0; // Other state
         res = gatt_client_write_value_of_characteristic(&handle_acp_packet, 
                                                         dev.conn_handle, 
                                                         dev.chars.acp.value_handle,
@@ -1001,57 +1052,67 @@ static void handle_acp_packet(uint8_t packet_type, uint16_t channel, uint8_t *pa
 
 static void send_audio_packet(Device& dev)
 {
-    dev.pre_buff = 0;
-    dev.audio_send_pending = true;
-    uint8_t *data;
-    //uint32_t index = ASHA_RING_BUFF_INDEX(dev.curr_g_packet_index);
-    // if (dev.read_only_props.mode == DeviceMode::Monaural) {
-    //     data = asha_shared.g_m_buff[index];
-    // } else {
-        data = (dev.read_only_props.side == DeviceSide::Left)
-                ? asha_audio_get_l_buff_at_index(&asha_shared, dev.curr_g_packet_index)
-                : asha_audio_get_r_buff_at_index(&asha_shared, dev.curr_g_packet_index);
-    //}
-    //printf("%u ", data[0]);
-    auto res = l2cap_send(dev.cid, data, buff_size_sdu);
+    LOG_AUDIO("%s: Send audio packet\n", dev.get_side_str());
+    auto res = l2cap_send(dev.cid, dev.audio_packet, buff_size_sdu);
     if (res != ERROR_CODE_SUCCESS) {
         dev.audio_send_pending = false;
         LOG_ERROR("%s: Failed to send l2cap data with reason: %d\n", dev.get_side_str(), res);
     }
-    dev.curr_g_packet_index++;
 }
 
-static void send_audio_packets()
+static void prep_audio_packets()
 {
-    if (!asha_shared.encode_audio) {
+    if (!asha_shared.encode_audio || device_mgr.audio_send_pending()) {
+        LOG_AUDIO("Not sending audio. Encode: %s  Send Pending: %s\n", 
+                        asha_shared.encode_audio ? "true" : "false", 
+                        device_mgr.audio_send_pending() ? "true" : "false");
         return;
     }
     Device *l = device_mgr.get_left_or_mono();
     Device *r = device_mgr.get_right();
     uint32_t packet_index = asha_shared.packet_index;
-    if (l && l->status == DeviceStatus::Streaming && !l->audio_send_pending) {
-        if (l->curr_vol != asha_shared.l_volume) {
-            l->curr_vol = asha_shared.l_volume;
-            l->set_volume(l->curr_vol);
-        }
-        if ((l->curr_g_packet_index + l->pre_buff) < packet_index) {
-            if (l2cap_can_send_packet_now(l->cid)) {
-                send_audio_packet(*l);
+    if ((curr_packet_index + pre_buff) < packet_index)
+    {
+        LOG_AUDIO("Wanted packet index: %d\n", curr_packet_index + pre_buff);
+        ++curr_packet_index;
+        pre_buff = 0;
+        if (l && l->status == DeviceStatus::Streaming) {
+            LOG_AUDIO("Left: Sending audio packet\n");
+            if (l->curr_vol != asha_shared.l_volume) {
+                l->curr_vol = asha_shared.l_volume;
+                l->set_volume(l->curr_vol);
             }
+            l->audio_packet = asha_audio_get_l_buff_at_index(&asha_shared, curr_packet_index);
+            l->audio_send_pending = true;
+            prepared_send[0] = l;
         }
-    }
-    if (r && r->status == DeviceStatus::Streaming && !r->audio_send_pending) {
-        if (r->curr_vol != asha_shared.r_volume) {
-            r->curr_vol = asha_shared.r_volume;
-            r->set_volume(r->curr_vol);
-        }
-        if ((r->curr_g_packet_index + r->pre_buff) < packet_index) {
-            if (l2cap_can_send_packet_now(r->cid)) {
-                send_audio_packet(*r);
+        if (r && r->status == DeviceStatus::Streaming) {
+            LOG_AUDIO("Right: Sending audio packet\n");
+            if (r->curr_vol != asha_shared.r_volume) {
+                r->curr_vol = asha_shared.r_volume;
+                r->set_volume(r->curr_vol);
             }
+            r->audio_packet = asha_audio_get_r_buff_at_index(&asha_shared, curr_packet_index);
+            r->audio_send_pending = true;
+            prepared_send[1] = r;
         }
     }
     return;
+}
+
+static void send_audio_packets()
+{
+    while (prepared_send[0] || prepared_send[1]) {
+        for (int i = 0; i < prepared_send.size(); ++i) {
+            Device* d = prepared_send[i];
+            if (d) {
+                if (l2cap_can_send_packet_now(d->cid)) {
+                    send_audio_packet(*d);
+                    prepared_send[i] = nullptr;
+                }
+            }
+        }
+    }
 }
 
 /* Main btstack HCI event handler */
@@ -1292,8 +1353,11 @@ extern "C" void asha_main()
     while (!device_mgr.have_complete_set() && absolute_time_diff_us(ble_start_time, get_absolute_time()) < max_delay_us) {
         sleep_ms(500);
     }
+    // If all devices are connected, or the max delay has been
+    // reached, connect to L2CAP and start streaming audio
     while(1) {
         audio_starter();
+        prep_audio_packets();
         send_audio_packets();
     }
 }
