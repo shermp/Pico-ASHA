@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <cstring>
 #include <cinttypes>
+#include <btstack.h>
 #include <pico/time.h>
+#include <pico/cyw43_arch.h>
 #ifdef ASHA_HCI_DUMP
 #include "hci_dump_embedded_stdout.h"
 #endif
@@ -123,7 +125,7 @@ enum EncodeState { Reset, Idle, Encode, ResetEncode };
 // constexpr uint16_t num_frames_16khz_20ms = ASHA_PCM_AUDIO_FRAME_SIZE * 20;
 // constexpr uint16_t buff_size_16khz_20ms = num_frames_16khz_20ms * 2;
 // constexpr uint16_t buff_size_g722_20ms = buff_size_16khz_20ms / 4; // 4:1 compression ratio
-constexpr int num_pdu_to_buffer = 8;
+constexpr int num_pdu_to_buffer = 2;
 constexpr uint16_t buff_size_sdu = ASHA_SDU_SIZE_BYTES;
 constexpr int ms_20 = 20;
 
@@ -941,12 +943,12 @@ static void write_acp(Device& dev, uint8_t opcode)
             LOG_INFO("%s: Device not in stream starting mode.\n", dev.get_side_str());
             return;
         }
-        curr_volume = asha_shared.volume;
+        Device* o = device_mgr.get_other(dev);
         dev.acp_command_packet[0] = opcode;
         dev.acp_command_packet[1] = 1U;
         dev.acp_command_packet[2] = 0U;
         dev.acp_command_packet[3] = (uint8_t)dev.curr_vol; // Volume
-        dev.acp_command_packet[4] = device_mgr.get_other(dev) ? 1 : 0;
+        dev.acp_command_packet[4] = (dev.status == DeviceStatus::Streaming) ? 1 : 0;
         res = gatt_client_write_value_of_characteristic(&handle_acp_packet, 
                                                         dev.conn_handle, 
                                                         dev.chars.acp.value_handle,
