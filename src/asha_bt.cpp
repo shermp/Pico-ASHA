@@ -200,12 +200,8 @@ extern "C" void bt_main()
                 //LOG_INFO("Audio index: %hu\n", ha.audio_index);
                 if (ha.audio_index < audio_write_index) {
                     ha.set_audio_packet(audio_buff.get_g_buff(ha.audio_index));
-                    ha.send_audio_packet();
+                    l2cap_request_can_send_now_event(ha.cid);
                 }
-                break;
-            case AudioPacketSending:
-                //LOG_INFO("Sending audio packet\n");
-                ha.send_audio_packet();
                 break;
             default:
                 break;
@@ -388,15 +384,17 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
         }
         break;
     }
+    case L2CAP_EVENT_CAN_SEND_NOW:
+    {
+        LOG_AUDIO("L2CAP_EVENT_CAN_SEND_NOW\n");
+        HA& ha = ha_mgr.get_by_cid(l2cap_event_can_send_now_get_local_cid(packet));
+        ha.on_can_send_audio_packet_now();
+    }
     case L2CAP_EVENT_PACKET_SENT:
     {
         LOG_AUDIO("L2CAP_EVENT_PACKET_SENT\n");
         HA& ha = ha_mgr.get_by_cid(l2cap_event_packet_sent_get_local_cid(packet));
-        if (ha) {
-            ha.on_audio_packet_sent();
-        } else {
-            LOG_ERROR("L2CAP_EVENT_PACKET_SENT: unable to get hearing aid.\n");
-        }
+        ha.on_audio_packet_sent();
         break;
     }
     }

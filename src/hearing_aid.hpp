@@ -72,7 +72,7 @@ public:
     void write_volume();
 
     void set_audio_packet(AudioBuffer::G722Buff& packet);
-    void send_audio_packet();
+    void on_can_send_audio_packet_now();
     void on_audio_packet_sent();
     
     bool is_creating_l2cap_channel();
