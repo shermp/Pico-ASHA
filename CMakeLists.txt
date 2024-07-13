@@ -9,11 +9,12 @@ set(PICO_BOARD pico_w)
 pico_sdk_init()
 
 add_executable(pico-asha
-  src/main.c
-  src/asha_audio.c
+  src/main.cpp
+  src/asha_audio.cpp
   src/asha_bt.cpp
-  src/usb_audio.c
-  src/usb_descriptors.c
+  src/hearing_aid.cpp
+  src/usb_descriptors.cpp
+  src/usb_audio.cpp
   lib/g722/g722_encode.cc
 )
 
@@ -55,6 +56,13 @@ else()
   pico_enable_stdio_usb(pico-asha 0)
   pico_enable_stdio_uart(pico-asha 1)
 endif()
+
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wdeprecated-enum-enum-conversion HAVE_DEP_ENNUM_ENUM_CONV)
+
+if (HAVE_DEP_ENNUM_ENUM_CONV)
+    target_compile_options(pico-asha PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-enum-enum-conversion>)
+endif (HAVE_DEP_ENNUM_ENUM_CONV)
 
 target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
 

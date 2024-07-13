@@ -27,7 +27,10 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-#include "pico_asha.h"
+#include "asha_unique_id.hpp"
+
+namespace asha
+{
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -68,7 +71,7 @@ tusb_desc_device_t const desc_device =
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
+extern "C" uint8_t const * tud_descriptor_device_cb(void)
 {
   return (uint8_t const *)&desc_device;
 }
@@ -151,7 +154,7 @@ uint8_t const desc_configuration[] =
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
+extern "C" uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
   return desc_configuration;
@@ -179,7 +182,7 @@ static uint16_t _desc_str[32];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
+extern "C" uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
   (void)langid;
 
@@ -213,3 +216,5 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 
   return _desc_str;
 }
+
+} // namespace asha
