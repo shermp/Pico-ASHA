@@ -55,7 +55,7 @@ jobs:
               run: |
                 mkdir pico-asha/build
                 cd pico-asha/build
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
+                cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_USB_SERIAL-ON ..
                 
             - name: Compile
               run: |
