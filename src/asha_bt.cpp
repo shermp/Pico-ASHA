@@ -39,6 +39,8 @@ static HAManager  ha_mgr;
 
 AdvertisingReport::AdvertisingReport(uint8_t* packet, bool extended)
 {
+    uint8_t         length;
+    const uint8_t * data;
     if (extended) {
         gap_event_extended_advertising_report_get_address(packet, address);
         event_type = gap_event_extended_advertising_report_get_advertising_event_type(packet);
@@ -54,9 +56,13 @@ AdvertisingReport::AdvertisingReport(uint8_t* packet, bool extended)
         length = gap_event_advertising_report_get_data_length(packet);
         data = gap_event_advertising_report_get_data(packet);
     }
+    check_if_ha(length, data);
+#ifdef ASHA_AD_DUMP
+    dump_advertisement_data(data, length);
+#endif
 }
 
-bool AdvertisingReport::is_hearing_aid()
+void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
 {
     ad_context_t context;
     bd_addr_t address;
@@ -72,7 +78,7 @@ bool AdvertisingReport::is_hearing_aid()
             for (i = 0; i < size; i += sizeof(uint16_t)) {
                 if (little_endian_read_16(adv_data, i) == AshaUUID::service16) {
                     LOG_INFO("ASHA 16 bit service discovered\n");
-                    return true;
+                    is_hearing_aid = true;
                 }
             }
             break;
@@ -82,10 +88,10 @@ bool AdvertisingReport::is_hearing_aid()
                 reverse_128(adv_data + i, tmp_uuid128);
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
                     LOG_INFO("ASHA 128 bit UUID service discovered\n");
-                    return true;
+                    is_hearing_aid = true;
                 } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
                     LOG_INFO("MFI UUID discovered\n");
-                    return true;
+                    is_hearing_aid = true;
                 }
             }
             break;
@@ -93,15 +99,7 @@ bool AdvertisingReport::is_hearing_aid()
             break;
         }
     }
-    return false;
 }
-
-#ifdef ASHA_AD_DUMP
-void AdvertisingReport::dump_ad_data()
-{
-    dump_advertisement_data(data, length);
-}
-#endif
 
 void ScanResult::reset()
 {
@@ -339,15 +337,12 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         case SM_EVENT_IDENTITY_RESOLVING_STARTED:
             break;
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
-            if (curr_scan.report.is_hearing_aid()) {
+            if (curr_scan.report.is_hearing_aid) {
                 scan_state = ScanState::Connecting;
                 LOG_INFO("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
             } else {
-#ifdef ASHA_AD_DUMP
-                curr_scan.report.dump_ad_data();
-#endif
                 LOG_SCAN("Ad Report for addr %s is not hearing aid\n", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }

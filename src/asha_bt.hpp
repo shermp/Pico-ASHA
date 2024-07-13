@@ -31,21 +31,19 @@ struct AdvertisingReport {
     uint8_t   event_type;
     uint8_t   address_type;
     uint8_t   rssi;
-    uint8_t   length;
-    const uint8_t * data;
+
+    bool is_hearing_aid;
 
     AdvertisingReport() {}
 
     AdvertisingReport(uint8_t* packet, bool extended);
 
+private:
     /* Check if this advertising report contains the services advertised
        by hearing aids. It checks for the existance of the ASHA service
        types, as well as the Apple MFI service, because not all hearing 
        aids advertise ASHA (such as Oticon More) */
-    bool is_hearing_aid();
-#ifdef ASHA_AD_DUMP
-    void dump_ad_data();
-#endif
+    void check_if_ha(uint8_t length, const uint8_t * data);
 };
 
 struct ScanResult {
