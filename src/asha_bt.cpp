@@ -246,6 +246,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 
         // See if HA is already paired. If not paired, check if
         // advertising report contains hearing aid service data
+        LOG_SCAN("Got Ad Report from %s\n", bd_addr_to_str(curr_scan.report.address));
         scan_state = ScanState::IdentityResolving;
         sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);
         break;
@@ -317,6 +318,7 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
             } else {
+                LOG_SCAN("Ad Report for addr %s is not hearing aid\n", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }
             break;
