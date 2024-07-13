@@ -259,36 +259,33 @@ void HA::write_volume()
     }
 }
 
-void HA::set_audio_packet(AudioBuffer::G722Buff& packet)
+void HA::send_audio_packet(AudioBuffer::G722Buff& packet)
 {
     if (state == State::AudioPacketReady) {
         audio_packet = side() == Side::Left ? packet.l.data() : packet.r.data();
         LOG_AUDIO("%s: Setting audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
         ++audio_index;
         state = State::AudioPacketSending;
+        l2cap_request_can_send_now_event(cid);
     }
 }
 
 void HA::on_can_send_audio_packet_now()
 {
-    if (state == State::AudioPacketSending) {
-        LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
-        state = State::AudioPacketSent;
-        uint8_t res = l2cap_send(cid, audio_packet, sdu_size_bytes);
-        if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: Error sending audio packet with error code: 0x%02x\n", side_str, (unsigned int)res);
-            state = State::AudioPacketReady;
-        }
+    LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
+    state = State::AudioPacketSent;
+    uint8_t res = l2cap_send(cid, audio_packet, sdu_size_bytes);
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Error sending audio packet with error code: 0x%02x\n", side_str, (unsigned int)res);
+        state = State::AudioPacketReady;
     }
+
 }
 
 void HA::on_audio_packet_sent()
 {
     LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d\n", side_str, static_cast<int>(state), (int)audio_packet[0]);
-    if (state == State::AudioPacketSent) {
-        LOG_AUDIO("%s: Setting AudioPacketReady state\n", side_str);
-        state = State::AudioPacketReady;
-    }
+    state = State::AudioPacketReady;
 }
 
 bool HA::is_creating_l2cap_channel()
