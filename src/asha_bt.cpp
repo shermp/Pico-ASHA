@@ -37,14 +37,23 @@ static ScanState  scan_state = ScanState::Stop;
 static ScanResult curr_scan;
 static HAManager  ha_mgr;
 
-AdvertisingReport::AdvertisingReport(uint8_t* packet)
+AdvertisingReport::AdvertisingReport(uint8_t* packet, bool extended)
 {
-    gap_event_advertising_report_get_address(packet, address);
-    event_type = gap_event_advertising_report_get_advertising_event_type(packet);
-    address_type = gap_event_advertising_report_get_address_type(packet);
-    rssi = gap_event_advertising_report_get_rssi(packet);
-    length = gap_event_advertising_report_get_data_length(packet);
-    data = gap_event_advertising_report_get_data(packet);
+    if (extended) {
+        gap_event_extended_advertising_report_get_address(packet, address);
+        event_type = gap_event_extended_advertising_report_get_advertising_event_type(packet);
+        address_type = gap_event_extended_advertising_report_get_address_type(packet);
+        rssi = gap_event_extended_advertising_report_get_rssi(packet);
+        length = gap_event_extended_advertising_report_get_data_length(packet);
+        data = gap_event_extended_advertising_report_get_data(packet);
+    } else {
+        gap_event_advertising_report_get_address(packet, address);
+        event_type = gap_event_advertising_report_get_advertising_event_type(packet);
+        address_type = gap_event_advertising_report_get_address_type(packet);
+        rssi = gap_event_advertising_report_get_rssi(packet);
+        length = gap_event_advertising_report_get_data_length(packet);
+        data = gap_event_advertising_report_get_data(packet);
+    }
 }
 
 bool AdvertisingReport::is_hearing_aid()
@@ -234,7 +243,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     ASHA_ASSERT_PACKET_TYPE(HCI_EVENT_PACKET);
     bd_addr_t local_addr;
 
-    switch(hci_event_packet_get_type(packet)) {
+    uint8_t hci_ev_type = hci_event_packet_get_type(packet);
+
+    switch(hci_ev_type) {
     case BTSTACK_EVENT_STATE:
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING) {
             // Set 2M PHY
@@ -249,10 +260,15 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         }
         break;
     /* Every time a GAP advertising report is received, handle it here */
+    case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
     case GAP_EVENT_ADVERTISING_REPORT:
-    {
         if (scan_state != ScanState::Scan) return;
-        curr_scan.report = AdvertisingReport(packet);
+        if (hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT) {
+            curr_scan.report = AdvertisingReport(packet, true);
+        } else {
+            curr_scan.report = AdvertisingReport(packet, false);
+        }
+        
         if (ha_mgr.get_by_addr(curr_scan.report.address)) return;
 
         // See if HA is already paired. If not paired, check if
@@ -261,7 +277,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         scan_state = ScanState::IdentityResolving;
         sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);
         break;
-    }
+
     case HCI_EVENT_LE_META:
         switch(hci_event_le_meta_get_subevent_code(packet)) {
         case HCI_SUBEVENT_LE_CONNECTION_COMPLETE:

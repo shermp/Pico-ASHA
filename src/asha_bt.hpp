@@ -36,7 +36,7 @@ struct AdvertisingReport {
 
     AdvertisingReport() {}
 
-    AdvertisingReport(uint8_t* packet);
+    AdvertisingReport(uint8_t* packet, bool extended);
 
     /* Check if this advertising report contains the services advertised
        by hearing aids. It checks for the existance of the ASHA service
