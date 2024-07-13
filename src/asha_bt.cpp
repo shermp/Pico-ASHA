@@ -199,8 +199,7 @@ extern "C" void bt_main()
             case AudioPacketReady:
                 //LOG_INFO("Audio index: %hu\n", ha.audio_index);
                 if (ha.audio_index < audio_write_index) {
-                    ha.set_audio_packet(audio_buff.get_g_buff(ha.audio_index));
-                    l2cap_request_can_send_now_event(ha.cid);
+                    ha.send_audio_packet(audio_buff.get_g_buff(ha.audio_index));
                 }
                 break;
             default:
