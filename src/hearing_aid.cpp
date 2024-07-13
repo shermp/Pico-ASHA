@@ -332,6 +332,29 @@ void HA::ROP::read(const uint8_t* data)
     codec_24khz = codecs[2];
 }
 
+void HA::ROP::print_values()
+{
+    LOG_INFO("Read Only Properties\n"
+        "  Version:        %d\n"
+        "  Side:           %s\n"
+        "  Mode:           %s\n"
+        "  CSIS:           %s\n"
+        "  Manufacture ID: %xxu\n"
+        "  LE CoC audio:   %s\n"
+        "  Render delay:   %hu\n"
+        "  Supports 16KHz: %s\n"
+        "  Supports 24KHz: %s\n",
+        version, 
+        (side == HA::Side::Left ? "Left" : "Right"),
+        (mode == HA::Mode::Binaural ? "Binaural" : "Monaural"),
+        (csis_supported ? "Yes" : "No"),
+        id.manufacturer_id,
+        le_coc_supported ? "Yes" : "No",
+        render_delay,
+        codec_16khz ? "Yes" : "No",
+        codec_24khz ? "Yes" : "No");
+}
+
 HAManager::HAManager()
 {
     // We should only ever have at most two 
