@@ -510,6 +510,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             break;
         case GATT_EVENT_QUERY_COMPLETE:
             LOG_INFO("Completed value read of PSM\n");
+            curr_scan.ha.rop.print_values();
             scan_state = ScanState::SubscribeASPNotification;
             gatt_client_write_client_characteristic_configuration(
                 &scan_gatt_event_handler,

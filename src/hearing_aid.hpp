@@ -136,6 +136,7 @@ public:
         void read(const uint8_t* data);
         bool operator==(const ROP& other) const = default;
         bool operator!=(const ROP& other) const {return !(operator==(other));}
+        void print_values();
     } rop = {};
 
     // Pointer to current audio packet
