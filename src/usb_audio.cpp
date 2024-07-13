@@ -29,7 +29,10 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-#include "asha_audio.h"
+#include "asha_audio.hpp"
+
+namespace asha
+{
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -37,15 +40,17 @@
 
 // List of supported sample rates
 #if defined(__RX__)
-  const uint32_t sample_rates[] = {44100, 48000};
+  static const uint32_t sample_rates[] = {16000};
 #else
-  const uint32_t sample_rates[] = {16000};
+  static const uint32_t sample_rates[] = {16000};
 #endif
 
-uint32_t current_sample_rate  = 16000;
+static uint32_t current_sample_rate  = 16000;
 
 #define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
 
+namespace USBVol 
+{
 /* ASHA volume range is -48dB to 0dB, and is set as an int8_t
  * with a range of -128 to 0. This gives steps of 0.375 dB.
 
@@ -53,14 +58,12 @@ uint32_t current_sample_rate  = 16000;
  * steps of 1/256 dB. The ASHA resolution is 96/256dB per step 
  * which gives a range of -12192 to 0 and a resolution of 96.
  */
-enum
-{
-  USB_ASHA_VOLUME_MAX = 0,
-  USB_ASHA_VOLUME_MIN = 32767,
-  USB_ASHA_VOLUME_RES = 256,
-  USB_VOLUME_MUTE = 0x8000,
-  ASHA_VOLUME_MUTE = 128,
-};
+
+  constexpr int16_t max = 0;
+  constexpr int16_t min = -32767;
+  constexpr int16_t res = 256;
+  constexpr int16_t mute = 0x8000;
+}
 
 // Audio controls
 // Current states
@@ -207,7 +210,9 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
     {
       audio_control_range_2_n_t(1) range_vol = {
         .wNumSubRanges = tu_htole16(1),
-        .subrange[0] = { .bMin = tu_htole16(-USB_ASHA_VOLUME_MIN), tu_htole16(USB_ASHA_VOLUME_MAX), tu_htole16(USB_ASHA_VOLUME_RES) }
+        .subrange = { { .bMin = tu_htole16(USBVol::min), 
+                        .bMax = tu_htole16(USBVol::max),
+                        .bRes = tu_htole16(USBVol::res) } }
       };
       TU_LOG1("Get channel %u volume range (%d, %d, %u) dB\n", request->bChannelNumber,
               range_vol.subrange[0].bMin / 256, range_vol.subrange[0].bMax / 256, range_vol.subrange[0].bRes / 256);
@@ -267,7 +272,7 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
 //--------------------------------------------------------------------+
 
 // Invoked when audio class specific get request received for an entity
-bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request)
+extern "C" bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request)
 {
   audio_control_request_t const *request = (audio_control_request_t const *)p_request;
 
@@ -284,7 +289,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 }
 
 // Invoked when audio class specific set request received for an entity
-bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *buf)
+extern "C" bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *buf)
 {
   audio_control_request_t const *request = (audio_control_request_t const *)p_request;
 
@@ -298,7 +303,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   return false;
 }
 
-bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request)
+extern "C" bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void)rhport;
 
@@ -308,7 +313,7 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
   return true;
 }
 
-bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request)
+extern "C" bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void)rhport;
   uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
@@ -326,7 +331,7 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   return true;
 }
 
-bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
+extern "C" bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
 {
   (void)rhport;
   (void)func_id;
@@ -338,7 +343,7 @@ bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, ui
   return true;
 }
 
-bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
+extern "C" bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
 {
   (void)rhport;
   (void)itf;
@@ -355,26 +360,26 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
 
 void audio_task(void)
 {
-  //TU_LOG1("Raw Volume: %hd\n", volume[0]);
 
-    // Dividing the USB volume by 256 gives a volume in the ASHA range.
-    asha_shared.volume = (int8_t)(volume[1] / 256);
-  if (mute[1]) {
-    asha_shared.volume = -ASHA_VOLUME_MUTE;
-  }
+  // Dividing the USB volume by 256 gives a volume in the ASHA range.
+  AudioBuffer::Volume v = {
+    .l = (int8_t)(volume[1] / 256), 
+    .r = (int8_t)(volume[2] / 256)
+  };
+  if (mute[1]) v.l = volume_mute;
+  if (mute[2]) v.r = volume_mute;
+  
+  audio_buff.set_volume(v);
 
-  if (spk_data_size) {
-    asha_shared.pcm_streaming = true;
-    if (spk_data_size != ASHA_PCM_STEREO_PACKET_SIZE * 2) {
-      return;
-    }
-    if (asha_shared.encode_audio) {
-      
-      asha_audio_g_enc_1ms(&asha_shared, spk_buf);
+  if (spk_data_size == pcm_stereo_packet_size * 2) {
+    pcm_streaming = true;
+    if (encode_audio.Load()) {
+      audio_buff.encode_1ms_audio(spk_buf);
+    } else {
+      audio_buff.reset_state();
     }
     spk_data_size = 0;
-  } //else {
-    //pcm_buff.streaming = false;
-  //}
-  //TU_LOG1("Streaming: %s\n", pcm_buff.streaming ? "Yes" : "No");
+  }
 }
+
+} // namespace asha

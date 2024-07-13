@@ -1,31 +1,37 @@
 #include <stdio.h>
-#include <pico/stdio.h>
-#include <pico/multicore.h>
-#include <pico/flash.h>
+#include "pico/stdio.h"
+#include "pico/multicore.h"
+#include "pico/flash.h"
 // TinyUSB
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "pico_asha.h"
+#include "asha_unique_id.hpp"
+#include "asha_audio.hpp"
 
-#include "asha_audio.h"
-
-void asha_main();
-void usb_main(void);
-
-#ifdef ASHA_PERF_TEST
-void perf_main(void);
-#endif
-
-struct asha_audio asha_shared;
-#ifdef ASHA_USB_SERIAL
-char pico_uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1 + 4];
-#else
-char pico_uid[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
-#endif
-
-int main()
+namespace asha
 {
+
+AudioBuffer audio_buff;
+
+patomic_bool pcm_streaming;
+patomic_bool encode_audio;
+
+char pico_uid[pico_uid_size];
+
+// extern "C" required by multicore_launch_core1
+extern "C" void bt_main();
+
+void usb_main();
+
+extern "C" int main()
+{
+    // Init global shared variables
+    patom::PseudoAtomicInit();
+    audio_buff.init();
+    pcm_streaming = false;
+    encode_audio = false;
+
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
 #ifdef ASHA_USB_SERIAL
@@ -37,7 +43,6 @@ int main()
     // init device stack on configured roothub port
     tud_init(BOARD_TUD_RHPORT);
 
-    asha_audio_init(&asha_shared);
     stdio_init_all();
     sleep_ms(2000);
     // Apparently there be dragons when using flash and
@@ -48,15 +53,13 @@ int main()
         printf("flash_safe_execute_core_init failed."
                "Pairing data will not be saved.\n");
     }
-#ifdef ASHA_PERF_TEST
-    multicore_launch_core1(perf_main);
-#else
-    multicore_launch_core1(asha_main);
-#endif
+    multicore_launch_core1(bt_main);
+
     sleep_ms(1000);
     usb_main();
     while(1) {
         sleep_ms(1000);
     }
-    //multicore_launch_core1(usb_main);
 }
+
+} // namespace asha
