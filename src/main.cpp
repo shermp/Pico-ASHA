@@ -35,7 +35,7 @@ extern "C" int main()
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
 #ifdef ASHA_USB_SERIAL
-    const char uid_suffix[4] = "-CDC";
+    const char uid_suffix[4] = {'-', 'C', 'D', 'C'};
     memcpy(pico_uid + (sizeof(pico_uid) - sizeof(uid_suffix) - 1), uid_suffix, sizeof(uid_suffix));
 #endif
     // Init TinyUSB before stdio init
