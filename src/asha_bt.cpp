@@ -25,6 +25,10 @@ static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, 
 static void finalise_curr_discovery();
 static bool device_db_empty();
 
+#ifdef ASHA_AD_DUMP
+extern "C" void dump_advertisement_data(const uint8_t * adv_data, uint8_t adv_size);
+#endif
+
 static void start_scan();
 
 gatt_client_notification_t notification_listener = {};
@@ -82,6 +86,13 @@ bool AdvertisingReport::is_hearing_aid()
     }
     return false;
 }
+
+#ifdef ASHA_AD_DUMP
+void AdvertisingReport::dump_ad_data()
+{
+    dump_advertisement_data(data, length);
+}
+#endif
 
 void ScanResult::reset()
 {
@@ -318,6 +329,9 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
             } else {
+#ifdef ASHA_AD_DUMP
+                curr_scan.report.dump_ad_data();
+#endif
                 LOG_SCAN("Ad Report for addr %s is not hearing aid\n", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }

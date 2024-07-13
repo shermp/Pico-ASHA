@@ -15,6 +15,7 @@ add_executable(pico-asha
   src/hearing_aid.cpp
   src/usb_descriptors.cpp
   src/usb_audio.cpp
+  src/btstack_ad_dump.c
   lib/g722/g722_encode.cc
 )
 
@@ -24,6 +25,7 @@ option(ENABLE_BLE_LOG_ERROR "Enable error logging." OFF)
 option(ENABLE_BLE_LOG_INFO "Enable info logging (default)." ON)
 option(ENABLE_BLE_LOG_SCAN "Enable scan logging." OFF)
 option(ENABLE_BLE_LOG_AUDIO "Enable audio logging" OFF)
+option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
 option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
@@ -37,6 +39,10 @@ elseif(ENABLE_BLE_LOG_INFO)
   list(APPEND pico_asha_defines "ASHA_LOG_INFO")
 elseif(ENABLE_BLE_LOG_ERROR)
   list(APPEND pico_asha_defines "ASHA_LOG_ERROR")
+endif()
+
+if(ENABLE_BLE_AD_DUMP)
+  list(APPEND pico_asha_defines "ASHA_AD_DUMP")
 endif()
 
 if(ENABLE_HCI_DUMP)

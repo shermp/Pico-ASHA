@@ -43,6 +43,9 @@ struct AdvertisingReport {
        types, as well as the Apple MFI service, because not all hearing 
        aids advertise ASHA (such as Oticon More) */
     bool is_hearing_aid();
+#ifdef ASHA_AD_DUMP
+    void dump_ad_data();
+#endif
 };
 
 struct ScanResult {
