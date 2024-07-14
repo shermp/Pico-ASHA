@@ -32,7 +32,7 @@ struct AdvertisingReport {
     uint8_t   address_type;
     uint8_t   rssi;
 
-    bool is_hearing_aid;
+    bool is_hearing_aid = false;
 
     AdvertisingReport() {}
 
