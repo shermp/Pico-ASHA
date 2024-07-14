@@ -285,7 +285,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
             scan_state = ScanState::ServiceDiscovery;
             LOG_INFO("Device connected. Discovering ASHA service\n");
-            auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
+            auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
+            //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
             if (res != ERROR_CODE_SUCCESS) {
                 LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
                 scan_state = ScanState::Disconnecting;
@@ -437,9 +438,13 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
     {
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_SERVICE_QUERY_RESULT:
-            curr_scan.service_found = true;
-            LOG_INFO("ASHA service found\n");
-            gatt_event_service_query_result_get_service(packet, &curr_scan.ha.service);
+            gatt_client_service_t service;
+            gatt_event_service_query_result_get_service(packet, &service);
+            if (service.uuid16 == AshaUUID::service16 || uuid_eq(service.uuid128, AshaUUID::service)) {
+                memcpy(&curr_scan.ha.service, &service, sizeof(service));
+                curr_scan.service_found = true;
+                LOG_INFO("ASHA service found\n");
+            }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
         {
