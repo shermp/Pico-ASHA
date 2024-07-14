@@ -441,6 +441,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         case GATT_EVENT_SERVICE_QUERY_RESULT:
             gatt_client_service_t service;
             gatt_event_service_query_result_get_service(packet, &service);
+            LOG_SCAN("Service Query: Service ID: 0x%04hx : UUID: %s\n", service.uuid16, uuid128_to_str(service.uuid128));
             if (service.uuid16 == AshaUUID::service16 || uuid_eq(service.uuid128, AshaUUID::service)) {
                 memcpy(&curr_scan.ha.service, &service, sizeof(service));
                 curr_scan.service_found = true;
