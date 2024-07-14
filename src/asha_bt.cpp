@@ -133,7 +133,7 @@ extern "C" void bt_main()
     sm_init();
     sm_set_secure_connections_only_mode(true);
     sm_set_io_capabilities(IO_CAPABILITY_DISPLAY_YES_NO);
-    sm_set_authentication_requirements(SM_AUTHREQ_SECURE_CONNECTION | SM_AUTHREQ_MITM_PROTECTION | SM_AUTHREQ_BONDING);
+    sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
 
     /* Init GATT client. Required to read/write GATT characteristics */
     LOG_INFO("GATT Client Init.\n");
