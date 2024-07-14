@@ -24,6 +24,7 @@ static void scan_gatt_event_handler     (uint8_t packet_type, uint16_t channel, 
 static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void finalise_curr_discovery();
 static bool device_db_empty();
+static void delete_paired_devices();
 
 #ifdef ASHA_AD_DUMP
 extern "C" void dump_advertisement_data(const uint8_t * adv_data, uint8_t adv_size);
@@ -252,6 +253,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 12, 12);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
+#ifdef ASHA_DELETE_PAIRINGS
+            delete_paired_devices();
+#endif
             start_scan();
         } else {
             scan_state = ScanState::Stop;
@@ -642,6 +646,22 @@ static bool device_db_empty()
         }
     }
     return true;
+}
+
+static void delete_paired_devices()
+{
+    LOG_INFO("Removing paired devices\n");
+    int addr_type;
+    bd_addr_t addr; 
+    sm_key_t irk;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
+            LOG_INFO("Removing: %s\n", bd_addr_to_str(addr));
+            le_device_db_remove(i);
+        }
+    }
 }
 
 } // namespace asha
