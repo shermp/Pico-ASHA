@@ -402,6 +402,20 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 break;
             }
             break;
+        case SM_EVENT_REENCRYPTION_STARTED:
+            LOG_INFO("Reencryption started\n");
+            break;
+        case SM_EVENT_REENCRYPTION_COMPLETE:
+            switch (sm_event_reencryption_complete_get_status(packet)) {
+            case ERROR_CODE_SUCCESS:
+                LOG_INFO("Reencryption complete\n");
+                break;
+            case ERROR_CODE_PIN_OR_KEY_MISSING:
+                LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING\n");
+                break;
+            default:
+                break;
+            }
         default:
             break;
         }
