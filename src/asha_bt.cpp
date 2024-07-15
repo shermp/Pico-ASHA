@@ -134,6 +134,7 @@ extern "C" void bt_main()
     sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
     sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
+    sm_allow_ltk_reconstruction_without_le_device_db_entry(0);
 
     /* Init GATT client. Required to read/write GATT characteristics */
     LOG_INFO("GATT Client Init.\n");
