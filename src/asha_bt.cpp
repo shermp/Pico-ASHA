@@ -395,6 +395,8 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             case ERROR_CODE_AUTHENTICATION_FAILURE:
                 LOG_ERROR("Pairing failed, authentication failure with reason: %d\n",
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
+                // Try and upgrade to LE Secure connections
+                sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
                 break;
             default:
                 break;
