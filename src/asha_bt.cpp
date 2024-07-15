@@ -131,7 +131,7 @@ extern "C" void bt_main()
        paired hearing aids */
     LOG_INFO("SM Init.\n");
     sm_init();
-    sm_set_secure_connections_only_mode(true);
+    sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_DISPLAY_YES_NO);
     sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
 
@@ -263,6 +263,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         break;
     /* Every time a GAP advertising report is received, handle it here */
     case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
+        LOG_SCAN("Got extended advertising report.\n");
+        // Fallthrough
     case GAP_EVENT_ADVERTISING_REPORT:
         if (scan_state != ScanState::Scan) return;
         if (hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT) {
