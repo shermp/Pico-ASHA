@@ -22,6 +22,7 @@ static void sm_event_handler            (uint8_t packet_type, uint16_t channel, 
 static void l2cap_cbm_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void scan_gatt_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void discover_services();
 static void finalise_curr_discovery();
 static bool device_db_empty();
 static void delete_paired_devices();
@@ -238,6 +239,19 @@ static void start_scan()
     gap_start_scan();
 }
 
+static void discover_services()
+{
+    if (scan_state != ScanState::ServiceDiscovery) return;
+    LOG_INFO("Device paired. Discovering ASHA service\n");
+    auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
+    //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
+        scan_state = ScanState::Disconnecting;
+        gap_disconnect(curr_scan.ha.conn_handle);
+    }
+}
+
 static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
 {
     ASHA_ASSERT_PACKET_TYPE(HCI_EVENT_PACKET);
@@ -291,15 +305,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             if (scan_state != ScanState::Connecting) return;
             curr_scan.ha.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
             curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
-            scan_state = ScanState::ServiceDiscovery;
-            LOG_INFO("Device connected. Discovering ASHA service\n");
-            auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
-            //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
-            if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
+            scan_state = ScanState::Pairing;
+            LOG_INFO("Device connected. Attempt pairing\n");
+            sm_request_pairing(curr_scan.ha.conn_handle);
             break;
         }
         case HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE:
@@ -373,6 +381,7 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         default: break;
         }
     } else {
+        if (scan_state != ScanState::Pairing) return;
         switch (ev_type) {
         case SM_EVENT_JUST_WORKS_REQUEST:
             LOG_INFO("Just Works requested\n");
@@ -385,18 +394,23 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             switch (sm_event_pairing_complete_get_status(packet)){
             case ERROR_CODE_SUCCESS:
                 LOG_INFO("Pairing complete, success\n");
+                scan_state = ScanState::ServiceDiscovery;
+                discover_services();
                 break;
             case ERROR_CODE_CONNECTION_TIMEOUT:
                 LOG_ERROR("Pairing failed, timeout\n");
+                scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
                 LOG_ERROR("Pairing failed, disconnected\n");
+                scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_AUTHENTICATION_FAILURE:
                 LOG_ERROR("Pairing failed, authentication failure with reason: %d\n",
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
                 // Try and upgrade to LE Secure connections
                 sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
+                scan_state = ScanState::Scan;
                 break;
             default:
                 break;
@@ -409,9 +423,12 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             switch (sm_event_reencryption_complete_get_status(packet)) {
             case ERROR_CODE_SUCCESS:
                 LOG_INFO("Reencryption complete\n");
+                scan_state = ScanState::ServiceDiscovery;
+                discover_services();
                 break;
             case ERROR_CODE_PIN_OR_KEY_MISSING:
                 LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING\n");
+                scan_state = ScanState::Scan;
                 break;
             default:
                 break;

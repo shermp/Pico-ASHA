@@ -12,6 +12,7 @@ enum class ScanState {
     Scan,
     IdentityResolving,
     Connecting,
+    Pairing,
     Disconnecting,
     ServiceDiscovery,
     CharDiscovery,
