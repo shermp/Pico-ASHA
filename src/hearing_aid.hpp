@@ -22,6 +22,8 @@ public:
         GATTConnected,
         L2ConnStart,
         L2ConnCompleted,
+        SubscribeASPNotification,
+        ASPNotificationSubscribed,
         ACPStartWrite,
         ACPStartWritten,
         ASPStartOk,
@@ -50,6 +52,8 @@ public:
 
     void create_l2cap_channel();
     void on_l2cap_channel_created(uint8_t status);
+
+    void subscribe_to_asp_notification();
 
     void write_acp_cmd(ACPOpCode opcode);
     void write_acp_status(uint8_t status);

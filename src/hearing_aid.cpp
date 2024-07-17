@@ -85,13 +85,25 @@ void HA::on_l2cap_channel_created(uint8_t status)
     }
 }
 
+void HA::subscribe_to_asp_notification()
+{
+    if (state != State::L2ConnCompleted) return;
+    state = State::SubscribeASPNotification;
+    gatt_client_write_client_characteristic_configuration(
+        gatt_packet_handler,
+        conn_handle,
+        &chars.asp,
+        GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION
+    );
+}
+
 void HA::write_acp_cmd(ACPOpCode opcode)
 {
     uint8_t res = ERROR_CODE_SUCCESS;
     State last_state = state;
     switch (opcode) {
     case ACPOpCode::Start:
-        if (state != State::L2ConnCompleted) {
+        if (state != State::ASPNotificationSubscribed) {
             LOG_ERROR("%s: Not in L2CAP connected state\n", side_str);
             return;
         }
@@ -161,10 +173,18 @@ void HA::write_acp_status(uint8_t status)
 void HA::on_gatt_event_query_complete(uint8_t att_status)
 {
     switch (state) {
+    case State::SubscribeASPNotification:
+        if (att_status != ATT_ERROR_SUCCESS) {
+            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n", att_status);
+            state = State::L2ConnCompleted;
+        }
+        state = State::ASPNotificationSubscribed;
+        LOG_INFO("%s: Subscribed to ASP Notification\n", side_str);
+        break;
     case State::ACPStartWrite:
         if (att_status != ATT_ERROR_SUCCESS) {
             LOG_ERROR("%s: ACP Start: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
-            state = State::L2ConnCompleted;
+            state = State::ASPNotificationSubscribed;
             return;
         }
         state = State::ACPStartWritten;
@@ -172,7 +192,7 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
     case State::ACPStopWrite:
         if (att_status != ATT_ERROR_SUCCESS) {
             LOG_ERROR("%s: ACP Stop: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
-            state = State::L2ConnCompleted;
+            state = State::ASPNotificationSubscribed;
         }
         state = State::ACPStopWritten;
         break;
@@ -196,7 +216,7 @@ void HA::on_asp_notification(int8_t asp_status)
             }
         } else if (state == State::ACPStopWritten) {
             LOG_INFO("%s: ASP Stop Ok.\n", side_str);
-            state = State::L2ConnCompleted;
+            state = State::ASPNotificationSubscribed;
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_disconnected);
             }
@@ -271,7 +291,9 @@ bool HA::is_creating_l2cap_channel()
     return is_any_of(state,
                      GATTConnected,
                      L2ConnStart,
-                     L2ConnCompleted);
+                     L2ConnCompleted,
+                     SubscribeASPNotification,
+                     ASPNotificationSubscribed);
 }
 
 bool HA::is_streaming_audio()
