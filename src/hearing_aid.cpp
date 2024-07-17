@@ -330,7 +330,7 @@ void HA::ROP::print_values()
         "  Side:           %s\n"
         "  Mode:           %s\n"
         "  CSIS:           %s\n"
-        "  Manufacture ID: %02hx\n"
+        "  Manufacture ID: %04hx\n"
         "  LE CoC audio:   %s\n"
         "  Render delay:   %hu\n"
         "  Supports 16KHz: %s\n"
