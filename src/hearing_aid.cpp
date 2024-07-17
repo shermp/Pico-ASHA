@@ -51,32 +51,9 @@ HA::Mode HA::mode() const
     return rop.mode;
 }
 
-void HA::update_conn_params()
-{
-    if (state == State::GATTConnected) {
-        state = State::UpdateConnParamsStart;
-        LOG_INFO("%s: Updating connection parameters\n", side_str);
-        gap_update_connection_parameters(
-            conn_handle,
-            asha_conn_interval,
-            asha_conn_interval,
-            asha_conn_latency,
-            supervision_timeout
-        );
-    }
-}
-
-void HA::on_conn_param_updated()
-{
-    if (state == State::UpdateConnParamsStart) {
-        LOG_INFO("%s: Updated connection parameters\n", side_str);
-        state = State::UpdateConnParamsCompleted;
-    }
-}
-
 void HA::create_l2cap_channel()
 {
-    if (state == State::UpdateConnParamsCompleted) {
+    if (state == State::GATTConnected) {
         state = State::L2ConnStart;
         LOG_INFO("%s: Connecting to L2CAP\n", side_str);
         auto res = l2cap_cbm_create_channel(l2cap_packet_handler, 
@@ -88,7 +65,7 @@ void HA::create_l2cap_channel()
                                             LEVEL_2,
                                             &cid);
         if (res != ERROR_CODE_SUCCESS) {
-            state = State::UpdateConnParamsCompleted;
+            state = State::GATTConnected;
             LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x", side_str, (unsigned int)res);
         }
     }
@@ -100,7 +77,7 @@ void HA::on_l2cap_channel_created(uint8_t status)
         if (status != ERROR_CODE_SUCCESS) {
             LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x\n", side_str, status);
             // Try again
-            state = State::UpdateConnParamsCompleted;
+            state = State::GATTConnected;
             return;
         }
         LOG_INFO("%s: L2CAP CoC channel created\n", side_str);
@@ -293,8 +270,6 @@ bool HA::is_creating_l2cap_channel()
     using enum State;
     return is_any_of(state,
                      GATTConnected,
-                     UpdateConnParamsStart,
-                     UpdateConnParamsCompleted,
                      L2ConnStart,
                      L2ConnCompleted);
 }

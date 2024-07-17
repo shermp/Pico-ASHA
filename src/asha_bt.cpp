@@ -14,6 +14,12 @@ namespace asha {
 
 #define ASHA_ASSERT_PACKET_TYPE(pt) if (packet_type != (pt)) return
 
+/* Connection parameters for ASHA
+   Note, connection interval is in units of 1.25ms */
+constexpr uint16_t asha_conn_interval = 20 / 1.25f;
+
+constexpr uint16_t asha_conn_latency  = 10;
+
 static btstack_packet_callback_registration_t hci_event_cb_reg;
 static btstack_packet_callback_registration_t sm_event_cb_reg;
 
@@ -203,9 +209,6 @@ extern "C" void bt_main()
             ha.set_volume(vol);
             switch (ha.state) {
             case GATTConnected:
-                ha.update_conn_params();
-                break;
-            case UpdateConnParamsCompleted:
                 ha.create_l2cap_channel();
                 break;
             case L2ConnCompleted:
@@ -264,8 +267,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING) {
             // Set 2M PHY
             gap_set_connection_phys(2);
-            // Set defaults, except min_ce_length & max_ce_length
-            gap_set_connection_parameters(0x0030, 0x0030, 8, 24, 4, 72, 12, 12);
+            // Set connection parameters including connection interval
+            // by default
+            gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 72, 12, 12);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
 #ifdef ASHA_DELETE_PAIRINGS
@@ -304,18 +308,15 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         {
             if (scan_state != ScanState::Connecting) return;
             curr_scan.ha.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
-            curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
+            uint16_t ci = hci_subevent_le_connection_complete_get_conn_interval(packet);
+            uint16_t cl = hci_subevent_le_connection_complete_get_conn_latency(packet);
+            if (ci != asha_conn_interval || cl != asha_conn_latency) {
+                LOG_ERROR("Unexpected connection params. Got Connection Interval: %hu  Connection latency: %hu\n", ci, cl);
+            }
+            //curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
             scan_state = ScanState::Pairing;
             LOG_INFO("Device connected. Attempt pairing\n");
             sm_request_pairing(curr_scan.ha.conn_handle);
-            break;
-        }
-        case HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE:
-        {
-            HA& ha = ha_mgr.get_by_conn_handle(hci_subevent_le_connection_complete_get_connection_handle(packet));
-            if (ha) {
-                ha.on_conn_param_updated();
-            }
             break;
         }
         }
