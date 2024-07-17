@@ -32,6 +32,7 @@ static void discover_services();
 static void finalise_curr_discovery();
 static bool device_db_empty();
 static void delete_paired_devices();
+static void delete_paired_device(const bd_addr_t addr);
 
 #ifdef ASHA_AD_DUMP
 extern "C" void dump_advertisement_data(const uint8_t * adv_data, uint8_t adv_size);
@@ -431,9 +432,14 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 discover_services();
                 break;
             case ERROR_CODE_PIN_OR_KEY_MISSING:
+            {   
                 LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING\n");
+                bd_addr_t addr;
+                sm_event_reencryption_complete_get_address(packet, addr);
+                delete_paired_device(addr);
                 scan_state = ScanState::Scan;
                 break;
+            }
             default:
                 break;
             }
@@ -676,6 +682,22 @@ static void delete_paired_devices()
         le_device_db_info(i, &addr_type, addr, irk);
         if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
             LOG_INFO("Removing: %s\n", bd_addr_to_str(addr));
+            le_device_db_remove(i);
+        }
+    }
+}
+
+static void delete_paired_device(const bd_addr_t address)
+{
+    LOG_INFO("Removing paired device with address %s\n", bd_addr_to_str(address));
+    int addr_type;
+    bd_addr_t addr; 
+    sm_key_t irk;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type != BD_ADDR_TYPE_UNKNOWN && bd_addr_cmp(addr, address) == 0) {
+            LOG_INFO("Found. Removing\n");
             le_device_db_remove(i);
         }
     }
