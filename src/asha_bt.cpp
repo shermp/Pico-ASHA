@@ -540,7 +540,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 LOG_INFO("Got PSM Characteristic\n");
                 curr_scan.ha.chars.psm = characteristic;
             }
-            LOG_INFO("Characteristic handles: Start: 0x%02hx  Value: 0x%02hx  End: 0x%02hx\n",
+            LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx\n",
                      characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
