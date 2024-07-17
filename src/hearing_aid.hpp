@@ -12,12 +12,6 @@ namespace asha
 
 constexpr size_t max_num_ha = 2;
 
-/* Connection parameters for ASHA
-   Note, connection interval is in units of 1.25ms */
-constexpr uint16_t asha_conn_interval = 20 / 1.25f;
-
-constexpr uint16_t asha_conn_latency  = 10;
-
 class HA
 {
 public:
@@ -26,8 +20,6 @@ public:
     enum class State {
         Invalid,
         GATTConnected,
-        UpdateConnParamsStart,
-        UpdateConnParamsCompleted,
         L2ConnStart,
         L2ConnCompleted,
         ACPStartWrite,
@@ -56,9 +48,6 @@ public:
     // Gets the mode (monoaural/binaural) of the hearing aid
     Mode mode() const;
 
-    void update_conn_params();
-    void on_conn_param_updated();
-
     void create_l2cap_channel();
     void on_l2cap_channel_created(uint8_t status);
 
@@ -86,8 +75,6 @@ public:
 
     // HA HCI connection handle
     hci_con_handle_t conn_handle = HCI_CON_HANDLE_INVALID;
-
-    uint16_t supervision_timeout = 0;
 
     // HA L2CAP CoC connection ID
     uint16_t cid = 0u;
