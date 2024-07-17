@@ -212,6 +212,9 @@ extern "C" void bt_main()
                 ha.create_l2cap_channel();
                 break;
             case L2ConnCompleted:
+                ha.subscribe_to_asp_notification();
+                break;
+            case ASPNotificationSubscribed:
                 ha.write_acp_cmd(HA::ACPOpCode::Start);
                 break;
             case ASPStartOk:
@@ -585,34 +588,9 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         case GATT_EVENT_QUERY_COMPLETE:
             LOG_INFO("Completed value read of PSM\n");
             curr_scan.ha.rop.print_values();
-            scan_state = ScanState::SubscribeASPNotification;
-            gatt_client_write_client_characteristic_configuration(
-                &scan_gatt_event_handler,
-                curr_scan.ha.conn_handle,
-                &curr_scan.ha.chars.asp,
-                GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION
-            );
-            break;
-        }
-        break;
-    }
-    case ScanState::SubscribeASPNotification:
-    {
-        switch(hci_event_packet_get_type(packet)) {
-        case GATT_EVENT_QUERY_COMPLETE: 
-        {
-            auto att_status = gatt_event_query_complete_get_att_status(packet);
-            if (att_status != ATT_ERROR_SUCCESS) {
-                LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n"
-                    "Disconnecting\n", att_status);
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
-            LOG_INFO("AudioStatusPoint notification enabled.\n");
             scan_state = ScanState::Finalizing;
             finalise_curr_discovery();
             break;
-        }
         }
         break;
     }

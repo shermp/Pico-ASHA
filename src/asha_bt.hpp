@@ -18,7 +18,6 @@ enum class ScanState {
     CharDiscovery,
     ReadROP,
     ReadPSM,
-    SubscribeASPNotification,
     Finalizing,
     Complete,
 };
