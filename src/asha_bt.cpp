@@ -249,13 +249,22 @@ static void start_scan()
 static void discover_services()
 {
     if (scan_state != ScanState::ServiceDiscovery) return;
-    LOG_INFO("Device paired. Discovering ASHA service\n");
-    auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
-    //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
-    if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
-        scan_state = ScanState::Disconnecting;
-        gap_disconnect(curr_scan.ha.conn_handle);
+    HA cached = ha_mgr.get_from_cache(curr_scan.ha.addr);
+    if (cached) {
+        LOG_INFO("Hearing aid found in cache. Skipping discovery\n");
+        cached.conn_handle = curr_scan.ha.conn_handle;
+        curr_scan.ha = cached;
+        scan_state = ScanState::Finalizing;
+        finalise_curr_discovery();
+    } else { 
+        LOG_INFO("Device paired. Discovering ASHA service\n");
+        auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
+        //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
+        if (res != ERROR_CODE_SUCCESS) {
+            LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
+            scan_state = ScanState::Disconnecting;
+            gap_disconnect(curr_scan.ha.conn_handle);
+        }
     }
 }
 
