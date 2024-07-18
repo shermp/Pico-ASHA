@@ -12,6 +12,10 @@ namespace asha
 
 constexpr size_t max_num_ha = 2;
 
+constexpr uint32_t ha_cache_size = 4ul;
+
+constexpr uint32_t ha_cache_mask = ha_cache_size - 1ul;
+
 class HA
 {
 public:
@@ -19,6 +23,7 @@ public:
     enum class Mode {Mono = 0, Binaural = 1};
     enum class State {
         Invalid,
+        Cached,
         GATTConnected,
         L2ConnStart,
         L2ConnCompleted,
@@ -70,6 +75,8 @@ public:
     
     bool is_creating_l2cap_channel();
     bool is_streaming_audio();
+
+    void reset_uncached_vars();
 
     // Current state of the hearing aid
     State state = State::Invalid;
@@ -160,11 +167,16 @@ public:
     bool exists(HA const& ha);
     bool set_complete();
 
+    HA& get_from_cache(const bd_addr_t addr);
+    void add_to_cache(HA const& ha);
+
     HA& add(HA const& new_ha);
     void remove_by_conn_handle(hci_con_handle_t handle);
 
     std::vector<HA> hearing_aids;
 private:
+    std::vector<HA> cache;
+    uint32_t cache_write_index = 0;
     HA invalid_ha = {};
 };
 

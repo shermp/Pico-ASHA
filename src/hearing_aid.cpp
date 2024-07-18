@@ -302,6 +302,16 @@ bool HA::is_streaming_audio()
     return is_any_of(state, AudioPacketReady, AudioPacketSending, AudioPacketSent, ASPStartOk);
 }
 
+void HA::reset_uncached_vars()
+{
+    state = HA::State::Cached;
+    conn_handle = HCI_CON_HANDLE_INVALID;
+    cid = 0;
+    other_ha = nullptr;
+    audio_packet = nullptr;
+    audio_index  = 0u;
+}
+
 HA::ROP::ROP()
 {}
 
@@ -351,6 +361,8 @@ HAManager::HAManager()
     // We should only ever have at most two 
     // hearing aids so reserve capacity up front
     hearing_aids.reserve(max_num_ha);
+
+    cache.resize(ha_cache_size);
 }
 
 HA& HAManager::get_by_addr(bd_addr_t const addr)
@@ -394,6 +406,26 @@ bool HAManager::set_complete()
             (hearing_aids.size() == 2 && hearing_aids[0].rop.id == hearing_aids[1].rop.id);
 }
 
+HA& HAManager::get_from_cache(const bd_addr_t addr)
+{
+    for (auto& ha : cache) {
+        if (bd_addr_cmp(addr, ha.addr) == 0) {
+            return ha;
+        }
+    }
+    return invalid_ha;
+}
+
+void HAManager::add_to_cache(HA const& ha)
+{
+    if (!get_from_cache(ha.addr)) {
+        uint32_t i = cache_write_index & ha_cache_mask;
+        cache[i] = ha;
+        cache[i].reset_uncached_vars();
+        ++cache_write_index;
+    }
+}
+
 HA& HAManager::add(HA const& new_ha)
 {
     if (exists(new_ha)) {
@@ -415,6 +447,7 @@ HA& HAManager::add(HA const& new_ha)
         }
     }
     hearing_aids.emplace_back(new_ha);
+    add_to_cache(new_ha);
     assert(hearing_aids.size() <= 2);
     if (hearing_aids.size() == 2) {
         hearing_aids[0].other_ha = &hearing_aids[1];
