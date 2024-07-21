@@ -16,7 +16,7 @@ extern "C" {
     #define LOG_AUDIO(fmt, ...)
 #elif defined (ASHA_LOG_INFO)
     #define LOG_ERROR(fmt, ...) printf("[%u ms] [ASHA ERROR] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_INFO(fmt, ...) printf("[%u ms] [Pico-ASHA  INFO] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_INFO(fmt, ...) printf("[%u ms] [ASHA  INFO] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
     #define LOG_SCAN(fmt, ...)
     #define LOG_AUDIO(fmt, ...)
 #elif defined (ASHA_LOG_SCAN)
