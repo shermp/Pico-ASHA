@@ -12,7 +12,9 @@ void AudioBuffer::init()
     atomic_vol.l = volume_mute;
     atomic_vol.r = volume_mute;
     encode_mono = false;
+    encode_audio = false;
     write_index = 0u;
+    g_offset = 1;
 }
 
 void AudioBuffer::reset_state()
@@ -45,6 +47,7 @@ uint32_t AudioBuffer::get_write_index()
 
 void AudioBuffer::encode_1ms_audio(int16_t* stereo_pcm)
 {
+    if (!encode_audio.Load()) return;
     int buff_index = 0;
     uint32_t w_index = write_index.Load();
     if (encode_mono.Load()) {
@@ -68,8 +71,8 @@ void AudioBuffer::encode_1ms_audio(int16_t* stereo_pcm)
         g_ring_buff[ring_buff_index(w_index)].r[0] = seq_num;
         g_offset = 1;
         ++w_index;
-        write_index = w_index;
         ++seq_num;
+        write_index = w_index;
     }
 }
 

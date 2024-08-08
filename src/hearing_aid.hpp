@@ -2,7 +2,8 @@
 
 #include <array>
 #include <cstdint>
-#include <vector>
+//#include <vector>
+#include "etl/vector.h"
 
 #include "btstack.h"
 #include "asha_audio.hpp"
@@ -25,19 +26,17 @@ public:
         Invalid,
         Cached,
         GATTConnected,
-        L2ConnStart,
-        L2ConnCompleted,
+        GATTDisconnect,
+        L2Connecting,
+        L2Connected,
         SubscribeASPNotification,
-        ASPNotificationSubscribed,
-        ACPStartWrite,
-        ACPStartWritten,
+        ACPStart,
         ASPStartOk,
         ASPStopOK,
         AudioPacketReady,
         AudioPacketSending,
         AudioPacketSent,
-        ACPStopWrite,
-        ACPStopWritten,
+        ACPStop,
     };
     enum class ACPOpCode : uint8_t {
         Start = 1,
@@ -55,12 +54,14 @@ public:
     // Gets the mode (monoaural/binaural) of the hearing aid
     Mode mode() const;
 
+    void on_gatt_connected();
+    void subscribe_to_asp_notification();
+
     void create_l2cap_channel();
     void on_l2cap_channel_created(uint8_t status);
 
-    void subscribe_to_asp_notification();
-
-    void write_acp_cmd(ACPOpCode opcode);
+    void write_acp_start();
+    void write_acp_stop();
     void write_acp_status(uint8_t status);
 
     void on_gatt_event_query_complete(uint8_t att_status);
@@ -69,11 +70,11 @@ public:
     void set_volume(AudioBuffer::Volume& volume);
     void write_volume();
 
-    void send_audio_packet(AudioBuffer::G722Buff& packet);
+    void set_write_index(uint32_t write_index);
+    void send_audio_packet();
     void on_can_send_audio_packet_now();
     void on_audio_packet_sent();
     
-    bool is_creating_l2cap_channel();
     bool is_streaming_audio();
 
     void reset_uncached_vars();
@@ -139,7 +140,6 @@ public:
 
     // Pointer to current audio packet
     uint8_t* audio_packet = nullptr;
-    uint32_t audio_index  = 0u;
 
     // Array to store current AudioControlPoint command packet
     std::array<uint8_t, 5> acp_cmd_packet = {};
@@ -151,8 +151,10 @@ public:
     btstack_packet_handler_t l2cap_packet_handler = nullptr;
     btstack_packet_handler_t gatt_packet_handler = nullptr;
 
+    uint32_t curr_read_index = 0u;
 private:
     bool change_vol = false;
+    uint32_t curr_write_index = 0u;
 };
 
 class HAManager
@@ -173,9 +175,9 @@ public:
     HA& add(HA const& new_ha);
     void remove_by_conn_handle(hci_con_handle_t handle);
 
-    std::vector<HA> hearing_aids;
+    etl::vector<HA, max_num_ha> hearing_aids;
 private:
-    std::vector<HA> cache;
+    etl::vector<HA, ha_cache_size> cache;
     uint32_t cache_write_index = 0;
     HA invalid_ha = {};
 };

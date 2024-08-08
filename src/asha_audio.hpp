@@ -56,6 +56,8 @@ public:
         int8_t r;
     };
 
+    patomic_bool encode_audio;
+
     AudioBuffer();
     void init();
     void reset_state();
@@ -95,8 +97,5 @@ private:
 };
 
 extern AudioBuffer audio_buff;
-
-extern patomic_bool pcm_streaming;
-extern patomic_bool encode_audio;
 
 } // namespace asha

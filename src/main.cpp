@@ -14,9 +14,6 @@ namespace asha
 
 AudioBuffer audio_buff;
 
-patomic_bool pcm_streaming;
-patomic_bool encode_audio;
-
 char pico_uid[pico_uid_size];
 
 // extern "C" required by multicore_launch_core1
@@ -29,9 +26,6 @@ extern "C" int main()
     // Init global shared variables
     patom::PseudoAtomicInit();
     audio_buff.init();
-    pcm_streaming = false;
-    encode_audio = false;
-
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
 #ifdef ASHA_USB_SERIAL
