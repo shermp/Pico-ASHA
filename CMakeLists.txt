@@ -9,6 +9,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(PICO_BOARD pico_w)
 pico_sdk_init()
 
+Include(FetchContent)
+
+FetchContent_Declare(
+  etl
+  GIT_REPOSITORY https://github.com/ETLCPP/etl
+  GIT_TAG        20.38.17
+)
+
+FetchContent_MakeAvailable(etl)
+
 add_executable(pico-asha
   src/main.cpp
   src/asha_audio.cpp
@@ -86,6 +96,7 @@ target_link_libraries(pico-asha
   pico_multicore
   tinyusb_device
   tinyusb_board
+  etl::etl
 )
 
 target_link_options(pico-asha PUBLIC -Wl,--print-memory-usage)
