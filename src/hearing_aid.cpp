@@ -51,113 +51,105 @@ HA::Mode HA::mode() const
     return rop.mode;
 }
 
-void HA::create_l2cap_channel()
+void HA::on_gatt_connected()
 {
-    if (state == State::GATTConnected) {
-        state = State::L2ConnStart;
-        LOG_INFO("%s: Connecting to L2CAP\n", side_str);
-        auto res = l2cap_cbm_create_channel(l2cap_packet_handler, 
-                                            conn_handle, 
-                                            psm, 
-                                            recv_buff.data(), 
-                                            recv_buff.size(),
-                                            L2CAP_LE_AUTOMATIC_CREDITS,
-                                            LEVEL_2,
-                                            &cid);
-        if (res != ERROR_CODE_SUCCESS) {
-            state = State::GATTConnected;
-            LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x", side_str, (unsigned int)res);
-        }
-    }
-}
-
-void HA::on_l2cap_channel_created(uint8_t status) 
-{
-    if (state == State::L2ConnStart) {
-        if (status != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x\n", side_str, status);
-            // Try again
-            state = State::GATTConnected;
-            return;
-        }
-        LOG_INFO("%s: L2CAP CoC channel created\n", side_str);
-        state = State::L2ConnCompleted;
-    }
+    subscribe_to_asp_notification();
 }
 
 void HA::subscribe_to_asp_notification()
 {
-    if (state != State::L2ConnCompleted) return;
     state = State::SubscribeASPNotification;
-    gatt_client_write_client_characteristic_configuration(
+    auto res = gatt_client_write_client_characteristic_configuration(
         gatt_packet_handler,
         conn_handle,
         &chars.asp,
         GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION
     );
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Error writing ASP notification configuration: 0x%02x\n", side_str, (unsigned int)res);
+        state = State::GATTConnected;
+        on_gatt_connected();
+    }
 }
 
-void HA::write_acp_cmd(ACPOpCode opcode)
+void HA::create_l2cap_channel()
 {
+    state = State::L2Connecting;
+    int cx_attempts = 0;
     uint8_t res = ERROR_CODE_SUCCESS;
-    State last_state = state;
-    switch (opcode) {
-    case ACPOpCode::Start:
-        if (state != State::ASPNotificationSubscribed) {
-            LOG_ERROR("%s: Not in L2CAP connected state\n", side_str);
-            return;
-        }
-        state = State::ACPStartWrite;
-        change_vol = false;
-        acp_cmd_packet[0] = static_cast<uint8_t>(opcode); // Opcode
-        acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
-        acp_cmd_packet[2] = 0u; // Unkown audio type
-        acp_cmd_packet[3] = (uint8_t)volume; // Volume mute
-        acp_cmd_packet[4] = (other_ha && other_ha->is_streaming_audio()) ? 1 : 0; // Otherstate
-        res = gatt_client_write_value_of_characteristic(gatt_packet_handler, 
-                                                        conn_handle, 
-                                                        chars.acp.value_handle,
-                                                        (uint16_t)acp_cmd_packet.size(),
-                                                        acp_cmd_packet.data());
+    do {
+        LOG_INFO("%s: Connecting to L2CAP\n", side_str);
+        res = l2cap_cbm_create_channel(l2cap_packet_handler, 
+                                        conn_handle, 
+                                        psm, 
+                                        recv_buff.data(), 
+                                        recv_buff.size(),
+                                        L2CAP_LE_AUTOMATIC_CREDITS,
+                                        LEVEL_2,
+                                        &cid);
         if (res != ERROR_CODE_SUCCESS) {
-             LOG_ERROR("%s: ACP Write: Start error 0x%02x\n", side_str, (unsigned int)res);
-             state = last_state;
+            LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x\n", side_str, (unsigned int)res);
+            ++cx_attempts;
         }
-        break;
-    case ACPOpCode::Stop:
-        if (!is_streaming_audio()) {
-            LOG_ERROR("%s: Not streaming audio\n", side_str);
-            return;
-        }
-        state = State::ACPStopWrite;
-        acp_cmd_packet[0] = static_cast<uint8_t>(opcode);
-        res = gatt_client_write_value_of_characteristic(gatt_packet_handler,
-                                                        conn_handle,
-                                                        chars.acp.value_handle,
-                                                        1u,
-                                                        acp_cmd_packet.data());
-        if (res != ERROR_CODE_SUCCESS) {
-             LOG_ERROR("%s: ACP Write: Stop error 0x%02x\n", side_str, (unsigned int)res);
-             state = last_state;
-        }
-        break;
-    default: 
-        break;
+    } while (res != ERROR_CODE_SUCCESS && cx_attempts < 5);
+    if (res != ERROR_CODE_SUCCESS) {
+        state = State::GATTDisconnect;
+        gap_disconnect(conn_handle);
+    }
+
+}
+
+void HA::on_l2cap_channel_created(uint8_t status) 
+{
+    if (status != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x\n", side_str, status);
+        // Try again
+        create_l2cap_channel();
+        return;
+    }
+    LOG_INFO("%s: L2CAP CoC channel created\n", side_str);
+    state = State::L2Connected;
+}
+
+void HA::write_acp_start()
+{
+    state = State::ACPStart;
+    change_vol = false;
+    acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Start); // Opcode
+    acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
+    acp_cmd_packet[2] = 0u; // Unkown audio type
+    acp_cmd_packet[3] = (uint8_t)volume; // Volume
+    acp_cmd_packet[4] = (other_ha && other_ha->is_streaming_audio()) ? 1 : 0; // Otherstate
+
+    uint8_t res = gatt_client_write_value_of_characteristic(gatt_packet_handler, 
+                                                            conn_handle, 
+                                                            chars.acp.value_handle,
+                                                            (uint16_t)acp_cmd_packet.size(),
+                                                            acp_cmd_packet.data());
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: ACP Write: Start error 0x%02x\n", side_str, (unsigned int)res);
+        state = State::L2Connected;
+    }
+}
+
+void HA::write_acp_stop()
+{
+    state = State::ACPStop;
+    acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Stop);
+    uint8_t res = gatt_client_write_value_of_characteristic(gatt_packet_handler,
+                                                            conn_handle,
+                                                            chars.acp.value_handle,
+                                                            1u,
+                                                            acp_cmd_packet.data());
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: ACP Write: Stop error 0x%02x\n", side_str, (unsigned int)res);
+        state = State::GATTDisconnect;
+        gap_disconnect(conn_handle);
     }
 }
 
 void HA::write_acp_status(uint8_t status)
 {
-    if (!is_streaming_audio()) {
-        LOG_INFO("%s: not streaming. Not sending status update\n", side_str);
-        return;
-    }
-    if (status != ACPStatus::conn_param_updated && 
-        status != ACPStatus::other_connected && 
-        status != ACPStatus::other_disconnected) {
-            LOG_ERROR("%s: Unknown status command\n", side_str);
-            return;
-        }
     acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Status);
     acp_cmd_packet[1] = status;
     auto res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
@@ -176,25 +168,24 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
     case State::SubscribeASPNotification:
         if (att_status != ATT_ERROR_SUCCESS) {
             LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n", att_status);
-            state = State::L2ConnCompleted;
+            state = State::SubscribeASPNotification;
+            subscribe_to_asp_notification();
         }
-        state = State::ASPNotificationSubscribed;
         LOG_INFO("%s: Subscribed to ASP Notification\n", side_str);
+        create_l2cap_channel();
         break;
-    case State::ACPStartWrite:
+    case State::ACPStart:
         if (att_status != ATT_ERROR_SUCCESS) {
             LOG_ERROR("%s: ACP Start: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
-            state = State::ASPNotificationSubscribed;
+            state = State::L2Connected;
             return;
         }
-        state = State::ACPStartWritten;
         break;
-    case State::ACPStopWrite:
+    case State::ACPStop:
         if (att_status != ATT_ERROR_SUCCESS) {
             LOG_ERROR("%s: ACP Stop: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
-            state = State::ASPNotificationSubscribed;
+            state = State::L2Connected;
         }
-        state = State::ACPStopWritten;
         break;
     default:
         break;
@@ -203,23 +194,24 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
 
 void HA::on_asp_notification(int8_t asp_status)
 {
-    if (state != State::ACPStartWritten && state != State::ACPStopWritten) {
+    if (state != State::ACPStart && state != State::ACPStop) {
         LOG_ERROR("%s: Unexpected ASP notification\n", side_str);
     }
     switch (asp_status) {
     case ASPStatus::ok:
-        if (state == State::ACPStartWritten) {
+        if (state == State::ACPStart) {
             LOG_INFO("%s: ASP Start Ok.\n", side_str);
-            state = State::ASPStartOk;
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_connected);
+                curr_read_index = other_ha->curr_read_index;
             }
-        } else if (state == State::ACPStopWritten) {
+            state = State::AudioPacketReady;
+        } else if (state == State::ACPStop) {
             LOG_INFO("%s: ASP Stop Ok.\n", side_str);
-            state = State::ASPNotificationSubscribed;
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_disconnected);
             }
+            state = State::L2Connected;
         }
         break;
     case ASPStatus::unkown_command:
@@ -246,6 +238,7 @@ void HA::set_volume(AudioBuffer::Volume& vol)
 void HA::write_volume()
 {
     if (change_vol && is_streaming_audio()) {
+        change_vol = false;
         uint8_t res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
                                                                                 chars.vol.value_handle,
                                                                                 sizeof(volume),
@@ -256,44 +249,45 @@ void HA::write_volume()
     }
 }
 
-void HA::send_audio_packet(AudioBuffer::G722Buff& packet)
+void HA::set_write_index(uint32_t write_index)
 {
-    if (state == State::AudioPacketReady) {
-        audio_packet = side() == Side::Left ? packet.l.data() : packet.r.data();
-        LOG_AUDIO("%s: Setting audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
-        ++audio_index;
+    if (write_index > curr_write_index) {
+        curr_write_index = write_index;
+    }
+}
+
+void HA::send_audio_packet()
+{
+    if (state != State::AudioPacketReady) return;
+    if (curr_read_index < curr_write_index) {
         state = State::AudioPacketSending;
+        AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(curr_read_index);
+        audio_packet = side() == Side::Left ? packet.l.data() : packet.r.data();
+        ++curr_read_index;
         l2cap_request_can_send_now_event(cid);
     }
+
 }
 
 void HA::on_can_send_audio_packet_now()
 {
+    if (state != State::AudioPacketSending) return;
     LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
     state = State::AudioPacketSent;
-    uint8_t res = l2cap_send(cid, audio_packet, sdu_size_bytes);
-    if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: Error sending audio packet with error code: 0x%02x\n", side_str, (unsigned int)res);
-        state = State::AudioPacketReady;
-    }
+    l2cap_send(cid, audio_packet, sdu_size_bytes);
+    // if (res != ERROR_CODE_SUCCESS) {
+    //     LOG_ERROR("%s: Error sending audio packet with error code: 0x%02x\n", side_str, (unsigned int)res);
+    //     state = State::AudioPacketReady;
+    // }
 
 }
 
 void HA::on_audio_packet_sent()
 {
-    LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d\n", side_str, static_cast<int>(state), (int)audio_packet[0]);
-    state = State::AudioPacketReady;
-}
-
-bool HA::is_creating_l2cap_channel()
-{
-    using enum State;
-    return is_any_of(state,
-                     GATTConnected,
-                     L2ConnStart,
-                     L2ConnCompleted,
-                     SubscribeASPNotification,
-                     ASPNotificationSubscribed);
+    if (state == State::AudioPacketSent) {
+        state = State::AudioPacketReady;
+        LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d\n", side_str, static_cast<int>(state), (int)audio_packet[0]);
+    }
 }
 
 bool HA::is_streaming_audio()
@@ -309,7 +303,6 @@ void HA::reset_uncached_vars()
     cid = 0;
     other_ha = nullptr;
     audio_packet = nullptr;
-    audio_index  = 0u;
 }
 
 HA::ROP::ROP()
@@ -335,16 +328,16 @@ void HA::ROP::read(const uint8_t* data)
 
 void HA::ROP::print_values()
 {
-    LOG_INFO("Read Only Properties\n"
-        "  Version:        %d\n"
-        "  Side:           %s\n"
-        "  Mode:           %s\n"
-        "  CSIS:           %s\n"
-        "  Manufacture ID: %04hx\n"
-        "  LE CoC audio:   %s\n"
-        "  Render delay:   %hu\n"
-        "  Supports 16KHz: %s\n"
-        "  Supports 24KHz: %s\n",
+    LOG_INFO("Read Only Properties -"
+        " Version: %d,"
+        " Side: %s,"
+        " Mode: %s,"
+        " CSIS: %s,"
+        " Manufacture ID: %04hx,"
+        " LE CoC audio: %s,"
+        " Render delay: %hu,"
+        " Supports 16KHz: %s,"
+        " Supports 24KHz: %s\n",
         version, 
         (side == HA::Side::Left ? "Left" : "Right"),
         (mode == HA::Mode::Binaural ? "Binaural" : "Monaural"),
@@ -357,13 +350,7 @@ void HA::ROP::print_values()
 }
 
 HAManager::HAManager()
-{
-    // We should only ever have at most two 
-    // hearing aids so reserve capacity up front
-    hearing_aids.reserve(max_num_ha);
-
-    cache.resize(ha_cache_size);
-}
+{}
 
 HA& HAManager::get_by_addr(bd_addr_t const addr)
 {

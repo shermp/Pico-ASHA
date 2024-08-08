@@ -363,21 +363,14 @@ void audio_task(void)
 
   // Dividing the USB volume by 256 gives a volume in the ASHA range.
   AudioBuffer::Volume v = {
-    .l = (int8_t)(volume[1] / 256), 
-    .r = (int8_t)(volume[2] / 256)
+    .l = mute[1] ? volume_mute : (int8_t)(volume[1] / 256), 
+    .r = mute[2] ? volume_mute : (int8_t)(volume[2] / 256)
   };
-  if (mute[1]) v.l = volume_mute;
-  if (mute[2]) v.r = volume_mute;
-  
+    
   audio_buff.set_volume(v);
 
   if (spk_data_size == pcm_stereo_packet_size * 2) {
-    pcm_streaming = true;
-    if (encode_audio.Load()) {
-      audio_buff.encode_1ms_audio(spk_buf);
-    } else {
-      audio_buff.reset_state();
-    }
+    audio_buff.encode_1ms_audio(spk_buf);
     spk_data_size = 0;
   }
 }

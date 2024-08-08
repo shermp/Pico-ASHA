@@ -188,50 +188,34 @@ extern "C" void bt_main()
     } while (!ha_mgr.set_complete() && diff < timeout);
 
     uint8_t seq_num = 0u;
-    uint32_t audio_write_index = 0u;
-    uint32_t pre_buff = 8u;
-    uint32_t min_write_index = pre_buff;
+    uint32_t write_index = 0u;
+
     //uint32_t audio_read_index = 0u;
     using enum HA::State;
+    // Flush the first audio packet
     /* Main audio streaming loop */
     while (1) {
         // No need to do anything if no hearing aids are connected!
         if (ha_mgr.hearing_aids.size() == 0) continue;
-
-        // Wait for USB audio streaming to start
-        if (!pcm_streaming.Load()) continue;
-
-        AudioBuffer::Volume vol = audio_buff.get_volume();
-        audio_write_index = audio_buff.get_write_index();
         
-        // If required, update connection params
-        // and create l2cap channel
+        write_index = audio_buff.get_write_index();
+        AudioBuffer::Volume vol = audio_buff.get_volume();
         for (auto& ha : ha_mgr.hearing_aids) {
-            ha.set_volume(vol);
-            switch (ha.state) {
-            case GATTConnected:
-                ha.create_l2cap_channel();
-                break;
-            case L2ConnCompleted:
-                ha.subscribe_to_asp_notification();
-                break;
-            case ASPNotificationSubscribed:
-                ha.write_acp_cmd(HA::ACPOpCode::Start);
-                break;
-            case ASPStartOk:
-                encode_audio = true;
-                ha.audio_index = audio_write_index > 0 ? audio_write_index - 1 : 0;
-                //ha.audio_index = 0;
-                ha.state = AudioPacketReady;
-                // fallthrough
-            case AudioPacketReady:
-                //LOG_INFO("Audio index: %hu\n", ha.audio_index);
-                if (ha.audio_index < audio_write_index) {
-                    ha.send_audio_packet(audio_buff.get_g_buff(ha.audio_index));
+            LOG_AUDIO("%s: Audio Index: %u\n", ha.side_str, read_index);
+            if (ha.state == L2Connected) {
+                ha.write_acp_start();
+            } else if (ha.is_streaming_audio()) {
+                audio_buff.encode_audio = true;
+
+                if (write_index == 0) continue;
+
+                ha.set_write_index(write_index);
+                if (ha.state == AudioPacketReady) {
+                    LOG_AUDIO("%s: AudioPacketReady\n", ha.side_str);
+                    ha.set_volume(vol);
+                    ha.write_volume();
+                    ha.send_audio_packet();
                 }
-                break;
-            default:
-                break;
             }
         }
     }
@@ -657,6 +641,7 @@ static void finalise_curr_discovery()
         scan_state = ScanState::Scan;
         return;
     }
+    ha.on_gatt_connected();
     if (ha_mgr.set_complete()) {
         LOG_INFO("Connected to all aid(s) in set.\n");
         scan_state = ScanState::Complete;
