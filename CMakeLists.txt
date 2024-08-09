@@ -10,6 +10,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 pico_sdk_init()
 
+message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
+if(PICO_SDK_VERSION_STRING VERSION_LESS "2.0.0")
+  message( FATAL_ERROR "Pico SDK version must be 2.0.0 or greater" )
+endif()
+
 Include(FetchContent)
 
 FetchContent_Declare(
