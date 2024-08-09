@@ -14,6 +14,7 @@ enum class ScanState {
     Connecting,
     Pairing,
     Disconnecting,
+    DataLen,
     ServiceDiscovery,
     CharDiscovery,
     ReadROP,

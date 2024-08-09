@@ -20,6 +20,11 @@ constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 
 constexpr uint16_t asha_conn_latency  = 10;
 
+/* Data length variables */
+static constexpr uint16_t pdu_len = 167u;
+
+static constexpr uint16_t max_tx_time = 1064;
+
 static btstack_packet_callback_registration_t hci_event_cb_reg;
 static btstack_packet_callback_registration_t sm_event_cb_reg;
 
@@ -28,6 +33,7 @@ static void sm_event_handler            (uint8_t packet_type, uint16_t channel, 
 static void l2cap_cbm_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void scan_gatt_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void set_data_length();
 static void discover_services();
 static void finalise_curr_discovery();
 static bool device_db_empty();
@@ -230,6 +236,17 @@ static void start_scan()
     gap_start_scan();
 }
 
+static void set_data_length()
+{
+    if (scan_state != ScanState::DataLen) return;
+    while (1) {
+        if (hci_can_send_command_packet_now()) {
+            hci_send_cmd(&hci_le_set_data_length, curr_scan.ha.conn_handle, pdu_len, max_tx_time);
+            break;
+        }
+    }
+}
+
 static void discover_services()
 {
     if (scan_state != ScanState::ServiceDiscovery) return;
@@ -265,8 +282,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             // Set 2M PHY
             gap_set_connection_phys(2);
             // Set connection parameters including connection interval
-            // by default
-            gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 72, 12, 12);
+            // by default. Values taken from Android
+            gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
 #ifdef ASHA_DELETE_PAIRINGS
@@ -314,6 +331,19 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             scan_state = ScanState::Pairing;
             LOG_INFO("Device connected. Attempt pairing\n");
             sm_request_pairing(curr_scan.ha.conn_handle);
+            break;
+        }
+        case HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE:
+        {
+            if (scan_state != ScanState::DataLen) return;
+            auto rx_octets = hci_subevent_le_data_length_change_get_max_rx_octets(packet);
+            auto rx_time = hci_subevent_le_data_length_change_get_max_rx_time(packet);
+            auto tx_octets = hci_subevent_le_data_length_change_get_max_tx_octets(packet);
+            auto tx_time = hci_subevent_le_data_length_change_get_max_tx_time(packet);
+            LOG_INFO("Date length set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us\n",
+                     rx_octets, rx_time, tx_octets, tx_time);
+            scan_state =ScanState::ServiceDiscovery;
+            discover_services();
             break;
         }
         }
@@ -392,8 +422,10 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             switch (sm_event_pairing_complete_get_status(packet)){
             case ERROR_CODE_SUCCESS:
                 LOG_INFO("Pairing complete, success\n");
-                scan_state = ScanState::ServiceDiscovery;
-                discover_services();
+                // scan_state = ScanState::ServiceDiscovery;
+                // discover_services();
+                scan_state = ScanState::DataLen;
+                set_data_length();
                 break;
             case ERROR_CODE_CONNECTION_TIMEOUT:
                 LOG_ERROR("Pairing failed, timeout\n");
@@ -421,8 +453,10 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             switch (sm_event_reencryption_complete_get_status(packet)) {
             case ERROR_CODE_SUCCESS:
                 LOG_INFO("Reencryption complete\n");
-                scan_state = ScanState::ServiceDiscovery;
-                discover_services();
+                // scan_state = ScanState::ServiceDiscovery;
+                // discover_services();
+                scan_state = ScanState::DataLen;
+                set_data_length();
                 break;
             case ERROR_CODE_PIN_OR_KEY_MISSING:
             {   
