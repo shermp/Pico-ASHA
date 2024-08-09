@@ -260,6 +260,9 @@ void HA::send_audio_packet()
 {
     if (state != State::AudioPacketReady) return;
     if (curr_read_index < curr_write_index) {
+        if ((curr_write_index - curr_read_index) >= 4) {
+            curr_read_index = curr_write_index - 1;
+        }
         state = State::AudioPacketSending;
         AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(curr_read_index);
         audio_packet = side() == Side::Left ? packet.l.data() : packet.r.data();
