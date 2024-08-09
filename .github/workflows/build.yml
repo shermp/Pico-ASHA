@@ -5,7 +5,7 @@ on:
     pull_request:
 
 env:
-    PICO_SDK_COMMIT_HASH: 6a7db34ff63345a7badec79ebea3aaef1712f374
+    PICO_SDK_COMMIT_HASH: efe2103f9b28458a1615ff096054479743ade236
 
 jobs:
     build_pico_asha:
@@ -33,6 +33,7 @@ jobs:
                 submodules: recursive
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
 
+            # Note: still required as of Pico SDK 2.0.0
             - name: Apply Bluetooth DLE patch
               if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               run: |
