@@ -1,4 +1,7 @@
 #include "asha_audio.hpp"
+#ifdef ASHA_PERF_METRICS
+    #include "perf_metrics.hpp"
+#endif
 
 namespace asha
 {
@@ -73,6 +76,9 @@ void AudioBuffer::encode_1ms_audio(int16_t* stereo_pcm)
         ++w_index;
         ++seq_num;
         write_index = w_index;
+#ifdef ASHA_PERF_METRICS
+        perf_metrics.add_w_index_changed(get_absolute_time());
+#endif
     }
 }
 
