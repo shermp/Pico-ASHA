@@ -47,6 +47,7 @@ option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
 option(ENABLE_USB_SERIAL "Enable USB serial support" OFF)
+option(ENABLE_PERF_METRICS "Enable Performance metrics" OFF)
 
 if(ENABLE_BLE_LOG_AUDIO)
   list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
@@ -81,6 +82,10 @@ if(ENABLE_USB_SERIAL)
 else()
   pico_enable_stdio_usb(pico-asha 0)
   pico_enable_stdio_uart(pico-asha 1)
+endif()
+
+if(ENABLE_PERF_METRICS)
+  list(APPEND pico_asha_defines "ASHA_PERF_METRICS")
 endif()
 
 include(CheckCXXCompilerFlag)

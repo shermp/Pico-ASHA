@@ -9,8 +9,16 @@
 #include "asha_unique_id.hpp"
 #include "asha_audio.hpp"
 
+#ifdef ASHA_PERF_METRICS
+#include "perf_metrics.hpp"
+#endif
+
 namespace asha
 {
+#ifdef ASHA_PERF_METRICS
+#include "perf_metrics.hpp"
+PerfMetrics perf_metrics;
+#endif
 
 AudioBuffer audio_buff;
 

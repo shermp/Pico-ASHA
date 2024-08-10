@@ -3,6 +3,9 @@
 #ifdef ASHA_HCI_DUMP
     #include "hci_dump_embedded_stdout.h"
 #endif
+#ifdef ASHA_PERF_METRICS
+    #include "perf_metrics.hpp"
+#endif
 
 #include "asha_logging.h"
 #include "asha_uuid.hpp"
@@ -195,16 +198,25 @@ extern "C" void bt_main()
 
     uint8_t seq_num = 0u;
     uint32_t write_index = 0u;
-
+#ifdef ASHA_PERF_METRICS
+    uint32_t tmp_w_index = 0u;
+#endif
     //uint32_t audio_read_index = 0u;
     using enum HA::State;
     // Flush the first audio packet
     /* Main audio streaming loop */
     while (1) {
         // No need to do anything if no hearing aids are connected!
-        if (ha_mgr.hearing_aids.size() == 0) continue;
-        
+        if (ha_mgr.hearing_aids.empty()) continue;
+#ifdef ASHA_PERF_METRICS
+        tmp_w_index = audio_buff.get_write_index();
+        if (tmp_w_index != write_index) {
+            perf_metrics.add_index_changed(get_absolute_time());
+        }
+        write_index = tmp_w_index;
+#else
         write_index = audio_buff.get_write_index();
+#endif
         AudioBuffer::Volume vol = audio_buff.get_volume();
         for (auto& ha : ha_mgr.hearing_aids) {
             LOG_AUDIO("%s: Audio Index: %u\n", ha.side_str, read_index);
@@ -224,6 +236,15 @@ extern "C" void bt_main()
                 }
             }
         }
+#ifdef ASHA_PERF_METRICS
+        if (perf_metrics.should_dump_metrics()) {
+            // Disconnect HA's
+            scan_state = ScanState::DumpMetrics;
+            for (auto& ha : ha_mgr.hearing_aids) {
+                gap_disconnect(ha.conn_handle);
+            }
+        }
+#endif
     }
 }
 
@@ -353,7 +374,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
         LOG_INFO("Received disconnection event.\n");
         // Expected disconnection, reenable scanning
-        if (scan_state == ScanState::Disconnecting) {
+        if (scan_state == ScanState::Disconnecting || scan_state == ScanState::DumpMetrics) {
             LOG_INFO("Expected disconnection\n");
         } else {
             LOG_ERROR("Disconnected with reason: %d\n", static_cast<int>(reason));
@@ -364,6 +385,15 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             LOG_INFO("%s device disconnected.\n", (ha.side() == HA::Side::Left) ? "Left" : "Right");
             ha_mgr.remove_by_conn_handle(c);
         }
+#ifdef ASHA_PERF_METRICS
+        if (scan_state == ScanState::DumpMetrics) {
+            if (ha_mgr.hearing_aids.empty()) {
+                LOG_INFO("Dumping perf metrics\n");
+                perf_metrics.dump_metrics();
+            }
+            break;
+        }
+#endif
         scan_state = ScanState::Scan;
         curr_scan.reset();
         break;

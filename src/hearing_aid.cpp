@@ -7,6 +7,11 @@
 
 #include "util.hpp"
 
+#ifdef ASHA_PERF_METRICS
+    #include "pico/time.h"
+    #include "perf_metrics.hpp"
+#endif
+
 namespace asha 
 {
 
@@ -276,6 +281,13 @@ void HA::on_can_send_audio_packet_now()
 {
     if (state != State::AudioPacketSending) return;
     LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
+#ifdef ASHA_PERF_METRICS
+    if (side() == Side::Left) {
+        perf_metrics.add_send_left(get_absolute_time());
+    } else {
+        perf_metrics.add_send_right(get_absolute_time());
+    }
+#endif
     state = State::AudioPacketSent;
     l2cap_send(cid, audio_packet, sdu_size_bytes);
     // if (res != ERROR_CODE_SUCCESS) {
@@ -288,6 +300,13 @@ void HA::on_can_send_audio_packet_now()
 void HA::on_audio_packet_sent()
 {
     if (state == State::AudioPacketSent) {
+#ifdef ASHA_PERF_METRICS
+        if (side() == Side::Left) {
+            perf_metrics.add_sent_left(get_absolute_time());
+        } else {
+            perf_metrics.add_sent_right(get_absolute_time());
+        }
+#endif
         state = State::AudioPacketReady;
         LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d\n", side_str, static_cast<int>(state), (int)audio_packet[0]);
     }

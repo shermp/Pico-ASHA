@@ -21,6 +21,7 @@ enum class ScanState {
     ReadPSM,
     Finalizing,
     Complete,
+    DumpMetrics,
 };
 
 constexpr uint16_t buff_size_sdu = 161;
