@@ -32,6 +32,7 @@ extern "C" {
 #else
     #define LOG_ERROR(fmt, ...)
     #define LOG_INFO(fmt, ...)
+    #define LOG_SCAN(fmt, ...)
     #define LOG_AUDIO(fmt, ...)
 #endif
 
