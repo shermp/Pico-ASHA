@@ -11,7 +11,7 @@ using namespace patom::types;
 namespace asha 
 {
 
-constexpr uint32_t g722_ringbuff_size = 16u;
+constexpr uint32_t g722_ringbuff_size = 8u;
 constexpr uint32_t g722_ringbuff_size_mask = g722_ringbuff_size - 1;
 
 // Number of samples per ms
