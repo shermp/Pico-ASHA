@@ -72,7 +72,6 @@ public:
 
     void set_write_index(uint32_t write_index);
     void send_audio_packet();
-    void on_can_send_audio_packet_now();
     void on_audio_packet_sent();
     
     bool is_streaming_audio();
