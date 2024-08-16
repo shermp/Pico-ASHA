@@ -6,6 +6,7 @@ on:
 
 env:
     PICO_SDK_COMMIT_HASH: efe2103f9b28458a1615ff096054479743ade236
+    BTSTACK_CREDITS_COMMIT_HASH: fa5389268014cd3572e84d70ff58c2f79f4b56cf
 
 jobs:
     build_pico_asha:
@@ -44,13 +45,21 @@ jobs:
                 git config --global user.name "GH Actions"
                 git am ../../../0001-Update-firmware-for-Data-Length-Extension-fix.patch
             
+            - name: Checkout btstack fork with credit patch
+              uses: actions/checkout@v4
+              with:
+                repository: shermp/btstack
+                path: btstack
+                ref: "${{ env.BTSTACK_CREDITS_COMMIT_HASH }}"
+
             - name: Install dependencies
               run: |
                 sudo apt-get update && sudo apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
             
-            - name: Set PICO_SDK_PATH env variable
+            - name: Set env variables
               run: |
                 echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
+                echo "PICO_BTSTACK_PATH=$(realpath ./btstack)" >> "$GITHUB_ENV"
             
             - name: Configure build
               run: |
