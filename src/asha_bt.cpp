@@ -216,12 +216,8 @@ extern "C" void bt_main()
                 if (write_index == 0) continue;
 
                 ha.set_write_index(write_index);
-                if (ha.state == AudioPacketReady) {
-                    LOG_AUDIO("%s: AudioPacketReady\n", ha.side_str);
-                    ha.set_volume(vol);
-                    ha.write_volume();
-                    ha.send_audio_packet();
-                }
+                ha.set_volume(vol);
+                ha.send_audio_packet();
             }
         }
     }
@@ -488,12 +484,6 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
             ha.on_l2cap_channel_created(status);
         }
         break;
-    }
-    case L2CAP_EVENT_CAN_SEND_NOW:
-    {
-        LOG_AUDIO("L2CAP_EVENT_CAN_SEND_NOW\n");
-        HA& ha = ha_mgr.get_by_cid(l2cap_event_can_send_now_get_local_cid(packet));
-        ha.on_can_send_audio_packet_now();
     }
     case L2CAP_EVENT_PACKET_SENT:
     {

@@ -237,7 +237,7 @@ void HA::set_volume(AudioBuffer::Volume& vol)
 
 void HA::write_volume()
 {
-    if (change_vol && is_streaming_audio()) {
+    if (change_vol) {
         change_vol = false;
         uint8_t res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
                                                                                 chars.vol.value_handle,
@@ -258,30 +258,29 @@ void HA::set_write_index(uint32_t write_index)
 
 void HA::send_audio_packet()
 {
-    if (state != State::AudioPacketReady) return;
-    if (curr_read_index < curr_write_index) {
+    switch (state) {
+    case State::AudioPacketReady:
+    {
+        if (curr_read_index >= curr_write_index) {
+            break;
+        }
         if ((curr_write_index - curr_read_index) >= 4) {
             curr_read_index = curr_write_index - 1;
         }
-        state = State::AudioPacketSending;
         AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(curr_read_index);
         audio_packet = side() == Side::Left ? packet.l.data() : packet.r.data();
         ++curr_read_index;
-        l2cap_request_can_send_now_event(cid);
+        write_volume();
+        state = State::AudioPacketSending;
     }
-
-}
-
-void HA::on_can_send_audio_packet_now()
-{
-    if (state != State::AudioPacketSending) return;
-    LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
-    state = State::AudioPacketSent;
-    l2cap_send(cid, audio_packet, sdu_size_bytes);
-    // if (res != ERROR_CODE_SUCCESS) {
-    //     LOG_ERROR("%s: Error sending audio packet with error code: 0x%02x\n", side_str, (unsigned int)res);
-    //     state = State::AudioPacketReady;
-    // }
+        // fallthrough
+    case State::AudioPacketSending:
+        if (l2cap_can_send_packet_now(cid)) {
+            LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
+            state = State::AudioPacketSent;
+            l2cap_send(cid, audio_packet, sdu_size_bytes);
+        }
+    }
 
 }
 
