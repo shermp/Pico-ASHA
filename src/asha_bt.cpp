@@ -143,7 +143,7 @@ extern "C" void bt_main()
     /* L2CAP init required for basic btstack functionality */
     LOG_INFO("L2CAP Init.\n");
     l2cap_init();
-    l2cap_set_max_le_mtu(buff_size_sdu);
+    l2cap_set_max_le_mtu(max_mtu);
 
     /* Init the security manager. This takes care of pairing
        with hearing aids, and also allows reconnecting to already
