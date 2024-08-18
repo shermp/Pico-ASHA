@@ -125,6 +125,11 @@ void ScanResult::reset()
 
 extern "C" void bt_main()
 {
+#ifdef ASHA_USB_SERIAL
+    // Allow time for USB serial to connect before proceeding
+    sleep_ms(5000);
+#endif
+
     LOG_INFO("BT ASHA starting.\n");
     if (cyw43_arch_init()) {
         LOG_ERROR("failed to initialise cyw43_arch\n");
