@@ -384,6 +384,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         break;
     }
     default:
+        LOG_INFO("Unhandled HCI event: %hu\n", (uint16_t)hci_ev_type);
         break;
     }
 }
