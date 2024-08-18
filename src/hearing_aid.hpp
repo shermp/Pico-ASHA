@@ -17,6 +17,8 @@ constexpr uint32_t ha_cache_size = 4ul;
 
 constexpr uint32_t ha_cache_mask = ha_cache_size - 1ul;
 
+constexpr uint16_t max_mtu = 512;
+
 class HA
 {
 public:
@@ -148,7 +150,7 @@ public:
 
     // Creating an L2CAP channel requires a receive buffer
     // This is unused, as we only ever send data
-    std::array<uint8_t, sdu_size_bytes> recv_buff = {};
+    std::array<uint8_t, max_mtu> recv_buff = {};
 
     btstack_packet_handler_t l2cap_packet_handler = nullptr;
     btstack_packet_handler_t gatt_packet_handler = nullptr;
