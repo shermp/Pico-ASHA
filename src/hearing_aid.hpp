@@ -103,6 +103,9 @@ public:
 
     const char* side_str = "Unknown";
 
+    uint16_t avail_credits = 0;
+    int zero_credit_count = 0;
+
     // ASHA characteristics
     struct {
         gatt_client_characteristic_t rop = {};

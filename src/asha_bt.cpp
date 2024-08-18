@@ -208,8 +208,13 @@ extern "C" void bt_main()
         AudioBuffer::Volume vol = audio_buff.get_volume();
         for (auto& ha : ha_mgr.hearing_aids) {
             LOG_AUDIO("%s: Audio Index: %u\n", ha.side_str, read_index);
+            ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
             if (ha.state == L2Connected) {
-                ha.write_acp_start();
+                /* Ensure sufficient credits are available to (re)start
+                   audio streaming */
+                if (ha.avail_credits >= 8) {
+                    ha.write_acp_start();
+                }
             } else if (ha.is_streaming_audio()) {
                 audio_buff.encode_audio = true;
 
@@ -218,6 +223,15 @@ extern "C" void bt_main()
                 ha.set_write_index(write_index);
                 ha.set_volume(vol);
                 ha.send_audio_packet();
+
+                /* If too many subsequent audio packets cannot be sent
+                   stop streaming audio to allow the credit count
+                   to recover */
+                if (ha.zero_credit_count > 1) {
+                    LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream\n", ha.side_str);
+                    ha.zero_credit_count = 0;
+                    ha.write_acp_stop();
+                }
             }
         }
     }
@@ -357,7 +371,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto ha = ha_mgr.get_by_conn_handle(c);
         if (ha) {
-            LOG_INFO("%s device disconnected.\n", (ha.side() == HA::Side::Left) ? "Left" : "Right");
+            LOG_INFO("%s device disconnected with %hu available credits.\n", (ha.side() == HA::Side::Left) ? "Left" : "Right", ha.avail_credits);
             ha_mgr.remove_by_conn_handle(c);
         }
         scan_state = ScanState::Scan;
