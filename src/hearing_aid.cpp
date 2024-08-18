@@ -261,10 +261,11 @@ void HA::send_audio_packet()
     switch (state) {
     case State::AudioPacketReady:
     {
+        // LOG_INFO("%s: Available credits: %hu\n", side_str, avail_credits);
         if (curr_read_index >= curr_write_index) {
             break;
         }
-        if ((curr_write_index - curr_read_index) >= 4) {
+        if ((curr_write_index - curr_read_index) >= 2) {
             curr_read_index = curr_write_index - 1;
         }
         AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(curr_read_index);
@@ -275,9 +276,14 @@ void HA::send_audio_packet()
     }
         // fallthrough
     case State::AudioPacketSending:
-        if (l2cap_can_send_packet_now(cid)) {
+        if (avail_credits == 0) {
+            LOG_INFO("%s: Zero credits available\n", side_str);
+            ++zero_credit_count;
+            state = State::AudioPacketReady;
+        } else if (l2cap_can_send_packet_now(cid)) {
             LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
             state = State::AudioPacketSent;
+            zero_credit_count = 0;
             l2cap_send(cid, audio_packet, sdu_size_bytes);
         }
     }
