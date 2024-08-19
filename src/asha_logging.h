@@ -42,30 +42,31 @@ extern "C" {
     #endif
 #else
 #if defined (ASHA_LOG_ERROR)
-    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
     #define LOG_INFO(fmt, ...)
     #define LOG_SCAN(fmt, ...)
     #define LOG_AUDIO(fmt, ...)
 #elif defined (ASHA_LOG_INFO)
-    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
     #define LOG_SCAN(fmt, ...)
     #define LOG_AUDIO(fmt, ...)
 #elif defined (ASHA_LOG_SCAN)
-    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_SCAN(fmt, ...) printf("[ASHA  SCAN : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_SCAN(fmt, ...) printf("[ASHA  SCAN : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
     #define LOG_AUDIO(fmt, ...) 
 #elif defined (ASHA_LOG_AUDIO)
-    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_SCAN(fmt, ...) printf("[ASHA  SCAN : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
-    #define LOG_AUDIO(fmt, ...) printf("[ASHA AUDIO : %u ms] " fmt, to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_ERROR(fmt, ...) printf("[ASHA ERROR : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_INFO(fmt, ...) printf("[ASHA  INFO : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_SCAN(fmt, ...) printf("[ASHA  SCAN : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
+    #define LOG_AUDIO(fmt, ...) printf("[ASHA AUDIO : %u ms] " fmt "\n", to_ms_since_boot(get_absolute_time()), ##__VA_ARGS__)
 #else
     #define LOG_ERROR(fmt, ...)
     #define LOG_INFO(fmt, ...)
     #define LOG_SCAN(fmt, ...)
     #define LOG_AUDIO(fmt, ...)
+#endif
 #endif
 
 #ifdef __cplusplus

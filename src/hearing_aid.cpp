@@ -66,7 +66,7 @@ void HA::subscribe_to_asp_notification()
         GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION
     );
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: Error writing ASP notification configuration: 0x%02x\n", side_str, (unsigned int)res);
+        LOG_ERROR("%s: Error writing ASP notification configuration: 0x%02x", side_str, (unsigned int)res);
         state = State::GATTConnected;
         on_gatt_connected();
     }
@@ -78,7 +78,7 @@ void HA::create_l2cap_channel()
     int cx_attempts = 0;
     uint8_t res = ERROR_CODE_SUCCESS;
     do {
-        LOG_INFO("%s: Connecting to L2CAP\n", side_str);
+        LOG_INFO("%s: Connecting to L2CAP", side_str);
         res = l2cap_cbm_create_channel(l2cap_packet_handler, 
                                         conn_handle, 
                                         psm, 
@@ -88,7 +88,7 @@ void HA::create_l2cap_channel()
                                         LEVEL_2,
                                         &cid);
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x\n", side_str, (unsigned int)res);
+            LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x", side_str, (unsigned int)res);
             ++cx_attempts;
         }
     } while (res != ERROR_CODE_SUCCESS && cx_attempts < 5);
@@ -102,12 +102,12 @@ void HA::create_l2cap_channel()
 void HA::on_l2cap_channel_created(uint8_t status) 
 {
     if (status != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x\n", side_str, status);
+        LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x", side_str, status);
         // Try again
         create_l2cap_channel();
         return;
     }
-    LOG_INFO("%s: L2CAP CoC channel created\n", side_str);
+    LOG_INFO("%s: L2CAP CoC channel created", side_str);
     state = State::L2Connected;
 }
 
@@ -127,7 +127,7 @@ void HA::write_acp_start()
                                                             (uint16_t)acp_cmd_packet.size(),
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: ACP Write: Start error 0x%02x\n", side_str, (unsigned int)res);
+        LOG_ERROR("%s: ACP Write: Start error 0x%02x", side_str, (unsigned int)res);
         state = State::L2Connected;
     }
 }
@@ -142,7 +142,7 @@ void HA::write_acp_stop()
                                                             1u,
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: ACP Write: Stop error 0x%02x\n", side_str, (unsigned int)res);
+        LOG_ERROR("%s: ACP Write: Stop error 0x%02x", side_str, (unsigned int)res);
         state = State::GATTDisconnect;
         gap_disconnect(conn_handle);
     }
@@ -157,7 +157,7 @@ void HA::write_acp_status(uint8_t status)
                                                                           2u,
                                                                           acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: Updating status via ACP failed with 0x%02x\n", side_str, (unsigned int)res);
+        LOG_ERROR("%s: Updating status via ACP failed with 0x%02x", side_str, (unsigned int)res);
     }
     return;
 }
@@ -167,23 +167,23 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
     switch (state) {
     case State::SubscribeASPNotification:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x\n", att_status);
+            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x", att_status);
             state = State::SubscribeASPNotification;
             subscribe_to_asp_notification();
         }
-        LOG_INFO("%s: Subscribed to ASP Notification\n", side_str);
+        LOG_INFO("%s: Subscribed to ASP Notification", side_str);
         create_l2cap_channel();
         break;
     case State::ACPStart:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: ACP Start: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
+            LOG_ERROR("%s: ACP Start: write failed with error: 0x%02x", side_str, (unsigned int)att_status);
             state = State::L2Connected;
             return;
         }
         break;
     case State::ACPStop:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: ACP Stop: write failed with error: 0x%02x\n", side_str, (unsigned int)att_status);
+            LOG_ERROR("%s: ACP Stop: write failed with error: 0x%02x", side_str, (unsigned int)att_status);
             state = State::L2Connected;
         }
         break;
@@ -195,19 +195,19 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
 void HA::on_asp_notification(int8_t asp_status)
 {
     if (state != State::ACPStart && state != State::ACPStop) {
-        LOG_ERROR("%s: Unexpected ASP notification\n", side_str);
+        LOG_ERROR("%s: Unexpected ASP notification", side_str);
     }
     switch (asp_status) {
     case ASPStatus::ok:
         if (state == State::ACPStart) {
-            LOG_INFO("%s: ASP Start Ok.\n", side_str);
+            LOG_INFO("%s: ASP Start Ok.", side_str);
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_connected);
                 curr_read_index = other_ha->curr_read_index;
             }
             state = State::AudioPacketReady;
         } else if (state == State::ACPStop) {
-            LOG_INFO("%s: ASP Stop Ok.\n", side_str);
+            LOG_INFO("%s: ASP Stop Ok.", side_str);
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_disconnected);
             }
@@ -215,13 +215,13 @@ void HA::on_asp_notification(int8_t asp_status)
         }
         break;
     case ASPStatus::unkown_command:
-        LOG_ERROR("%s: ASP: Unknown command\n", side_str);
+        LOG_ERROR("%s: ASP: Unknown command", side_str);
         break;
     case ASPStatus::illegal_params:
-        LOG_ERROR("%s: ASP: Illegal parameters\n", side_str);
+        LOG_ERROR("%s: ASP: Illegal parameters", side_str);
         break;
     default:
-        LOG_ERROR("%s: ASP: Unknown status: %d\n", side_str, asp_status);
+        LOG_ERROR("%s: ASP: Unknown status: %d", side_str, asp_status);
         break;
     }
 }
@@ -244,7 +244,7 @@ void HA::write_volume()
                                                                                 sizeof(volume),
                                                                                 (uint8_t*)&volume);
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: Volume: write failed with error: 0x%02x\n", side_str, (unsigned int)res);
+            LOG_ERROR("%s: Volume: write failed with error: 0x%02x", side_str, (unsigned int)res);
         }
     }
 }
@@ -261,7 +261,7 @@ void HA::send_audio_packet()
     switch (state) {
     case State::AudioPacketReady:
     {
-        // LOG_INFO("%s: Available credits: %hu\n", side_str, avail_credits);
+        // LOG_INFO("%s: Available credits: %hu", side_str, avail_credits);
         if (curr_read_index >= curr_write_index) {
             break;
         }
@@ -277,11 +277,11 @@ void HA::send_audio_packet()
         // fallthrough
     case State::AudioPacketSending:
         if (avail_credits == 0) {
-            LOG_INFO("%s: Zero credits available\n", side_str);
+            LOG_INFO("%s: Zero credits available", side_str);
             ++zero_credit_count;
             state = State::AudioPacketReady;
         } else if (l2cap_can_send_packet_now(cid)) {
-            LOG_AUDIO("%s: Sending audio packet. Seq Num: %d\n", side_str, (int)audio_packet[0]);
+            LOG_AUDIO("%s: Sending audio packet. Seq Num: %d", side_str, (int)audio_packet[0]);
             state = State::AudioPacketSent;
             zero_credit_count = 0;
             l2cap_send(cid, audio_packet, sdu_size_bytes);
@@ -294,7 +294,7 @@ void HA::on_audio_packet_sent()
 {
     if (state == State::AudioPacketSent) {
         state = State::AudioPacketReady;
-        LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d\n", side_str, static_cast<int>(state), (int)audio_packet[0]);
+        LOG_AUDIO("%s: Sent audio packet. State: %d. Seq Num: %d", side_str, static_cast<int>(state), (int)audio_packet[0]);
     }
 }
 
@@ -345,7 +345,7 @@ void HA::ROP::print_values()
         " LE CoC audio: %s,"
         " Render delay: %hu,"
         " Supports 16KHz: %s,"
-        " Supports 24KHz: %s\n",
+        " Supports 24KHz: %s",
         version, 
         (side == HA::Side::Left ? "Left" : "Right"),
         (mode == HA::Mode::Binaural ? "Binaural" : "Monaural"),
@@ -424,20 +424,20 @@ void HAManager::add_to_cache(HA const& ha)
 HA& HAManager::add(HA const& new_ha)
 {
     if (exists(new_ha)) {
-        LOG_INFO("Add: HA with address '%s' already exists\n", bd_addr_to_str(new_ha.addr));
+        LOG_INFO("Add: HA with address '%s' already exists", bd_addr_to_str(new_ha.addr));
         return invalid_ha;
     }
     if (hearing_aids.size() >= max_num_ha) {
-        LOG_INFO("Add: Already hold max number of hearing aids\n");
+        LOG_INFO("Add: Already hold max number of hearing aids");
         return invalid_ha;
     }
     if (hearing_aids.size() == 1) {
         if (hearing_aids[0].mode() == HA::Mode::Mono || new_ha.mode() == HA::Mode::Mono) {
-            LOG_INFO("Add: Mono HA\n");
+            LOG_INFO("Add: Mono HA");
             return invalid_ha;
         }
         if (hearing_aids[0].rop.id != new_ha.rop.id) {
-            LOG_INFO("Add: ID does not match other hearing aid\n");
+            LOG_INFO("Add: ID does not match other hearing aid");
             return invalid_ha;
         }
     }
@@ -468,7 +468,7 @@ void HAManager::remove_by_conn_handle(hci_con_handle_t handle)
             ++it;
         }
     }
-    LOG_INFO("Remove: HA not found\n");
+    LOG_INFO("Remove: HA not found");
 }
 
 } // namespace asha
