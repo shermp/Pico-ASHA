@@ -89,7 +89,7 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
         case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
             for (i = 0; i < size; i += sizeof(uint16_t)) {
                 if (little_endian_read_16(adv_data, i) == AshaUUID::service16) {
-                    LOG_INFO("ASHA 16 bit service discovered\n");
+                    LOG_INFO("ASHA 16 bit service discovered");
                     is_hearing_aid = true;
                 }
             }
@@ -99,10 +99,10 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
             for (i = 0; i < size; i += sizeof(AshaUUID::service)) {
                 reverse_128(adv_data + i, tmp_uuid128);
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
-                    LOG_INFO("ASHA 128 bit UUID service discovered\n");
+                    LOG_INFO("ASHA 128 bit UUID service discovered");
                     is_hearing_aid = true;
                 } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
-                    LOG_INFO("MFI UUID discovered\n");
+                    LOG_INFO("MFI UUID discovered");
                     is_hearing_aid = true;
                 }
             }
@@ -127,9 +127,9 @@ extern "C" void bt_main()
     sleep_ms(5000);
 #endif
 
-    LOG_INFO("BT ASHA starting.\n");
+    LOG_INFO("BT ASHA starting.");
     if (cyw43_arch_init()) {
-        LOG_ERROR("failed to initialise cyw43_arch\n");
+        LOG_ERROR("failed to initialise cyw43_arch");
         return;
     }
 
@@ -138,14 +138,14 @@ extern "C" void bt_main()
     hci_dump_init(hci_dump_embedded_stdout_get_instance());
 #endif
     /* L2CAP init required for basic btstack functionality */
-    LOG_INFO("L2CAP Init.\n");
+    LOG_INFO("L2CAP Init.");
     l2cap_init();
     l2cap_set_max_le_mtu(max_mtu);
 
     /* Init the security manager. This takes care of pairing
        with hearing aids, and also allows reconnecting to already
        paired hearing aids */
-    LOG_INFO("SM Init.\n");
+    LOG_INFO("SM Init.");
     sm_init();
     sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
@@ -153,7 +153,7 @@ extern "C" void bt_main()
     sm_allow_ltk_reconstruction_without_le_device_db_entry(0);
 
     /* Init GATT client. Required to read/write GATT characteristics */
-    LOG_INFO("GATT Client Init.\n");
+    LOG_INFO("GATT Client Init.");
     gatt_client_init();
     gatt_client_set_required_security_level(LEVEL_2);
 
@@ -173,12 +173,12 @@ extern "C" void bt_main()
     );
 
     /* Start BTStack */
-    LOG_INFO("HCI power on.\n");
+    LOG_INFO("HCI power on.");
     hci_power_control(HCI_POWER_ON);
 
     int64_t timeout = 10'000'000LL;
     if (device_db_empty()) {
-        LOG_INFO("Device DB is empty, allowing a 60s timeout\n");
+        LOG_INFO("Device DB is empty, allowing a 60s timeout");
         timeout = 60'000'000LL;
     }
 
@@ -209,7 +209,7 @@ extern "C" void bt_main()
         write_index = audio_buff.get_write_index();
         AudioBuffer::Volume vol = audio_buff.get_volume();
         for (auto& ha : ha_mgr.hearing_aids) {
-            LOG_AUDIO("%s: Audio Index: %u\n", ha.side_str, read_index);
+            LOG_AUDIO("%s: Audio Index: %u", ha.side_str, read_index);
             ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
             if (ha.state == L2Connected) {
                 /* Ensure sufficient credits are available to (re)start
@@ -230,7 +230,7 @@ extern "C" void bt_main()
                    stop streaming audio to allow the credit count
                    to recover */
                 if (ha.zero_credit_count > 1) {
-                    LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream\n", ha.side_str);
+                    LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream", ha.side_str);
                     ha.zero_credit_count = 0;
                     ha.write_acp_stop();
                 }
@@ -242,7 +242,7 @@ extern "C" void bt_main()
 /* Start scanning for suitable peripherals */
 static void start_scan()
 {
-    LOG_INFO("Start scanning.\n");
+    LOG_INFO("Start scanning.");
     scan_state = ScanState::Scan;
     gap_set_scan_params(1, 0x0030, 0x0030, 0);
     gap_start_scan();
@@ -264,17 +264,17 @@ static void discover_services()
     if (scan_state != ScanState::ServiceDiscovery) return;
     HA cached = ha_mgr.get_from_cache(curr_scan.ha.addr);
     if (cached) {
-        LOG_INFO("Hearing aid found in cache. Skipping discovery\n");
+        LOG_INFO("Hearing aid found in cache. Skipping discovery");
         cached.conn_handle = curr_scan.ha.conn_handle;
         curr_scan.ha = cached;
         scan_state = ScanState::Finalizing;
         finalise_curr_discovery();
     } else { 
-        LOG_INFO("Device paired. Discovering ASHA service\n");
+        LOG_INFO("Device paired. Discovering ASHA service");
         auto res = gatt_client_discover_primary_services(&scan_gatt_event_handler, curr_scan.ha.conn_handle);
         //auto res = gatt_client_discover_primary_services_by_uuid128(&scan_gatt_event_handler, curr_scan.ha.conn_handle, AshaUUID::service);
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("Could not register service query: %d\n", static_cast<int>(res));
+            LOG_ERROR("Could not register service query: %d", static_cast<int>(res));
             scan_state = ScanState::Disconnecting;
             gap_disconnect(curr_scan.ha.conn_handle);
         }
@@ -297,7 +297,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             // by default. Values taken from Android
             gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
             gap_local_bd_addr(local_addr);
-            LOG_INFO("BTstack up and running on %s\n", bd_addr_to_str(local_addr));
+            LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
 #ifdef ASHA_DELETE_PAIRINGS
             delete_paired_devices();
 #endif
@@ -308,7 +308,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         break;
     /* Every time a GAP advertising report is received, handle it here */
     case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
-        LOG_SCAN("Got extended advertising report.\n");
+        LOG_SCAN("Got extended advertising report.");
         // Fallthrough
     case GAP_EVENT_ADVERTISING_REPORT:
         if (scan_state != ScanState::Scan) return;
@@ -322,8 +322,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 
         // See if HA is already paired. If not paired, check if
         // advertising report contains hearing aid service data
-        LOG_SCAN("Got Ad Report from %s\n", bd_addr_to_str(curr_scan.report.address));
-        LOG_SCAN("RSSI: %d\n", (int)((int8_t)curr_scan.report.rssi));
+        LOG_SCAN("Got Ad Report from %s", bd_addr_to_str(curr_scan.report.address));
+        LOG_SCAN("RSSI: %d", (int)((int8_t)curr_scan.report.rssi));
         scan_state = ScanState::IdentityResolving;
         sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);
         break;
@@ -354,7 +354,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             auto rx_time = hci_subevent_le_data_length_change_get_max_rx_time(packet);
             auto tx_octets = hci_subevent_le_data_length_change_get_max_tx_octets(packet);
             auto tx_time = hci_subevent_le_data_length_change_get_max_tx_time(packet);
-            LOG_INFO("Date length set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us\n",
+            LOG_INFO("Date length set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
                      rx_octets, rx_time, tx_octets, tx_time);
             scan_state =ScanState::ServiceDiscovery;
             discover_services();
@@ -365,17 +365,17 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     case HCI_EVENT_DISCONNECTION_COMPLETE:
     {
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
-        LOG_INFO("Received disconnection event.\n");
+        LOG_INFO("Received disconnection event.");
         // Expected disconnection, reenable scanning
         if (scan_state == ScanState::Disconnecting) {
-            LOG_INFO("Expected disconnection\n");
+            LOG_INFO("Expected disconnection");
         } else {
-            LOG_ERROR("Disconnected with reason: %d\n", static_cast<int>(reason));
+            LOG_ERROR("Disconnected with reason: %d", static_cast<int>(reason));
         }
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto ha = ha_mgr.get_by_conn_handle(c);
         if (ha) {
-            LOG_INFO("%s device disconnected with %hu available credits.\n", (ha.side() == HA::Side::Left) ? "Left" : "Right", ha.avail_credits);
+            LOG_INFO("%s device disconnected with %hu available credits.", (ha.side() == HA::Side::Left) ? "Left" : "Right", ha.avail_credits);
             ha_mgr.remove_by_conn_handle(c);
         }
         scan_state = ScanState::Scan;
@@ -383,7 +383,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         break;
     }
     default:
-        LOG_INFO("Unhandled HCI event: %hu\n", (uint16_t)hci_ev_type);
+        // LOG_INFO("Unhandled HCI event: %hu", (uint16_t)hci_ev_type);
         break;
     }
 }
@@ -399,25 +399,25 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
             if (curr_scan.report.is_hearing_aid) {
                 scan_state = ScanState::Connecting;
-                LOG_INFO("Hearing aid discovered with addr %s. Connecting...\n", bd_addr_to_str(curr_scan.report.address));
+                LOG_INFO("Hearing aid discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
             } else {
-                LOG_SCAN("Ad Report for addr %s is not hearing aid\n", bd_addr_to_str(curr_scan.report.address));
+                LOG_SCAN("Ad Report for addr %s is not hearing aid", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }
             break;
         case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
         {
-            LOG_INFO("Identity resolving succeeded\n");
+            LOG_INFO("Identity resolving succeeded");
             sm_event_identity_resolving_succeeded_get_address(packet, curr_scan.ha.addr);
             if (ha_mgr.get_by_addr(curr_scan.ha.addr)) {
-                LOG_INFO("Device already connected.\n");
+                LOG_INFO("Device already connected.");
                 return;
             }
             scan_state = ScanState::Connecting;
             auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
-            LOG_INFO("Connecting to address %s\n", bd_addr_to_str(curr_scan.ha.addr));
+            LOG_INFO("Connecting to address %s", bd_addr_to_str(curr_scan.ha.addr));
             gap_connect(curr_scan.ha.addr, static_cast<bd_addr_type_t>(addr_type));
             break;
         }
@@ -427,31 +427,31 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         if (scan_state != ScanState::Pairing) return;
         switch (ev_type) {
         case SM_EVENT_JUST_WORKS_REQUEST:
-            LOG_INFO("Just Works requested\n");
+            LOG_INFO("Just Works requested");
             sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
             break;
         case SM_EVENT_PAIRING_STARTED:
-            LOG_INFO("Pairing started\n");
+            LOG_INFO("Pairing started");
             break;
         case SM_EVENT_PAIRING_COMPLETE:
             switch (sm_event_pairing_complete_get_status(packet)){
             case ERROR_CODE_SUCCESS:
-                LOG_INFO("Pairing complete, success\n");
+                LOG_INFO("Pairing complete, success");
                 // scan_state = ScanState::ServiceDiscovery;
                 // discover_services();
                 scan_state = ScanState::DataLen;
                 set_data_length();
                 break;
             case ERROR_CODE_CONNECTION_TIMEOUT:
-                LOG_ERROR("Pairing failed, timeout\n");
+                LOG_ERROR("Pairing failed, timeout");
                 scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
-                LOG_ERROR("Pairing failed, disconnected\n");
+                LOG_ERROR("Pairing failed, disconnected");
                 scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_AUTHENTICATION_FAILURE:
-                LOG_ERROR("Pairing failed, authentication failure with reason: %d\n",
+                LOG_ERROR("Pairing failed, authentication failure with reason: %d",
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
                 // Try and upgrade to LE Secure connections
                 sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
@@ -462,12 +462,12 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             }
             break;
         case SM_EVENT_REENCRYPTION_STARTED:
-            LOG_INFO("Reencryption started\n");
+            LOG_INFO("Reencryption started");
             break;
         case SM_EVENT_REENCRYPTION_COMPLETE:
             switch (sm_event_reencryption_complete_get_status(packet)) {
             case ERROR_CODE_SUCCESS:
-                LOG_INFO("Reencryption complete\n");
+                LOG_INFO("Reencryption complete");
                 // scan_state = ScanState::ServiceDiscovery;
                 // discover_services();
                 scan_state = ScanState::DataLen;
@@ -475,7 +475,7 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 break;
             case ERROR_CODE_PIN_OR_KEY_MISSING:
             {   
-                LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING\n");
+                LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING");
                 bd_addr_t addr;
                 sm_event_reencryption_complete_get_address(packet, addr);
                 delete_paired_device(addr);
@@ -506,7 +506,7 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
     }
     case L2CAP_EVENT_PACKET_SENT:
     {
-        LOG_AUDIO("L2CAP_EVENT_PACKET_SENT\n");
+        LOG_AUDIO("L2CAP_EVENT_PACKET_SENT");
         HA& ha = ha_mgr.get_by_cid(l2cap_event_packet_sent_get_local_cid(packet));
         ha.on_audio_packet_sent();
         break;
@@ -527,18 +527,18 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         case GATT_EVENT_SERVICE_QUERY_RESULT:
             gatt_client_service_t service;
             gatt_event_service_query_result_get_service(packet, &service);
-            LOG_SCAN("Service Query: Service ID: 0x%04hx : UUID: %s\n", service.uuid16, uuid128_to_str(service.uuid128));
+            LOG_SCAN("Service Query: Service ID: 0x%04hx : UUID: %s", service.uuid16, uuid128_to_str(service.uuid128));
             if (service.uuid16 == AshaUUID::service16 || uuid_eq(service.uuid128, AshaUUID::service)) {
                 memcpy(&curr_scan.ha.service, &service, sizeof(service));
                 curr_scan.service_found = true;
-                LOG_INFO("ASHA service found\n");
+                LOG_INFO("ASHA service found");
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
         {
             // Older hearing aids may support MFI but not ASHA
             if (!curr_scan.service_found) {
-                LOG_INFO("ASHA service not found. Continuing scanning\n");
+                LOG_INFO("ASHA service not found. Continuing scanning");
                 scan_state = ScanState::Disconnecting;
                 gap_disconnect(curr_scan.ha.conn_handle);
                 break;
@@ -551,7 +551,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                     &curr_scan.ha.service
             );
             if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register characteristics query: %d\n", static_cast<int>(res));
+                LOG_ERROR("Could not register characteristics query: %d", static_cast<int>(res));
                 scan_state = ScanState::Disconnecting;
                 gap_disconnect(curr_scan.ha.conn_handle);
             }
@@ -567,26 +567,26 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
             if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
-                LOG_INFO("Got ROP Characteristic\n");
+                LOG_INFO("Got ROP Characteristic");
                 curr_scan.ha.chars.rop = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioControlPoint)) {
-                LOG_INFO("Got ACP Characteristic\n");
+                LOG_INFO("Got ACP Characteristic");
                 curr_scan.ha.chars.acp = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioStatus)) {
-                LOG_INFO("Got AUS Characteristic\n");
+                LOG_INFO("Got AUS Characteristic");
                 curr_scan.ha.chars.asp = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::volume)) {
-                LOG_INFO("Got VOL Characteristic\n");
+                LOG_INFO("Got VOL Characteristic");
                 curr_scan.ha.chars.vol = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::psm)) {
-                LOG_INFO("Got PSM Characteristic\n");
+                LOG_INFO("Got PSM Characteristic");
                 curr_scan.ha.chars.psm = characteristic;
             }
-            LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx\n",
+            LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx",
                      characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("ASHA characteristic discovery complete\n");
+            LOG_INFO("ASHA characteristic discovery complete");
             // Start reading the Read Only Properties characteristic
             scan_state = ScanState::ReadROP;
             gatt_client_read_value_of_characteristic(
@@ -602,12 +602,12 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
     {
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-            LOG_INFO("Getting ReadOnlyProperties value\n");
+            LOG_INFO("Getting ReadOnlyProperties value");
             curr_scan.ha.rop.read(gatt_event_characteristic_value_query_result_get_value(packet));
             //curr_scan.device.read_only_props.dump_values();
             break;
         case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("Completed value read of ReadOnlyProperties\n");
+            LOG_INFO("Completed value read of ReadOnlyProperties");
             /* Next get the PSM value */
             scan_state = ScanState::ReadPSM;
             gatt_client_read_value_of_characteristic(
@@ -623,12 +623,12 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
     {
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-            LOG_INFO("Getting PSM value\n");
+            LOG_INFO("Getting PSM value");
             curr_scan.ha.psm = gatt_event_characteristic_value_query_result_get_value(packet)[0];
-            LOG_INFO("PSM: %d\n", static_cast<int>(curr_scan.ha.psm));
+            LOG_INFO("PSM: %d", static_cast<int>(curr_scan.ha.psm));
             break;
         case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("Completed value read of PSM\n");
+            LOG_INFO("Completed value read of PSM");
             curr_scan.ha.rop.print_values();
             scan_state = ScanState::Finalizing;
             finalise_curr_discovery();
@@ -671,7 +671,7 @@ static void finalise_curr_discovery()
 {
     // This shouldn't be the case, but best be sure.
     if (ha_mgr.set_complete()) {
-        LOG_INFO("Already have complete set. Not adding current device.\n");
+        LOG_INFO("Already have complete set. Not adding current device.");
         scan_state = ScanState::Complete;
         return;
     }
@@ -680,13 +680,13 @@ static void finalise_curr_discovery()
     curr_scan.ha.gatt_packet_handler = &connected_gatt_event_handler;
     auto& ha = ha_mgr.add(curr_scan.ha);
     if (!ha) {
-        LOG_ERROR("Error adding this device.\n");
+        LOG_ERROR("Error adding this device.");
         scan_state = ScanState::Scan;
         return;
     }
     ha.on_gatt_connected();
     if (ha_mgr.set_complete()) {
-        LOG_INFO("Connected to all aid(s) in set.\n");
+        LOG_INFO("Connected to all aid(s) in set.");
         scan_state = ScanState::Complete;
     } else {
         scan_state = ScanState::Scan;
@@ -710,7 +710,7 @@ static bool device_db_empty()
 
 static void delete_paired_devices()
 {
-    LOG_INFO("Removing paired devices\n");
+    LOG_INFO("Removing paired devices");
     int addr_type;
     bd_addr_t addr; 
     sm_key_t irk;
@@ -718,7 +718,7 @@ static void delete_paired_devices()
     for (int i = 0; i < max_count; ++i) {
         le_device_db_info(i, &addr_type, addr, irk);
         if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
-            LOG_INFO("Removing: %s\n", bd_addr_to_str(addr));
+            LOG_INFO("Removing: %s", bd_addr_to_str(addr));
             le_device_db_remove(i);
         }
     }
@@ -726,7 +726,7 @@ static void delete_paired_devices()
 
 static void delete_paired_device(const bd_addr_t address)
 {
-    LOG_INFO("Removing paired device with address %s\n", bd_addr_to_str(address));
+    LOG_INFO("Removing paired device with address %s", bd_addr_to_str(address));
     int addr_type;
     bd_addr_t addr; 
     sm_key_t irk;
@@ -734,7 +734,7 @@ static void delete_paired_device(const bd_addr_t address)
     for (int i = 0; i < max_count; ++i) {
         le_device_db_info(i, &addr_type, addr, irk);
         if (addr_type != BD_ADDR_TYPE_UNKNOWN && bd_addr_cmp(addr, address) == 0) {
-            LOG_INFO("Found. Removing\n");
+            LOG_INFO("Found. Removing");
             le_device_db_remove(i);
         }
     }
