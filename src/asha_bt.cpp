@@ -330,24 +330,26 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         scan_state = ScanState::IdentityResolving;
         sm_address_resolution_lookup(curr_scan.report.address_type, curr_scan.report.address);
         break;
-
-    case HCI_EVENT_LE_META:
-        switch(hci_event_le_meta_get_subevent_code(packet)) {
-        case HCI_SUBEVENT_LE_CONNECTION_COMPLETE:
+    case HCI_EVENT_META_GAP:
+        switch(hci_event_gap_meta_get_subevent_code(packet)) {
+        case GAP_SUBEVENT_LE_CONNECTION_COMPLETE:
         {
             if (scan_state != ScanState::Connecting) return;
-            curr_scan.ha.conn_handle = hci_subevent_le_connection_complete_get_connection_handle(packet);
-            uint16_t ci = hci_subevent_le_connection_complete_get_conn_interval(packet);
-            uint16_t cl = hci_subevent_le_connection_complete_get_conn_latency(packet);
+            curr_scan.ha.conn_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
+            uint16_t ci = gap_subevent_le_connection_complete_get_conn_interval(packet);
+            uint16_t cl = gap_subevent_le_connection_complete_get_conn_latency(packet);
             if (ci != asha_conn_interval || cl != asha_conn_latency) {
-                LOG_ERROR("Unexpected connection params. Got Connection Interval: %hu  Connection latency: %hu\n", ci, cl);
+                LOG_ERROR("Unexpected connection params. Got Connection Interval: %hu  Connection latency: %hu", ci, cl);
             }
             //curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
             scan_state = ScanState::Pairing;
-            LOG_INFO("Device connected. Attempt pairing\n");
+            LOG_INFO("Device connected. Attempt pairing");
             sm_request_pairing(curr_scan.ha.conn_handle);
             break;
         }
+        }
+    case HCI_EVENT_LE_META:
+        switch(hci_event_le_meta_get_subevent_code(packet)) {
         case HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE:
         {
             if (scan_state != ScanState::DataLen) return;
