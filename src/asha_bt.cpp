@@ -229,11 +229,11 @@ extern "C" void bt_main()
                 /* If too many subsequent audio packets cannot be sent
                    stop streaming audio to allow the credit count
                    to recover */
-                if (ha.zero_credit_count > 1) {
-                    LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream", ha.side_str);
-                    ha.zero_credit_count = 0;
-                    ha.write_acp_stop();
-                }
+                // if (ha.zero_credit_count > 2) {
+                //     LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream", ha.side_str);
+                //     ha.zero_credit_count = 0;
+                //     ha.write_acp_stop();
+                // }
             }
         }
     }
