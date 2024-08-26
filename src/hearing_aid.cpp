@@ -265,7 +265,7 @@ void HA::send_audio_packet()
         if (curr_read_index >= curr_write_index) {
             break;
         }
-        if ((curr_write_index - curr_read_index) >= 4) {
+        if ((curr_write_index - curr_read_index) >= 2) {
             curr_read_index = curr_write_index - 1;
         }
         AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(curr_read_index);
@@ -276,8 +276,8 @@ void HA::send_audio_packet()
     }
         // fallthrough
     case State::AudioPacketSending:
-        if (avail_credits <= 1) {
-            LOG_INFO("%s: Available credits low, restarting stream", side_str);
+        if (avail_credits == 0) {
+            LOG_INFO("%s: Available credits zero, restarting stream", side_str);
             write_acp_stop();
         } else if (l2cap_can_send_packet_now(cid)) {
             LOG_AUDIO("%s: Sending audio packet. Seq Num: %d", side_str, (int)audio_packet[0]);
