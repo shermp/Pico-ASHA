@@ -229,8 +229,7 @@ extern "C" void bt_main()
         diff = absolute_time_diff_us(start_time, curr_time);
     } while (!ha_mgr.set_complete() && diff < timeout);
 
-    // Flush the first audio packet
-    /* Main audio streaming loop */
+    /* Do nothing. Audio streaming is scheduled using async_context */
     while (1) {
         sleep_ms(1000);
     }
