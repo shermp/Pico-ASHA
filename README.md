@@ -18,6 +18,12 @@ Create an environment variable called `PICO_SDK_PATH` that points to the downloa
 
 Obtain an updated BT firmware to fix an issue with Data Length Extensions (DLE). Download and apply the patch from [this github comment](https://github.com/raspberrypi/pico-sdk/issues/1465#issuecomment-1739329635). Hopefully the next version of the Pico SDK will include this fix.
 
+Download a [modified btstack](https://github.com/shermp/btstack) with outgoing credit support:
+
+`git clone https://github.com/shermp/btstack.git -b master-credits`.
+
+Create an environment variable called `PICO_BTSTACK_PATH` that points to the downloaded btstack location.
+
 Build pico-asha
 ```sh
 mkdir build
