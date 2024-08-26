@@ -13,6 +13,8 @@ namespace asha
 {
 
 AudioBuffer audio_buff;
+async_context_t *bt_async_ctx = nullptr;
+async_when_pending_worker_t bt_audio_pending_worker = {};
 
 char pico_uid[pico_uid_size];
 

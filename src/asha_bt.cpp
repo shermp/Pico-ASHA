@@ -30,6 +30,7 @@ static void sm_event_handler            (uint8_t packet_type, uint16_t channel, 
 static void l2cap_cbm_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void scan_gatt_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker);
 static void set_data_length();
 static void discover_services();
 static void finalise_curr_discovery();
@@ -120,6 +121,34 @@ void ScanResult::reset()
     report = AdvertisingReport();
 }
 
+static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker)
+{
+    // No need to do anything if no hearing aids are connected!
+    using enum HA::State;
+    if (ha_mgr.hearing_aids.empty()) return;
+    
+    uint32_t write_index = audio_buff.get_write_index();
+    AudioBuffer::Volume vol = audio_buff.get_volume();
+    for (auto& ha : ha_mgr.hearing_aids) {
+        ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
+        if (ha.state == L2Connected) {
+            /* Ensure sufficient credits are available to (re)start
+               audio streaming */
+            if (ha.avail_credits >= 8) {
+                ha.write_acp_start();
+            }
+        } else if (ha.is_streaming_audio()) {
+            audio_buff.encode_audio = true;
+
+            if (write_index == 0) continue;
+
+            ha.set_write_index(write_index);
+            ha.set_volume(vol);
+            ha.send_audio_packet();
+        }
+    }
+}
+
 extern "C" void bt_main()
 {
 #ifdef ASHA_USB_SERIAL
@@ -172,6 +201,11 @@ extern "C" void bt_main()
         NULL
     );
 
+    bt_audio_pending_worker.do_work = handle_bt_audio_pending_worker;
+    async_context_t *ctx = cyw43_arch_async_context();
+    async_context_add_when_pending_worker(ctx, &bt_audio_pending_worker);
+    bt_async_ctx = ctx;
+
     /* Start BTStack */
     LOG_INFO("HCI power on.");
     hci_power_control(HCI_POWER_ON);
@@ -195,47 +229,10 @@ extern "C" void bt_main()
         diff = absolute_time_diff_us(start_time, curr_time);
     } while (!ha_mgr.set_complete() && diff < timeout);
 
-    uint8_t seq_num = 0u;
-    uint32_t write_index = 0u;
-
-    //uint32_t audio_read_index = 0u;
-    using enum HA::State;
     // Flush the first audio packet
     /* Main audio streaming loop */
     while (1) {
-        // No need to do anything if no hearing aids are connected!
-        if (ha_mgr.hearing_aids.size() == 0) continue;
-        
-        write_index = audio_buff.get_write_index();
-        AudioBuffer::Volume vol = audio_buff.get_volume();
-        for (auto& ha : ha_mgr.hearing_aids) {
-            LOG_AUDIO("%s: Audio Index: %u", ha.side_str, read_index);
-            ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
-            if (ha.state == L2Connected) {
-                /* Ensure sufficient credits are available to (re)start
-                   audio streaming */
-                if (ha.avail_credits >= 8) {
-                    ha.write_acp_start();
-                }
-            } else if (ha.is_streaming_audio()) {
-                audio_buff.encode_audio = true;
-
-                if (write_index == 0) continue;
-
-                ha.set_write_index(write_index);
-                ha.set_volume(vol);
-                ha.send_audio_packet();
-
-                /* If too many subsequent audio packets cannot be sent
-                   stop streaming audio to allow the credit count
-                   to recover */
-                // if (ha.zero_credit_count > 2) {
-                //     LOG_ERROR("%s: Zero credit count exceeds limit. Restarting stream", ha.side_str);
-                //     ha.zero_credit_count = 0;
-                //     ha.write_acp_stop();
-                // }
-            }
-        }
+        sleep_ms(1000);
     }
 }
 

@@ -371,6 +371,9 @@ void audio_task(void)
 
   if (spk_data_size == pcm_stereo_packet_size * 2) {
     audio_buff.encode_1ms_audio(spk_buf);
+    if (bt_async_ctx) {
+        async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
+    }
     spk_data_size = 0;
   }
 }

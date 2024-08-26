@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <memory>
 
+#include "pico/async_context.h"
+
 #include "g722/g722_enc_dec.h"
 #include "PseudoAtomic/RP2040Atomic.hpp"
 
@@ -97,5 +99,7 @@ private:
 };
 
 extern AudioBuffer audio_buff;
+extern async_context_t *bt_async_ctx;
+extern async_when_pending_worker_t bt_audio_pending_worker;
 
 } // namespace asha
