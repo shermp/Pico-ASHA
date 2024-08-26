@@ -10,7 +10,15 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 ## How to test/develop
 
-### Compile
+### Precompiled builds for testing
+
+Any commits pushed to this repository compiles an ELF and UF2 binary that can be loaded onto a Pico W.
+
+Both UART and USB serial binaries are compiled, you can choose whichever is most suitable for you.
+
+Binaries are available for download from the Github Actions tab. You mist be logged into Github to download these binaries.
+
+### Compile for dev/testing
 
 Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 1.5.1, using the provided instructions.
 
@@ -32,7 +40,13 @@ cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
 cmake --build .
 ```
 
-To load the program onto your Pico W, press the `BOOTSEL` button while plugging it into the PC over USB. Then copy the `asha.uf2` onto the mass storage device.
+### Installing
+
+To load the program onto your Pico W, press the `BOOTSEL` button while plugging it into the PC over USB. Then copy the `pico-asha.uf2` onto the mass storage device.
+
+Developers with a suitable debug (SWD) connection to the Pico may alternatively load `pico-asha.elf` using OpenOCD. This provides a non-interactive method of loading Pico-ASHA without having to press the `BOOTSEL` button. 
+
+Instructions for doing so are outside the scope of this readme.
 
 ### Serial
 
@@ -46,10 +60,6 @@ Alternatively, Pico-ASHA can log output via USB serial using the standard Raspbe
 - **DTR** and **RTS** enabled
 
 Pass `-DENABLE_USB_SERIAL=ON` to cmake during configure to enable USB serial.
-
-### Reloading program
-
-It is possbile to load new versions of the software without having to press the `BOOTSEL` button. If you have a SWD connection setup (by using a debug probe), you can use OpenOCD to upload new firmware.
 
 ## Licence
 
