@@ -1,6 +1,10 @@
 #include "pico/cyw43_arch.h"
 #include "pico/time.h"
 
+#ifdef ASHA_USB_SERIAL
+    #include "pico/stdio_usb.h"
+#endif
+
 #include "asha_logging.h"
 #include "asha_uuid.hpp"
 #include "asha_bt.hpp"
@@ -153,7 +157,10 @@ extern "C" void bt_main()
 {
 #ifdef ASHA_USB_SERIAL
     // Allow time for USB serial to connect before proceeding
-    sleep_ms(5000);
+    while (!stdio_usb_connected()) {
+        sleep_ms(250);
+    }
+    sleep_ms(250);
 #endif
 
     LOG_INFO("BT ASHA starting.");
