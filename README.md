@@ -8,6 +8,8 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 **It should be safe, but I cannot guarantee it will not mess up your hearing aids!**
 
+**Note, I have yet to settle on a USB VID/PID combo. Untill this occurs, I recommend against testing this on Windows. I have only tested on Linux thus far**
+
 ## How to test/develop
 
 ### Precompiled builds for testing
@@ -60,6 +62,20 @@ Alternatively, Pico-ASHA can log output via USB serial using the standard Raspbe
 - **DTR** and **RTS** enabled
 
 Pass `-DENABLE_USB_SERIAL=ON` to cmake during configure to enable USB serial.
+
+### Testing
+
+**Again, I advise against testing on Windows at this time**
+
+It is recommended that your hearing devices are not connected to any phone/tablet/streamer while testing Pico-ASHA. It should not be necessary to unpair from existing bluethooth devices, although this will be device specific.
+
+Currently, Pico-ASHA attempts to pair/bond with any hearing aid devices that are advertising. So to start, you should put your hearing devices into their pairing mode, then start Pico-ASHA by plugging the Pico W into USB, or reloading the firmware, or resetting it.
+
+Once hearing devices have paired/bonded the first time, they will automatically reconnect without needing to be in pairing mode.
+
+Pico-ASHA should appear as a standard USB audio "sound card" in your operating system. To start streaming audio to your hearing devices, set Pico-ASHA as your current sound output device. Note, Pico-ASHA will also show a microphone. Ignore this.
+
+I also highly recommend connecting to the Pico-ASHA serial for logs while testing, either UART or USB as described in previous sections.
 
 ## Licence
 
