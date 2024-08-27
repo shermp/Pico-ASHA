@@ -20,7 +20,7 @@
 
 // BTstack configuration. buffers, sizes, ...
 #define HCI_OUTGOING_PRE_BUFFER_SIZE 4
-#define HCI_ACL_PAYLOAD_SIZE (255 + 4)
+#define HCI_ACL_PAYLOAD_SIZE (512 + 4)
 #define HCI_ACL_CHUNK_SIZE_ALIGNMENT 4
 #define MAX_NR_HCI_CONNECTIONS 2
 #define MAX_NR_L2CAP_CHANNELS 2
@@ -34,7 +34,7 @@
 
 // Enable and configure HCI Controller to Host Flow Control to avoid cyw43 shared bus overrun
 #define ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL
-#define HCI_HOST_ACL_PACKET_LEN (255+4)
+#define HCI_HOST_ACL_PACKET_LEN (512+4)
 #define HCI_HOST_ACL_PACKET_NUM 3
 #define HCI_HOST_SCO_PACKET_LEN 120
 #define HCI_HOST_SCO_PACKET_NUM 3
