@@ -146,15 +146,22 @@ static void handle_bt_audio_pending_worker(async_context_t *context, async_when_
     
     uint32_t write_index = audio_buff.get_write_index();
     AudioBuffer::Volume vol = audio_buff.get_volume();
+    bool pcm_is_streaming = audio_buff.pcm_streaming.Load();
     for (auto& ha : ha_mgr.hearing_aids) {
         ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
         if (ha.state == L2Connected) {
             /* Ensure sufficient credits are available to (re)start
                audio streaming */
-            if (ha.avail_credits >= 8) {
+            if (pcm_is_streaming && ha.avail_credits >= 8) {
                 ha.write_acp_start();
             }
         } else if (ha.is_streaming_audio()) {
+            if (!pcm_is_streaming) {
+                LOG_INFO("%s: USB audio no longer streaming. Stopping ASHA stream", ha.side_str);
+                ha.write_acp_stop();
+                audio_buff.encode_audio = false;
+                continue;
+            }
             audio_buff.encode_audio = true;
 
             if (write_index == 0) continue;

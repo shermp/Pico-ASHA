@@ -23,11 +23,14 @@
  *
  */
 
+#include <algorithm>
 #include <stdio.h>
 #include <string.h>
 
 #include "tusb.h"
 #include "usb_descriptors.h"
+
+#include "pico/time.h"
 
 #include "asha_audio.hpp"
 #include "asha_usb_serial.hpp"
@@ -69,13 +72,13 @@ namespace USBVol
 
 // Audio controls
 // Current states
-static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];       // +1 for master channel 0
-static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];    // +1 for master channel 0
+static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for master channel 0
+static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for master channel 0
 
 // Buffer for microphone data
-static int16_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 2];
+static int16_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 2] = {};
 // Buffer for speaker data
-static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2];
+static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2] = {};
 // Speaker data size received in the last frame
 static int spk_data_size;
 // Resolution per format
@@ -83,6 +86,16 @@ const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_
                                                                         CFG_TUD_AUDIO_FUNC_1_FORMAT_2_RESOLUTION_RX};
 // Current resolution, update on format change
 uint8_t current_resolution;
+
+// Last time a packet was recieved, used to detect when a host stops sending audio
+static absolute_time_t last_packet_time = 0;
+
+// A counter for the number of consecutive silence audio packets
+// Note: this number will be approximately milliseconds
+static uint32_t silence_counter = 0ul;
+
+// The silence_counter threshold by wish to signal streaming stopped
+static constexpr uint32_t silence_timeout = 10'000ul;
 
 void audio_task(void);
 void serial_task(void);
@@ -400,11 +413,27 @@ void audio_task(void)
   audio_buff.set_volume(v);
 
   if (spk_data_size == pcm_stereo_packet_size * 2) {
+    last_packet_time = get_absolute_time();
+    if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
+      ++silence_counter;
+    } else {
+      silence_counter = 0;
+    }
+    audio_buff.pcm_streaming = (silence_counter >= silence_timeout) ? false : true;
     audio_buff.encode_1ms_audio(spk_buf);
     if (bt_async_ctx) {
-        async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
+      async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
     }
     spk_data_size = 0;
+  } else {
+      absolute_time_t now = get_absolute_time();
+      if (absolute_time_diff_us(last_packet_time, now) > 5000) {
+        audio_buff.pcm_streaming = false;
+        last_packet_time = now;
+        if (bt_async_ctx) {
+          async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
+        }
+      }
   }
 }
 

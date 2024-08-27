@@ -13,6 +13,7 @@ void AudioBuffer::init()
     atomic_vol.r = volume_mute;
     encode_mono = false;
     encode_audio = false;
+    pcm_streaming = false;
     write_index = 0u;
     g_offset = 1;
 }

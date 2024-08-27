@@ -59,6 +59,7 @@ public:
     };
 
     patomic_bool encode_audio;
+    patomic_bool pcm_streaming;
 
     AudioBuffer();
     void init();
