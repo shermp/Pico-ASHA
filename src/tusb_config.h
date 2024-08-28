@@ -30,7 +30,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "pico/stdio_usb.h"
+
+#ifdef ASHA_USB_SERIAL
+    #include "pico/stdio_usb.h"
+#endif
 #include "usb_descriptors.h"
 
 //--------------------------------------------------------------------+
