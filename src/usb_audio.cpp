@@ -59,9 +59,9 @@ namespace USBVol
  * which gives a range of -12192 to 0 and a resolution of 96.
  */
 
-  constexpr int16_t max = 0;
-  constexpr int16_t min = -32767;
-  constexpr int16_t res = 256;
+  constexpr int16_t max =      0; // 0dB
+  constexpr int16_t min = -12192; // -47.625dB
+  constexpr int16_t res =     96; // 96/256 is the step between ASHA volume levels
   constexpr int16_t mute = 0x8000;
 }
 
@@ -361,10 +361,11 @@ extern "C" bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8
 void audio_task(void)
 {
 
-  // Dividing the USB volume by 256 gives a volume in the ASHA range.
+  // Dividing the USB volume by USBVol::res gives a volume that
+  // matches the ASHA volume
   AudioBuffer::Volume v = {
-    .l = mute[1] ? volume_mute : (int8_t)(volume[1] / 256), 
-    .r = mute[2] ? volume_mute : (int8_t)(volume[2] / 256)
+    .l = mute[1] ? volume_mute : (int8_t)(volume[1] / USBVol::res), 
+    .r = mute[2] ? volume_mute : (int8_t)(volume[2] / USBVol::res)
   };
     
   audio_buff.set_volume(v);
