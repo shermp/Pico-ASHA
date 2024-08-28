@@ -52,16 +52,23 @@ Instructions for doing so are outside the scope of this readme.
 
 ### Serial
 
-By default, Pico-ASHA logs output via UART. To view debugging info over UART, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
+#### USB
 
-Alternatively, Pico-ASHA can log output via USB serial using the standard Raspberry Pi Pico serial settings:
+By default, Pico-ASHA logs output via USB serial. The USB serial settings are as follows:
+
 - **Baud Rate:** 115200
 - **Data Bits:** 8
 - **Stop Bits:"** 1
 - **Parity:** None
 - **DTR** and **RTS** enabled
 
-Pass `-DENABLE_USB_SERIAL=ON` to cmake during configure to enable USB serial.
+You can also reset the Pico into `BOOTSEL` mode (to upload new firmware) by changing the baud rate to 1200 baud.
+
+#### UART
+
+Alternatively, Pico-ASHA can log output via UART. To view debugging info over UART, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
+
+Pass `-DENABLE_USB_SERIAL=OFF` to cmake during configure to enable UART serial.
 
 ### Testing
 
