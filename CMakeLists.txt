@@ -79,6 +79,8 @@ endif()
 
 if(ENABLE_USB_SERIAL)
   list(APPEND pico_asha_defines "ASHA_USB_SERIAL")
+  list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
+
   pico_enable_stdio_usb(pico-asha 1)
   pico_enable_stdio_uart(pico-asha 0)
 else()
