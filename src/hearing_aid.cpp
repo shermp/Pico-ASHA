@@ -232,6 +232,7 @@ void HA::set_volume(AudioBuffer::Volume& vol)
     if (volume != v) {
         volume = v;
         change_vol = true;
+        LOG_INFO("%s: Volume changed to %d", side_str, (int)volume);
     }    
 }
 
