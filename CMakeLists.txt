@@ -49,7 +49,7 @@ option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
 option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
-option(ENABLE_USB_SERIAL "Enable USB serial support" OFF)
+option(ENABLE_USB_SERIAL "Enable USB serial support" ON)
 
 if(ENABLE_BLE_LOG_AUDIO)
   list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
