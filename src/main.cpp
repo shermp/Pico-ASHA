@@ -8,6 +8,7 @@
 
 #include "asha_unique_id.hpp"
 #include "asha_audio.hpp"
+#include "runtime_settings.hpp"
 
 namespace asha
 {
@@ -18,6 +19,8 @@ async_when_pending_worker_t bt_audio_pending_worker = {};
 
 char pico_uid[pico_uid_size];
 
+RuntimeSettings runtime_settings = {};
+
 // extern "C" required by multicore_launch_core1
 extern "C" void bt_main();
 
@@ -25,9 +28,16 @@ void usb_main();
 
 extern "C" int main()
 {
+    // Apparently there be dragons when using flash and
+    // multicore. And guess where BTStack saves pairing
+    // info? Calling this function on the current core
+    // (core 0) should make it work.
+    flash_safe_execute_core_init();
     // Init global shared variables
     patom::PseudoAtomicInit();
     audio_buff.init();
+    runtime_settings.init();
+    runtime_settings.get_settings();
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
 #ifdef ASHA_USB_SERIAL
@@ -41,14 +51,7 @@ extern "C" int main()
 
     stdio_init_all();
     sleep_ms(2000);
-    // Apparently there be dragons when using flash and
-    // multicore. And guess where BTStack saves pairing
-    // info? Calling this function on the current core
-    // (core 0) should make it work.
-    if (!flash_safe_execute_core_init()) {
-        printf("flash_safe_execute_core_init failed."
-               "Pairing data will not be saved.\n");
-    }
+    
     multicore_launch_core1(bt_main);
 
     sleep_ms(1000);

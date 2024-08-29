@@ -162,7 +162,6 @@ extern "C" void bt_main()
     }
     sleep_ms(250);
 #endif
-
     LOG_INFO("BT ASHA starting.");
     if (cyw43_arch_init()) {
         LOG_ERROR("failed to initialise cyw43_arch");
@@ -170,9 +169,9 @@ extern "C" void bt_main()
     }
 
     /* Start init BTStack systems */
-#ifdef ASHA_HCI_DUMP
-    hci_dump_init(hci_dump_embedded_stdout_get_instance());
-#endif
+    if (runtime_settings.hci_dump_enabled) {
+        hci_dump_init(hci_dump_embedded_stdout_get_instance());
+    }
     /* L2CAP init required for basic btstack functionality */
     LOG_INFO("L2CAP Init.");
     l2cap_init();
