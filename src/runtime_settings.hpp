@@ -19,6 +19,24 @@ enum LogLevel : uint32_t {
     Audio = 3
 };
 
+constexpr const char* log_level_to_str(enum LogLevel log_level)
+{
+    using asha::LogLevel;
+    switch (log_level)
+    {
+    case Error:
+        return "ERROR";
+    case Info:
+        return "INFO";
+    case Scan:
+        return "SCAN";
+    case Audio:
+        return "AUDIO";
+    default:
+        return "NONE";
+    }
+}
+
 struct RuntimeSettings
 {
     enum Tag : uint32_t {
