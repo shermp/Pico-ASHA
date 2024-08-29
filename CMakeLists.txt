@@ -30,6 +30,7 @@ FetchContent_MakeAvailable(etl)
 
 add_executable(pico-asha
   src/main.cpp
+  src/runtime_settings.cpp
   src/asha_audio.cpp
   src/asha_bt.cpp
   src/hearing_aid.cpp
@@ -41,32 +42,13 @@ add_executable(pico-asha
 
 target_include_directories(pico-asha PUBLIC src/ lib/)
 
-option(ENABLE_BLE_LOG_ERROR "Enable error logging." OFF)
-option(ENABLE_BLE_LOG_INFO "Enable info logging (default)." ON)
-option(ENABLE_BLE_LOG_SCAN "Enable scan logging." OFF)
-option(ENABLE_BLE_LOG_AUDIO "Enable audio logging" OFF)
 option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
-option(ENABLE_HCI_DUMP "Enable HCI dump." OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
 option(ENABLE_USB_SERIAL "Enable USB serial support" ON)
 
-if(ENABLE_BLE_LOG_AUDIO)
-  list(APPEND pico_asha_defines "ASHA_LOG_AUDIO")
-elseif(ENABLE_BLE_LOG_SCAN)
-  list(APPEND pico_asha_defines "ASHA_LOG_SCAN")
-elseif(ENABLE_BLE_LOG_INFO)
-  list(APPEND pico_asha_defines "ASHA_LOG_INFO")
-elseif(ENABLE_BLE_LOG_ERROR)
-  list(APPEND pico_asha_defines "ASHA_LOG_ERROR")
-endif()
-
 if(ENABLE_BLE_AD_DUMP)
   list(APPEND pico_asha_defines "ASHA_AD_DUMP")
-endif()
-
-if(ENABLE_HCI_DUMP)
-  list(APPEND pico_asha_defines "ASHA_HCI_DUMP")
 endif()
 
 if (ENABLE_UAC2_LOG)
