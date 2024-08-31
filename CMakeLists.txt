@@ -61,6 +61,8 @@ list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
 pico_enable_stdio_usb(pico-asha 1)
 pico_enable_stdio_uart(pico-asha 1)
 
+list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")
+
 if(ENABLE_BLE_AD_DUMP)
   list(APPEND pico_asha_defines "ASHA_AD_DUMP")
 endif()

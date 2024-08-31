@@ -172,10 +172,12 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
     const char* cmd = cmd_doc["cmd"];
     resp_doc["cmd"] = cmd;
 
+    auto cmd_is = [&](const char* command) {return strcmp(cmd, command) == 0;};
+
     if (str_eq(cmd, SerCmd::AshaFWVers)) {
         resp_doc[SerCmd::AshaFWVers] = PICO_ASHA_VERS;
 
-    } else if (str_eq(cmd, SerCmd::Status)) {
+    } else if (cmd_is(SerCmd::Status)) {
         resp_doc["num_conn"] = ha_mgr.hearing_aids.size();
         resp_doc["full_set"] = ha_mgr.set_complete();
         resp_doc["num_ad"] = 0;
@@ -184,7 +186,7 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         settings["log_level"] = log_level_to_str(runtime_settings.log_level);
         settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
 
-    } else if (str_eq(cmd, SerCmd::CxDevices)) {
+    } else if (cmd_is(SerCmd::CxDevices)) {
         JsonArray devices = resp_doc["devices"].to<JsonArray>();
         for (auto& ha : ha_mgr.hearing_aids) {
             JsonObject dev = devices.add<JsonObject>();
@@ -196,24 +198,24 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
             dev["paused"] = false;
         }
 
-    } else if (str_eq(cmd, SerCmd::ClearDevDb)) {
+    } else if (cmd_is(SerCmd::ClearDevDb)) {
         delete_paired_devices();
         resp_doc["success"] = true;
 
-    } else if (str_eq(cmd, SerCmd::UartSerial)) {
+    } else if (cmd_is(SerCmd::UartSerial)) {
         bool uart_enabled = cmd_doc["enabled"];
         if (runtime_settings.set_uart_enabled(uart_enabled)) {
             stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
         }
         resp_doc["success"] = true;
 
-    } else if (str_eq(cmd, SerCmd::WaitUSBSerCx)) {
+    } else if (cmd_is(SerCmd::WaitUSBSerCx)) {
         bool wait = cmd_doc["wait"];
         runtime_settings.set_wait_for_usb_serial_cx(wait);
         resp_doc["success"] = true;
         
 
-    } else if (str_eq(cmd, SerCmd::LogLevel)) {
+    } else if (cmd_is(SerCmd::LogLevel)) {
         const char* log_level = cmd_doc["level"];
         enum LogLevel ll = str_to_log_level(log_level);
         if (ll != LogLevel::None) {
@@ -223,7 +225,7 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
             resp_doc["success"] = false;
         }
     
-    } else if (str_eq(cmd, SerCmd::HCIDump)) {
+    } else if (cmd_is(SerCmd::HCIDump)) {
         bool hci_dump_enabled = cmd_doc["enabled"];
         if (runtime_settings.set_hci_dump_enabled(hci_dump_enabled)) {
             LOG_INFO("Enabling Watchdog");
