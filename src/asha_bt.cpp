@@ -156,11 +156,13 @@ static void handle_bt_audio_pending_worker(async_context_t *context, async_when_
 extern "C" void bt_main()
 {
 #ifdef ASHA_USB_SERIAL
+    if (runtime_settings.wait_for_usb_serial_cx) {
     // Allow time for USB serial to connect before proceeding
     while (!stdio_usb_connected()) {
         sleep_ms(250);
     }
     sleep_ms(250);
+    }
 #endif
     LOG_INFO("BT ASHA starting.");
     if (cyw43_arch_init()) {
