@@ -79,63 +79,49 @@ extern "C" uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-#ifdef ASHA_USB_SERIAL
 #define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + CFG_TUD_AUDIO * TUD_AUDIO_HEADSET_STEREO_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
-#else
-#define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + CFG_TUD_AUDIO * TUD_AUDIO_HEADSET_STEREO_DESC_LEN)
-#endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
   #define EPNUM_AUDIO_IN    0x03
   #define EPNUM_AUDIO_OUT   0x03
-#ifdef ASHA_USB_SERIAL
   #define EPNUM_CDC_NOTIF   0x84
   #define EPNUM_CDC_OUT     0x05
   #define EPNUM_CDC_IN      0x85
-#endif
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   // ISO endpoints for NRF5x are fixed to 0x08 (0x88)
   #define EPNUM_AUDIO_IN    0x08
   #define EPNUM_AUDIO_OUT   0x08
-#ifdef ASHA_USB_SERIAL
   #define EPNUM_CDC_NOTIF   0x81
   #define EPNUM_CDC_OUT     0x02
   #define EPNUM_CDC_IN      0x82
-#endif
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG  || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
   // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x02
-#ifdef ASHA_USB_SERIAL
   #define EPNUM_CDC_NOTIF   0x83
   #define EPNUM_CDC_OUT     0x04
   #define EPNUM_CDC_IN      0x85
-#endif
 
 #elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
   // FT9XX doesn't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x02
-#ifdef ASHA_USB_SERIAL
   #define EPNUM_CDC_NOTIF   0x83
   #define EPNUM_CDC_OUT     0x04
   #define EPNUM_CDC_IN      0x85
-#endif
 
 #else
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x01
-#ifdef ASHA_USB_SERIAL
   #define EPNUM_CDC_NOTIF   0x83
   #define EPNUM_CDC_OUT     0x04
   #define EPNUM_CDC_IN      0x84
-#endif
 #endif
 
 uint8_t const desc_configuration[] =
@@ -145,10 +131,9 @@ uint8_t const desc_configuration[] =
 
     // Interface number, string index, EP Out & EP In address, EP size
     TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80),
-#ifdef ASHA_USB_SERIAL
+
     // CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 6, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64)
-#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -173,9 +158,7 @@ char const* string_desc_arr [] =
   pico_uid,                         // 3: Unique serial
   "Pico-ASHA Speakers",             // 4: Audio Interface
   "Pico-ASHA Microphone",           // 5: Audio Interface
-#ifdef ASHA_USB_SERIAL
   "Pico-ASHA CDC",                  // 6: CDC Interface
-#endif
 };
 
 static uint16_t _desc_str[32];

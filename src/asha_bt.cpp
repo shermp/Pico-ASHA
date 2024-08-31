@@ -3,9 +3,8 @@
 #include "pico/time.h"
 #include "hardware/watchdog.h"
 
-#ifdef ASHA_USB_SERIAL
-    #include "pico/stdio_usb.h"
-#endif
+#include "pico/stdio_usb.h"
+#include "pico/stdio_uart.h"
 
 #include "etl/string.h"
 
@@ -201,10 +200,18 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         delete_paired_devices();
         resp_doc["success"] = true;
 
+    } else if (str_eq(cmd, SerCmd::UartSerial)) {
+        bool uart_enabled = cmd_doc["enabled"];
+        if (runtime_settings.set_uart_enabled(uart_enabled)) {
+            stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
+        }
+        resp_doc["success"] = true;
+
     } else if (str_eq(cmd, SerCmd::WaitUSBSerCx)) {
         bool wait = cmd_doc["wait"];
         runtime_settings.set_wait_for_usb_serial_cx(wait);
         resp_doc["success"] = true;
+        
 
     } else if (str_eq(cmd, SerCmd::LogLevel)) {
         const char* log_level = cmd_doc["level"];
@@ -240,7 +247,9 @@ extern "C" void bt_main()
     }
     runtime_settings.init();
     runtime_settings.get_settings();
-    
+
+    stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
+
     async_context_t *ctx = cyw43_arch_async_context();
     bt_audio_pending_worker.do_work = handle_bt_audio_pending_worker;
     async_context_add_when_pending_worker(ctx, &bt_audio_pending_worker);
@@ -250,7 +259,6 @@ extern "C" void bt_main()
     async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
     usb_ser_ctx = ctx;
 
-#ifdef ASHA_USB_SERIAL
     if (runtime_settings.wait_for_usb_serial_cx) {
         // Allow time for USB serial to connect before proceeding
         while (!stdio_usb_connected()) {
@@ -258,7 +266,7 @@ extern "C" void bt_main()
         }
         sleep_ms(250);
     }
-#endif
+
     if (!runtime_settings) {
         LOG_ERROR("Runtime settings not initialised");
     }

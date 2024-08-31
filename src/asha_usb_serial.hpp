@@ -14,6 +14,7 @@ namespace asha
         constexpr const char Unpair[] = "unpair";
         constexpr const char ClearDevDb[] = "clear_dev_db";
         constexpr const char WaitUSBSerCx[] = "wait_usb_ser_cx";
+        constexpr const char UartSerial[] = "uart_serial";
         constexpr const char LogLevel[] = "log_level";
         constexpr const char HCIDump[] = "hci_dump";
     };

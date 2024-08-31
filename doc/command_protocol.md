@@ -197,6 +197,26 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
 }
 ```
 
+### Set UART Serial
+
+#### Command
+
+```json
+{
+    "cmd": "uart_serial",
+    "enable": true
+}
+```
+
+#### Response
+
+```json
+{
+    "cmd": "uart_serial",
+    "success": true
+}
+```
+
 ### Set Log Level
 
 #### Command

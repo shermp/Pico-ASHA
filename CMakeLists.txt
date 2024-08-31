@@ -54,9 +54,12 @@ target_include_directories(pico-asha PUBLIC src/ lib/)
 option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
-option(ENABLE_USB_SERIAL "Enable USB serial support" ON)
 
 list(APPEND pico_asha_defines "PICO_ASHA_VERS=\"${PICO_ASHA_VERSION}\"")
+
+list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
+pico_enable_stdio_usb(pico-asha 1)
+pico_enable_stdio_uart(pico-asha 1)
 
 if(ENABLE_BLE_AD_DUMP)
   list(APPEND pico_asha_defines "ASHA_AD_DUMP")
@@ -68,17 +71,6 @@ endif()
 
 if(ENABLE_PAIR_DEL)
   list(APPEND pico_asha_defines "ASHA_DELETE_PAIRINGS")
-endif()
-
-if(ENABLE_USB_SERIAL)
-  list(APPEND pico_asha_defines "ASHA_USB_SERIAL")
-  list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
-
-  pico_enable_stdio_usb(pico-asha 1)
-  pico_enable_stdio_uart(pico-asha 0)
-else()
-  pico_enable_stdio_usb(pico-asha 0)
-  pico_enable_stdio_uart(pico-asha 1)
 endif()
 
 include(CheckCXXCompilerFlag)
