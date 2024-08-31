@@ -88,8 +88,6 @@ else()
   pico_enable_stdio_uart(pico-asha 1)
 endif()
 
-list(APPEND pico_asha_defines "CYW43_CONFIG_FILE=\"${CMAKE_SOURCE_DIR}/src/cy43_config_override.h\"")
-
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wdeprecated-enum-enum-conversion HAVE_DEP_ENNUM_ENUM_CONV)
 
@@ -100,7 +98,6 @@ endif (HAVE_DEP_ENNUM_ENUM_CONV)
 target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
 
 pico_add_extra_outputs(pico-asha)
-pico_set_binary_type(pico-asha copy_to_ram)
 
 target_link_libraries(pico-asha
   pico_stdlib
