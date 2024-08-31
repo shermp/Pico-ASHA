@@ -16,7 +16,8 @@ enum LogLevel : uint32_t {
     Error = 0,
     Info = 1,
     Scan = 2,
-    Audio = 3
+    Audio = 3,
+    None = 255,
 };
 
 constexpr const char* log_level_to_str(enum LogLevel log_level)
@@ -32,10 +33,13 @@ constexpr const char* log_level_to_str(enum LogLevel log_level)
         return "SCAN";
     case Audio:
         return "AUDIO";
+    case None:
     default:
         return "NONE";
     }
 }
+
+enum LogLevel str_to_log_level(const char* log_level);
 
 struct RuntimeSettings
 {
@@ -58,6 +62,8 @@ struct RuntimeSettings
     bool set_uart_enabled(bool is_enabled);
     bool set_hci_dump_enabled(bool is_enabled);
     bool set_log_level(enum LogLevel level);
+
+    explicit operator bool() const {return tlv_impl && tlv_ctx; }
 
 private:
     // used to store remote device in TLV
