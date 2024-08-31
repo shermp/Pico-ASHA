@@ -11,6 +11,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+SET(PICO_ASHA_VERSION "0.1.0-dev")
+
 pico_sdk_init()
 
 message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
@@ -25,8 +27,14 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/ETLCPP/etl
   GIT_TAG        20.38.17
 )
-
 FetchContent_MakeAvailable(etl)
+
+FetchContent_Declare(ArduinoJson
+    GIT_REPOSITORY https://github.com/bblanchon/ArduinoJson.git
+    GIT_TAG        v7.1.0
+)
+FetchContent_MakeAvailable(ArduinoJson)
+
 
 add_executable(pico-asha
   src/main.cpp
@@ -37,6 +45,7 @@ add_executable(pico-asha
   src/usb_descriptors.cpp
   src/usb_audio.cpp
   src/btstack_ad_dump.c
+  src/util.cpp
   lib/g722/g722_encode.cc
 )
 
@@ -46,6 +55,8 @@ option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
 option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
 option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
 option(ENABLE_USB_SERIAL "Enable USB serial support" ON)
+
+list(APPEND pico_asha_defines "PICO_ASHA_VERS=\"${PICO_ASHA_VERSION}\"")
 
 if(ENABLE_BLE_AD_DUMP)
   list(APPEND pico_asha_defines "ASHA_AD_DUMP")
@@ -90,6 +101,7 @@ target_link_libraries(pico-asha
   tinyusb_device
   tinyusb_board
   etl::etl
+  ArduinoJson
 )
 
 target_link_options(pico-asha PUBLIC -Wl,--print-memory-usage)

@@ -1,13 +1,20 @@
+#include "stdio.h"
 #include "pico/cyw43_arch.h"
 #include "pico/time.h"
+#include "hardware/watchdog.h"
 
 #ifdef ASHA_USB_SERIAL
     #include "pico/stdio_usb.h"
 #endif
 
+#include "etl/string.h"
+
+#include <ArduinoJson.h>
+
 #include "asha_logging.h"
 #include "asha_uuid.hpp"
 #include "asha_bt.hpp"
+#include "asha_usb_serial.hpp"
 
 #include "util.hpp"
 
@@ -26,6 +33,8 @@ static constexpr uint16_t pdu_len = 167u;
 
 static constexpr uint16_t max_tx_time = 1064;
 
+static etl::string<stdin_str_size> response_json = {};
+
 static btstack_packet_callback_registration_t hci_event_cb_reg;
 static btstack_packet_callback_registration_t sm_event_cb_reg;
 
@@ -34,7 +43,10 @@ static void sm_event_handler            (uint8_t packet_type, uint16_t channel, 
 static void l2cap_cbm_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void scan_gatt_event_handler     (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+
 static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker);
+static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker);
+
 static void set_data_length();
 static void discover_services();
 static void finalise_curr_discovery();
@@ -153,6 +165,73 @@ static void handle_bt_audio_pending_worker(async_context_t *context, async_when_
     }
 }
 
+static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker)
+{
+    JsonDocument cmd_doc;
+    JsonDocument resp_doc;
+    deserializeJson(cmd_doc, complete_std_line);
+    const char* cmd = cmd_doc["cmd"];
+    resp_doc["cmd"] = cmd;
+
+    if (str_eq(cmd, SerCmd::AshaFWVers)) {
+        resp_doc[SerCmd::AshaFWVers] = PICO_ASHA_VERS;
+
+    } else if (str_eq(cmd, SerCmd::Status)) {
+        resp_doc["num_conn"] = ha_mgr.hearing_aids.size();
+        resp_doc["full_set"] = ha_mgr.set_complete();
+        resp_doc["num_ad"] = 0;
+        JsonObject settings = resp_doc["settings"].to<JsonObject>();
+        settings["wait_usb_ser_cx"] = runtime_settings.wait_for_usb_serial_cx;
+        settings["log_level"] = log_level_to_str(runtime_settings.log_level);
+        settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
+
+    } else if (str_eq(cmd, SerCmd::CxDevices)) {
+        JsonArray devices = resp_doc["devices"].to<JsonArray>();
+        for (auto& ha : ha_mgr.hearing_aids) {
+            JsonObject dev = devices.add<JsonObject>();
+            dev["addr"] = bd_addr_to_str(ha.addr);
+            dev["name"] = "";
+            dev["side"] = ha.side_str;
+            dev["mono"] = ha.rop.mode == HA::Mode::Mono;
+            dev["streaming"] = ha.is_streaming_audio();
+            dev["paused"] = false;
+        }
+
+    } else if (str_eq(cmd, SerCmd::ClearDevDb)) {
+        delete_paired_devices();
+        resp_doc["success"] = true;
+
+    } else if (str_eq(cmd, SerCmd::WaitUSBSerCx)) {
+        bool wait = cmd_doc["wait"];
+        runtime_settings.set_wait_for_usb_serial_cx(wait);
+        resp_doc["success"] = true;
+
+    } else if (str_eq(cmd, SerCmd::LogLevel)) {
+        const char* log_level = cmd_doc["level"];
+        enum LogLevel ll = str_to_log_level(log_level);
+        if (ll != LogLevel::None) {
+            runtime_settings.log_level = ll;
+            resp_doc["success"] = true;
+        } else {
+            resp_doc["success"] = false;
+        }
+    
+    } else if (str_eq(cmd, SerCmd::HCIDump)) {
+        bool hci_dump_enabled = cmd_doc["enabled"];
+        if (runtime_settings.set_hci_dump_enabled(hci_dump_enabled)) {
+            LOG_INFO("Enabling Watchdog");
+            watchdog_enable(250, true);
+        }
+        resp_doc["success"] = true;
+    }
+    // else {
+    //     resp_doc["cmd"] = "unknown";
+    // }
+    serializeJson(resp_doc, response_json.data(), response_json.capacity());
+    response_json.repair();
+    printf("%s\r\n", response_json.c_str());
+}
+
 extern "C" void bt_main()
 {
     if (cyw43_arch_init()) {
@@ -162,20 +241,29 @@ extern "C" void bt_main()
     runtime_settings.init();
     runtime_settings.get_settings();
     
+    async_context_t *ctx = cyw43_arch_async_context();
+    bt_audio_pending_worker.do_work = handle_bt_audio_pending_worker;
+    async_context_add_when_pending_worker(ctx, &bt_audio_pending_worker);
+    bt_async_ctx = ctx;
+
+    stdin_pending_worker.do_work = handle_stdin_line_worker;
+    async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
+    usb_ser_ctx = ctx;
+
 #ifdef ASHA_USB_SERIAL
     if (runtime_settings.wait_for_usb_serial_cx) {
-    // Allow time for USB serial to connect before proceeding
-    while (!stdio_usb_connected()) {
+        // Allow time for USB serial to connect before proceeding
+        while (!stdio_usb_connected()) {
+            sleep_ms(250);
+        }
         sleep_ms(250);
-    }
-    sleep_ms(250);
     }
 #endif
     if (!runtime_settings) {
         LOG_ERROR("Runtime settings not initialised");
     }
     LOG_INFO("BT ASHA starting.");
-
+    
     /* Start init BTStack systems */
     if (runtime_settings.hci_dump_enabled) {
         hci_dump_init(hci_dump_embedded_stdout_get_instance());
@@ -214,11 +302,6 @@ extern "C" void bt_main()
         GATT_CLIENT_ANY_CONNECTION,
         NULL
     );
-
-    bt_audio_pending_worker.do_work = handle_bt_audio_pending_worker;
-    async_context_t *ctx = cyw43_arch_async_context();
-    async_context_add_when_pending_worker(ctx, &bt_audio_pending_worker);
-    bt_async_ctx = ctx;
 
     /* Start BTStack */
     LOG_INFO("HCI power on.");
