@@ -61,36 +61,20 @@ jobs:
                 echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
                 echo "PICO_BTSTACK_PATH=$(realpath ./btstack)" >> "$GITHUB_ENV"
             
-            - name: Configure build (USB Serial)
+            - name: Configure build
               run: |
-                mkdir pico-asha/build-usb
-                cd pico-asha/build-usb
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DENABLE_USB_SERIAL=ON ..
-            
-            - name: Configure build (UART Serial)
+                mkdir pico-asha/build
+                cd pico-asha/build
+                cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
+
+            - name: Compile
               run: |
-                mkdir pico-asha/build-uart
-                cd pico-asha/build-uart
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DENABLE_USB_SERIAL=OFF ..
-                
-            - name: Compile (USB Serial)
-              run: |
-                cd pico-asha/build-usb
+                cd pico-asha/build
                 cmake --build .
 
-            - name: Compile (UART Serial)
-              run: |
-                cd pico-asha/build-uart
-                cmake --build .
-
-            - name: Upload UF2 and ELF binaries (USB Serial)
+            - name: Upload UF2 and ELF binaries
               uses: actions/upload-artifact@v4
               with:
-                name: pico-asha-bin-usb
-                path: pico-asha/build-usb/pico-asha.[ue][fl][2f]
+                name: pico-asha-bin
+                path: pico-asha/build/pico-asha.[ue][fl][2f]
 
-            - name: Upload UF2 and ELF binaries (UART Serial)
-              uses: actions/upload-artifact@v4
-              with:
-                name: pico-asha-bin-uart
-                path: pico-asha/build-uart/pico-asha.[ue][fl][2f]
