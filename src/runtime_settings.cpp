@@ -1,7 +1,24 @@
 #include "runtime_settings.hpp"
 
+#include "util.hpp"
+
 namespace asha
 {
+
+enum LogLevel str_to_log_level(const char* log_level)
+{
+    if (str_eq(log_level, "ERROR")) {
+        return LogLevel::Error;
+    } else if (str_eq(log_level, "INFO")) {
+        return LogLevel::Info;
+    } else if (str_eq(log_level, "SCAN")) {
+        return LogLevel::Scan;
+    } else if (str_eq(log_level, "AUDIO")) {
+        return LogLevel::Audio;
+    } else {
+        return LogLevel::None;
+    }
+}
 
 void RuntimeSettings::init()
 {
@@ -34,7 +51,7 @@ bool RuntimeSettings::set_wait_for_usb_serial_cx(bool wait)
         wait_for_usb_serial_cx = wait;
         return store_tlv_tag(Tag::WaitForUSBSerial, wait_for_usb_serial_cx);
     }
-    return true;
+    return false;
 }
 
 bool RuntimeSettings::set_uart_enabled(bool is_enabled)
@@ -43,7 +60,7 @@ bool RuntimeSettings::set_uart_enabled(bool is_enabled)
         serial_uart_enabled = is_enabled;
         return store_tlv_tag(Tag::SerialUARTEnabled, serial_uart_enabled);
     }
-    return true;
+    return false;
 }
 
 bool RuntimeSettings::set_hci_dump_enabled(bool is_enabled)
@@ -52,7 +69,7 @@ bool RuntimeSettings::set_hci_dump_enabled(bool is_enabled)
         hci_dump_enabled = is_enabled;
         return store_tlv_tag(Tag::HCIDump, hci_dump_enabled);
     }
-    return true;
+    return false;
 }
 
 bool RuntimeSettings::set_log_level(enum LogLevel level)
@@ -61,7 +78,7 @@ bool RuntimeSettings::set_log_level(enum LogLevel level)
         log_level = level;
         return store_tlv_tag(Tag::LogLevel, log_level);
     }
-    return true;
+    return false;
 }
 
 } // namespace asha

@@ -36,8 +36,6 @@ extern "C" int main()
     // Init global shared variables
     patom::PseudoAtomicInit();
     audio_buff.init();
-    runtime_settings.init();
-    runtime_settings.get_settings();
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
 #ifdef ASHA_USB_SERIAL
