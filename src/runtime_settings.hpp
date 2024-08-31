@@ -40,10 +40,12 @@ constexpr const char* log_level_to_str(enum LogLevel log_level)
 struct RuntimeSettings
 {
     enum Tag : uint32_t {
+        WaitForUSBSerial = str_to_tag("PAWS"),
         SerialUARTEnabled = str_to_tag("PAUA"),
         LogLevel = str_to_tag("PALL"),
         HCIDump = str_to_tag("PAHC"),
     };
+    bool wait_for_usb_serial_cx = true;
     bool serial_uart_enabled = false;
     bool hci_dump_enabled = false;
     enum LogLevel log_level = LogLevel::Info;
@@ -52,6 +54,7 @@ struct RuntimeSettings
 
     void get_settings();
 
+    bool set_wait_for_usb_serial_cx(bool wait);
     bool set_uart_enabled(bool is_enabled);
     bool set_hci_dump_enabled(bool is_enabled);
     bool set_log_level(enum LogLevel level);
