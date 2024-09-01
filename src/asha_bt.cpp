@@ -317,25 +317,6 @@ extern "C" void bt_main()
     LOG_INFO("HCI power on.");
     hci_power_control(HCI_POWER_ON);
 
-    int64_t timeout = 10'000'000LL;
-    if (device_db_empty()) {
-        LOG_INFO("Device DB is empty, allowing a 60s timeout");
-        timeout = 60'000'000LL;
-    }
-
-    /* Allow hearing aids a timeout to complete
-       connection before starting to stream audio.
-       A longer timeout is allowed when the device
-       db is empty */
-    absolute_time_t start_time = get_absolute_time();
-    absolute_time_t curr_time;
-    int64_t diff;
-    do {
-        sleep_us(500);
-        curr_time = get_absolute_time();
-        diff = absolute_time_diff_us(start_time, curr_time);
-    } while (!ha_mgr.set_complete() && diff < timeout);
-
     /* Do nothing. Audio streaming is scheduled using async_context */
     while (1) {
         sleep_ms(1000);
