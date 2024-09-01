@@ -4,6 +4,7 @@
 #include <cstdint>
 //#include <vector>
 #include "etl/vector.h"
+#include "etl/string.h"
 
 #include "btstack.h"
 #include "asha_audio.hpp"
@@ -97,6 +98,14 @@ public:
 
     // ASHA service
     gatt_client_service_t service = {};
+
+    // GAP service
+    gatt_client_service_t gap_service = {};
+
+    // Device Name char
+    gatt_client_characteristic_t device_name_char = {};
+
+    etl::string<32> name = {};
 
     // ASHA volume
     int8_t volume = -128;
