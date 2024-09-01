@@ -107,7 +107,7 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
         case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
             for (i = 0; i < size; i += sizeof(uint16_t)) {
                 if (little_endian_read_16(adv_data, i) == AshaUUID::service16) {
-                    LOG_INFO("ASHA 16 bit service discovered");
+                    LOG_SCAN("ASHA 16 bit service discovered");
                     is_hearing_aid = true;
                 }
             }
@@ -117,10 +117,10 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
             for (i = 0; i < size; i += sizeof(AshaUUID::service)) {
                 reverse_128(adv_data + i, tmp_uuid128);
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
-                    LOG_INFO("ASHA 128 bit UUID service discovered");
+                    LOG_SCAN("ASHA 128 bit UUID service discovered");
                     is_hearing_aid = true;
                 } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
-                    LOG_INFO("MFI UUID discovered");
+                    LOG_SCAN("MFI UUID discovered");
                     is_hearing_aid = true;
                 }
             }
