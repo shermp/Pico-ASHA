@@ -32,7 +32,9 @@ static constexpr uint16_t pdu_len = 167u;
 
 static constexpr uint16_t max_tx_time = 1064;
 
-static etl::string<stdin_str_size> response_json = {};
+static constexpr size_t json_resp_str_size = 4096;
+
+static etl::string<json_resp_str_size> response_json = {};
 
 static btstack_packet_callback_registration_t hci_event_cb_reg;
 static btstack_packet_callback_registration_t sm_event_cb_reg;
