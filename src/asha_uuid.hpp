@@ -31,6 +31,9 @@ namespace AshaUUID
    7d74f4bd-c74a-4431-862c-cce884371592 */
 inline constexpr uint8_t mfiUUID[] = {125U, 116U, 244U, 189U, 199U, 74U, 68U, 49U, 134U, 44U, 204U, 232U, 132U, 55U, 21U, 146U};
 
+constexpr uint16_t gapServiceUUID16 = 0x1800;
+constexpr uint16_t deviceNameUUID16 = 0x2A00;
+
 inline bool uuid_eq(const uint8_t* u1, const uint8_t* u2) { return memcmp(u1, u2, sizeof(AshaUUID::service)) == 0; }
 
 } // namespace asha

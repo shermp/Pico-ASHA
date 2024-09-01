@@ -193,7 +193,7 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         for (auto& ha : ha_mgr.hearing_aids) {
             JsonObject dev = devices.add<JsonObject>();
             dev["addr"] = bd_addr_to_str(ha.addr);
-            dev["name"] = "";
+            dev["name"] = ha.name;
             dev["side"] = ha.side_str;
             dev["mono"] = ha.rop.mode == HA::Mode::Mono;
             dev["streaming"] = ha.is_streaming_audio();
@@ -618,6 +618,8 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 memcpy(&curr_scan.ha.service, &service, sizeof(service));
                 curr_scan.service_found = true;
                 LOG_INFO("ASHA service found");
+            } else if (service.uuid16 == gapServiceUUID16) {
+                memcpy(&curr_scan.ha.gap_service, &service, sizeof(service));
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
@@ -629,6 +631,37 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 gap_disconnect(curr_scan.ha.conn_handle);
                 break;
             }
+            scan_state = ScanState::DeviceNameCharDiscovery;
+            // Service found. Discover characteristics
+            auto res = gatt_client_discover_characteristics_for_service(
+                    &scan_gatt_event_handler,
+                    curr_scan.ha.conn_handle,
+                    &curr_scan.ha.gap_service
+            );
+            if (res != ERROR_CODE_SUCCESS) {
+                LOG_ERROR("Could not register characteristics query: %d", static_cast<int>(res));
+                scan_state = ScanState::Disconnecting;
+                gap_disconnect(curr_scan.ha.conn_handle);
+            }
+            break;
+        }
+        }
+        break;
+    }
+    case ScanState::DeviceNameCharDiscovery:
+    {
+        gatt_client_characteristic_t characteristic;
+        switch (hci_event_packet_get_type(packet)) {
+        case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
+            gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
+            if (characteristic.uuid16 == deviceNameUUID16) {
+                LOG_INFO("Got Device Name Characteristic");
+                curr_scan.ha.device_name_char = characteristic;
+            }
+            break;
+        case GATT_EVENT_QUERY_COMPLETE:
+            LOG_INFO("Device name characteristic discovery complete");
+            // Start ASHA characteristic discovery
             scan_state = ScanState::CharDiscovery;
             // Service found. Discover characteristics
             auto res = gatt_client_discover_characteristics_for_service(
@@ -642,7 +675,6 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 gap_disconnect(curr_scan.ha.conn_handle);
             }
             break;
-        }
         }
         break;
     }
@@ -673,6 +705,31 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             break;
         case GATT_EVENT_QUERY_COMPLETE:
             LOG_INFO("ASHA characteristic discovery complete");
+            // Start reading the Device name characteristic
+            scan_state = ScanState::ReadDeviceName;
+            gatt_client_read_value_of_characteristic(
+                &scan_gatt_event_handler, 
+                curr_scan.ha.conn_handle, 
+                &curr_scan.ha.device_name_char
+            );
+            break;
+        }
+        break;
+    }
+    case ScanState::ReadDeviceName:
+    {
+        switch (hci_event_packet_get_type(packet)) {
+        case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
+        {
+            LOG_INFO("Getting Device Name value");
+            size_t len = (size_t)gatt_event_characteristic_value_query_result_get_value_length(packet);
+            LOG_INFO("Name length: %u", len);
+            curr_scan.ha.name.clear();
+            curr_scan.ha.name.append((const char*)gatt_event_characteristic_value_query_result_get_value(packet), len);
+            break;
+        }
+        case GATT_EVENT_QUERY_COMPLETE:
+            LOG_INFO("Completed value read of Device Name");
             // Start reading the Read Only Properties characteristic
             scan_state = ScanState::ReadROP;
             gatt_client_read_value_of_characteristic(
