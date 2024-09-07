@@ -31,9 +31,6 @@ void RuntimeSettings::init()
    to make updating default settings easier */
 void RuntimeSettings::get_settings()
 {
-    if (!get_tlv_tag(Tag::WaitForUSBSerial, wait_for_usb_serial_cx)) {
-        wait_for_usb_serial_cx = true;
-    }
     if (!get_tlv_tag(Tag::SerialUARTEnabled, serial_uart_enabled)) {
         serial_uart_enabled = false;
     }
@@ -46,15 +43,6 @@ void RuntimeSettings::get_settings()
     if (!get_tlv_tag(Tag::LogLevel, log_level)) {
         log_level = LogLevel::Info;
     }
-}
-
-bool RuntimeSettings::set_wait_for_usb_serial_cx(bool wait)
-{
-    if (wait_for_usb_serial_cx != wait) {
-        wait_for_usb_serial_cx = wait;
-        return store_tlv_tag(Tag::WaitForUSBSerial, wait_for_usb_serial_cx);
-    }
-    return false;
 }
 
 bool RuntimeSettings::set_uart_enabled(bool is_enabled)

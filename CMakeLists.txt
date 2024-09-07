@@ -41,6 +41,7 @@ add_executable(pico-asha
   src/runtime_settings.cpp
   src/asha_audio.cpp
   src/asha_bt.cpp
+  src/asha_logging.cpp
   src/hearing_aid.cpp
   src/usb_descriptors.cpp
   src/usb_audio.cpp
