@@ -541,7 +541,8 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
                 // Try and upgrade to LE Secure connections
                 sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
-                scan_state = ScanState::Scan;
+                gap_disconnect(curr_scan.ha.conn_handle);
+                scan_state = ScanState::Disconnecting;
                 break;
             default:
                 break;
