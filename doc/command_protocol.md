@@ -53,7 +53,9 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
     "num_ad": 4,
     "settings": {
         "log_level": "INFO",
-        "hci_dump_enabled": true
+        "hci_dump_enabled": true,
+        "uart_enabled": true,
+        "full_set_paired": true
     }
 }
 ```

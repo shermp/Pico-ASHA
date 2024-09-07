@@ -186,6 +186,8 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         JsonObject settings = resp_doc["settings"].to<JsonObject>();
         settings["log_level"] = log_level_to_str(runtime_settings.log_level);
         settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
+        settings["uart_enabled"] = runtime_settings.serial_uart_enabled;
+        settings["full_set_paired"] = runtime_settings.full_set_paired;
 
     } else if (cmd_is(SerCmd::CxDevices)) {
         JsonArray devices = resp_doc["devices"].to<JsonArray>();
