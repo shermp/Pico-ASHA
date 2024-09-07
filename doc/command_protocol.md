@@ -65,7 +65,7 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
 
 ```json
 {
-    "cmd": "cx_devices"
+    "cmd": "conn_devices"
 }
 ```
 
@@ -73,7 +73,7 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
 
 ```json
 {
-    "cmd": "cx_devices",
+    "cmd": "conn_devices",
     "devices": [
         {
             "addr": "1A:2B:3C:4D:5E:6F",
