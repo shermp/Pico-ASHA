@@ -62,7 +62,7 @@ void HA::subscribe_to_asp_notification()
     auto res = gatt_client_write_client_characteristic_configuration(
         gatt_packet_handler,
         conn_handle,
-        &chars.asp,
+        &asha_service.asp,
         GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION
     );
     if (res != ERROR_CODE_SUCCESS) {
@@ -123,7 +123,7 @@ void HA::write_acp_start()
 
     uint8_t res = gatt_client_write_value_of_characteristic(gatt_packet_handler, 
                                                             conn_handle, 
-                                                            chars.acp.value_handle,
+                                                            asha_service.acp.value_handle,
                                                             (uint16_t)acp_cmd_packet.size(),
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
@@ -138,7 +138,7 @@ void HA::write_acp_stop()
     acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Stop);
     uint8_t res = gatt_client_write_value_of_characteristic(gatt_packet_handler,
                                                             conn_handle,
-                                                            chars.acp.value_handle,
+                                                            asha_service.acp.value_handle,
                                                             1u,
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
@@ -153,7 +153,7 @@ void HA::write_acp_status(uint8_t status)
     acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Status);
     acp_cmd_packet[1] = status;
     auto res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
-                                                                          chars.acp.value_handle,
+                                                                          asha_service.acp.value_handle,
                                                                           2u,
                                                                           acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
@@ -241,7 +241,7 @@ void HA::write_volume()
     if (change_vol) {
         change_vol = false;
         uint8_t res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
-                                                                                chars.vol.value_handle,
+                                                                                asha_service.vol.value_handle,
                                                                                 sizeof(volume),
                                                                                 (uint8_t*)&volume);
         if (res != ERROR_CODE_SUCCESS) {

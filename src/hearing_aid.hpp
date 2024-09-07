@@ -96,15 +96,6 @@ public:
     // ASHA L2CAP CoC PSM
     uint8_t psm = 0u;
 
-    // ASHA service
-    gatt_client_service_t service = {};
-
-    // GAP service
-    gatt_client_service_t gap_service = {};
-
-    // Device Name char
-    gatt_client_characteristic_t device_name_char = {};
-
     etl::string<32> name = {};
 
     // ASHA volume
@@ -117,14 +108,24 @@ public:
     uint16_t avail_credits = 0;
     int zero_credit_count = 0;
 
-    // ASHA characteristics
     struct {
+        gatt_client_service_t service = {};
+        gatt_client_characteristic_t device_name = {};
+    } gap_service = {};
+
+    struct {
+        gatt_client_service_t service = {};
+        gatt_client_characteristic_t service_changed = {};
+    } gatt_service = {};
+
+    struct {
+        gatt_client_service_t service = {};
         gatt_client_characteristic_t rop = {};
         gatt_client_characteristic_t acp = {};
         gatt_client_characteristic_t asp = {};
         gatt_client_characteristic_t vol = {};
         gatt_client_characteristic_t psm = {};  
-    } chars = {};
+    } asha_service = {};
 
     // ASHA ReadOnlyProperties
     struct ROP {

@@ -625,11 +625,11 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_event_service_query_result_get_service(packet, &service);
             LOG_SCAN("Service Query: Service ID: 0x%04hx : UUID: %s", service.uuid16, uuid128_to_str(service.uuid128));
             if (service.uuid16 == AshaUUID::service16 || uuid_eq(service.uuid128, AshaUUID::service)) {
-                memcpy(&curr_scan.ha.service, &service, sizeof(service));
+                memcpy(&curr_scan.ha.asha_service.service, &service, sizeof(service));
                 curr_scan.service_found = true;
                 LOG_INFO("ASHA service found");
             } else if (service.uuid16 == GapUUID::service16) {
-                memcpy(&curr_scan.ha.gap_service, &service, sizeof(service));
+                memcpy(&curr_scan.ha.gap_service.service, &service, sizeof(service));
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
@@ -646,7 +646,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             auto res = gatt_client_discover_characteristics_for_service(
                     &scan_gatt_event_handler,
                     curr_scan.ha.conn_handle,
-                    &curr_scan.ha.gap_service
+                    &curr_scan.ha.gap_service.service
             );
             if (res != ERROR_CODE_SUCCESS) {
                 LOG_ERROR("Could not register characteristics query: %d", static_cast<int>(res));
@@ -666,7 +666,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
             if (characteristic.uuid16 == GapUUID::deviceName16) {
                 LOG_INFO("Got Device Name Characteristic");
-                curr_scan.ha.device_name_char = characteristic;
+                curr_scan.ha.gap_service.device_name = characteristic;
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
@@ -677,7 +677,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             auto res = gatt_client_discover_characteristics_for_service(
                     &scan_gatt_event_handler,
                     curr_scan.ha.conn_handle,
-                    &curr_scan.ha.service
+                    &curr_scan.ha.asha_service.service
             );
             if (res != ERROR_CODE_SUCCESS) {
                 LOG_ERROR("Could not register characteristics query: %d", static_cast<int>(res));
@@ -696,19 +696,19 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
             if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
                 LOG_INFO("Got ROP Characteristic");
-                curr_scan.ha.chars.rop = characteristic;
+                curr_scan.ha.asha_service.rop = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioControlPoint)) {
                 LOG_INFO("Got ACP Characteristic");
-                curr_scan.ha.chars.acp = characteristic;
+                curr_scan.ha.asha_service.acp = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioStatus)) {
                 LOG_INFO("Got AUS Characteristic");
-                curr_scan.ha.chars.asp = characteristic;
+                curr_scan.ha.asha_service.asp = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::volume)) {
                 LOG_INFO("Got VOL Characteristic");
-                curr_scan.ha.chars.vol = characteristic;
+                curr_scan.ha.asha_service.vol = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::psm)) {
                 LOG_INFO("Got PSM Characteristic");
-                curr_scan.ha.chars.psm = characteristic;
+                curr_scan.ha.asha_service.psm = characteristic;
             }
             // LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx",
             //          characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
@@ -720,7 +720,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler, 
                 curr_scan.ha.conn_handle, 
-                &curr_scan.ha.device_name_char
+                &curr_scan.ha.gap_service.device_name
             );
             break;
         }
@@ -745,7 +745,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler, 
                 curr_scan.ha.conn_handle, 
-                &curr_scan.ha.chars.rop
+                &curr_scan.ha.asha_service.rop
             );
             break;
         }
@@ -766,7 +766,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler,
                 curr_scan.ha.conn_handle,
-                &curr_scan.ha.chars.psm
+                &curr_scan.ha.asha_service.psm
             );
             break;
         }
