@@ -188,7 +188,7 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         settings["uart_enabled"] = runtime_settings.serial_uart_enabled;
         settings["full_set_paired"] = runtime_settings.full_set_paired;
 
-    } else if (cmd_is(SerCmd::CxDevices)) {
+    } else if (cmd_is(SerCmd::ConnDevices)) {
         JsonArray devices = resp_doc["devices"].to<JsonArray>();
         for (auto& ha : ha_mgr.hearing_aids) {
             JsonObject dev = devices.add<JsonObject>();

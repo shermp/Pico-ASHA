@@ -8,7 +8,7 @@ namespace asha
     namespace SerCmd {
         constexpr const char AshaFWVers[] = "asha_fw_ver";
         constexpr const char Status[] = "status";
-        constexpr const char CxDevices[] = "cx_devices";
+        constexpr const char ConnDevices[] = "conn_devices";
         constexpr const char Unpair[] = "unpair";
         constexpr const char ClearDevDb[] = "clear_dev_db";
         constexpr const char WaitUSBSerCx[] = "wait_usb_ser_cx";
