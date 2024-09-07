@@ -48,11 +48,14 @@ struct RuntimeSettings
         SerialUARTEnabled = str_to_tag("PAUA"),
         LogLevel = str_to_tag("PALL"),
         HCIDump = str_to_tag("PAHC"),
+        FullSetPaired = str_to_tag("PAFS"),
     };
     bool wait_for_usb_serial_cx = true;
     bool serial_uart_enabled = false;
     bool hci_dump_enabled = false;
+    bool full_set_paired = false;
     enum LogLevel log_level = LogLevel::Info;
+
 
     void init();
 
@@ -61,6 +64,7 @@ struct RuntimeSettings
     bool set_wait_for_usb_serial_cx(bool wait);
     bool set_uart_enabled(bool is_enabled);
     bool set_hci_dump_enabled(bool is_enabled);
+    bool set_full_set_paired(bool have_full_set);
     bool set_log_level(enum LogLevel level);
 
     explicit operator bool() const {return tlv_impl && tlv_ctx; }
