@@ -87,54 +87,6 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
 }
 ```
 
-### Available Devices
-
-#### Command
-
-```json
-{
-    "cmd": "adverts"
-}
-```
-
-#### Response
-
-```json
-{
-    "cmd": "adverts",
-    "adverts": [
-        {
-            "addr": "1A:2B:3C:4D:5E:6F",
-            "name": "Another HA",
-            "rssi": -60
-        }
-    ]
-}
-```
-
-### Pair Device
-
-#### Command
-
-```json
-{
-    "cmd": "pair",
-    "addr": "1A:2B:3C:4D:5E:6F"
-}
-```
-
-#### Response
-
-```json
-{
-    "cmd": "pair",
-    "result": {
-        "addr": "1A:2B:3C:4D:5E:6F",
-        "success": true
-    }
-}
-```
-
 ### Unpair Device
 
 #### Command
