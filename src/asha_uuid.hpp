@@ -37,6 +37,12 @@ namespace GapUUID
     constexpr uint16_t deviceName16 = 0x2A00;
 }
 
+namespace GattUUID
+{
+    constexpr uint16_t service16 = 0x1801;
+    constexpr uint16_t serviceChanged = 0x2A05;
+}
+
 inline bool uuid_eq(const uint8_t* u1, const uint8_t* u2) { return memcmp(u1, u2, sizeof(AshaUUID::service)) == 0; }
 
 } // namespace asha
