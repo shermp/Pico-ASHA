@@ -483,8 +483,9 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
             // If the full set is paired, only handle advertising
             // reports from devices where identity resolving succeeds
-            if (runtime_settings.full_set_paired) break;
-            if (curr_scan.report.is_hearing_aid) {
+            if (runtime_settings.full_set_paired) {
+                scan_state = ScanState::Scan;
+            } else if (curr_scan.report.is_hearing_aid) {
                 scan_state = ScanState::Connecting;
                 LOG_INFO("HA discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
