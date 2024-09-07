@@ -167,7 +167,7 @@ void HA::on_gatt_event_query_complete(uint8_t att_status)
     switch (state) {
     case State::SubscribeASPNotification:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("Enabling AudioStatusPoint notifications failed with error code: 0x%02x", att_status);
+            LOG_ERROR("Enabling ASP notifications failed with error code: 0x%02x", att_status);
             state = State::SubscribeASPNotification;
             subscribe_to_asp_notification();
         }
@@ -278,7 +278,7 @@ void HA::send_audio_packet()
         // fallthrough
     case State::AudioPacketSending:
         if (avail_credits == 0) {
-            LOG_INFO("%s: Available credits zero, restarting stream", side_str);
+            LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
             write_acp_stop();
         } else if (l2cap_can_send_packet_now(cid)) {
             LOG_AUDIO("%s: Sending audio packet. Seq Num: %d", side_str, (int)audio_packet[0]);
@@ -339,25 +339,19 @@ void HA::ROP::read(const uint8_t* data)
 
 void HA::ROP::print_values()
 {
-    LOG_INFO("Read Only Properties -"
-        " Version: %d,"
+    LOG_INFO("ROP -"
         " Side: %s,"
         " Mode: %s,"
-        " CSIS: %s,"
-        " Manufacture ID: %04hx,"
-        " LE CoC audio: %s,"
-        " Render delay: %hu,"
-        " Supports 16KHz: %s,"
-        " Supports 24KHz: %s",
-        version, 
-        (side == HA::Side::Left ? "Left" : "Right"),
-        (mode == HA::Mode::Binaural ? "Binaural" : "Monaural"),
-        (csis_supported ? "Yes" : "No"),
+        " M. ID: %04hx,"
+        " Delay: %hu,"
+        " 16KHz: %s,"
+        " 24KHz: %s",
+        (side == HA::Side::Left ? "L" : "R"),
+        (mode == HA::Mode::Binaural ? "B" : "M"),
         id.manufacturer_id,
-        le_coc_supported ? "Yes" : "No",
         render_delay,
-        codec_16khz ? "Yes" : "No",
-        codec_24khz ? "Yes" : "No");
+        codec_16khz ? "Y" : "N",
+        codec_24khz ? "Y" : "N");
 }
 
 HAManager::HAManager()
