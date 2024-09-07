@@ -628,7 +628,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 memcpy(&curr_scan.ha.service, &service, sizeof(service));
                 curr_scan.service_found = true;
                 LOG_INFO("ASHA service found");
-            } else if (service.uuid16 == gapServiceUUID16) {
+            } else if (service.uuid16 == GapUUID::service16) {
                 memcpy(&curr_scan.ha.gap_service, &service, sizeof(service));
             }
             break;
@@ -664,7 +664,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
-            if (characteristic.uuid16 == deviceNameUUID16) {
+            if (characteristic.uuid16 == GapUUID::deviceName16) {
                 LOG_INFO("Got Device Name Characteristic");
                 curr_scan.ha.device_name_char = characteristic;
             }
