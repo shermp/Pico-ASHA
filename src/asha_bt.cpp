@@ -174,9 +174,9 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
     const char* cmd = cmd_doc["cmd"];
     resp_doc["cmd"] = cmd;
 
-    auto cmd_is = [&](const char* command) {return strcmp(cmd, command) == 0;};
+    auto cmd_is = [&](const char* command) {return str_eq(cmd, command);};
 
-    if (str_eq(cmd, SerCmd::AshaFWVers)) {
+    if (cmd_is(SerCmd::AshaFWVers)) {
         resp_doc[SerCmd::AshaFWVers] = PICO_ASHA_VERS;
 
     } else if (cmd_is(SerCmd::Status)) {
