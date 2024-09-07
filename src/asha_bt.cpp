@@ -423,7 +423,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             uint16_t ci = gap_subevent_le_connection_complete_get_conn_interval(packet);
             uint16_t cl = gap_subevent_le_connection_complete_get_conn_latency(packet);
             if (ci != asha_conn_interval || cl != asha_conn_latency) {
-                LOG_ERROR("Unexpected connection params. Got Connection Interval: %hu  Connection latency: %hu", ci, cl);
+                LOG_ERROR("Bad connection params. Got Interval: %hu  latency: %hu", ci, cl);
             }
             //curr_scan.ha.supervision_timeout = hci_subevent_le_connection_complete_get_supervision_timeout(packet);
             scan_state = ScanState::Pairing;
@@ -441,7 +441,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             auto rx_time = hci_subevent_le_data_length_change_get_max_rx_time(packet);
             auto tx_octets = hci_subevent_le_data_length_change_get_max_tx_octets(packet);
             auto tx_time = hci_subevent_le_data_length_change_get_max_tx_time(packet);
-            LOG_INFO("Date length set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
+            LOG_INFO("DL set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
                      rx_octets, rx_time, tx_octets, tx_time);
             scan_state =ScanState::ServiceDiscovery;
             discover_services();
@@ -462,7 +462,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto ha = ha_mgr.get_by_conn_handle(c);
         if (ha) {
-            LOG_INFO("%s device disconnected with %hu available credits.", (ha.side() == HA::Side::Left) ? "Left" : "Right", ha.avail_credits);
+            LOG_INFO("%s: Disconnected with %hu available credits.", ha.side_str, ha.avail_credits);
             ha_mgr.remove_by_conn_handle(c);
         }
         scan_state = ScanState::Scan;
@@ -489,11 +489,11 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             if (runtime_settings.full_set_paired) break;
             if (curr_scan.report.is_hearing_aid) {
                 scan_state = ScanState::Connecting;
-                LOG_INFO("Hearing aid discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
+                LOG_INFO("HA discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
             } else {
-                LOG_SCAN("Ad Report for addr %s is not hearing aid", bd_addr_to_str(curr_scan.report.address));
+                LOG_SCAN("Ad Report for addr %s is not HA", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }
             break;
@@ -541,7 +541,7 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_AUTHENTICATION_FAILURE:
-                LOG_ERROR("Pairing failed, authentication failure with reason: %d",
+                LOG_ERROR("Pairing failed, auth failure with reason: %d",
                         static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
                 // Try and upgrade to LE Secure connections
                 sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
@@ -705,8 +705,8 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
                 LOG_INFO("Got PSM Characteristic");
                 curr_scan.ha.chars.psm = characteristic;
             }
-            LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx",
-                     characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
+            // LOG_INFO("Characteristic handles: Start: 0x%04hx  Value: 0x%04hx  End: 0x%04hx",
+            //          characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
             LOG_INFO("ASHA characteristic discovery complete");
