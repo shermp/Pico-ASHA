@@ -52,7 +52,6 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
     "full_set": true,
     "num_ad": 4,
     "settings": {
-        "wait_usb_ser_cx": true,
         "log_level": "INFO",
         "hci_dump_enabled": true
     }
@@ -125,26 +124,6 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
 ```json
 {
     "cmd": "clear_dev_db",
-    "success": true
-}
-```
-
-### Set Wait For USB Serial
-
-#### Command
-
-```json
-{
-    "cmd": "wait_usb_ser_cx",
-    "wait": true
-}
-```
-
-#### Response
-
-```json
-{
-    "cmd": "wait_usb_ser_cx",
     "success": true
 }
 ```

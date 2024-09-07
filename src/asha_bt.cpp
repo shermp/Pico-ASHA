@@ -184,7 +184,6 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         resp_doc["full_set"] = ha_mgr.set_complete();
         resp_doc["num_ad"] = 0;
         JsonObject settings = resp_doc["settings"].to<JsonObject>();
-        settings["wait_usb_ser_cx"] = runtime_settings.wait_for_usb_serial_cx;
         settings["log_level"] = log_level_to_str(runtime_settings.log_level);
         settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
 
@@ -212,12 +211,6 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
         }
         resp_doc["success"] = true;
 
-    } else if (cmd_is(SerCmd::WaitUSBSerCx)) {
-        bool wait = cmd_doc["wait"];
-        runtime_settings.set_wait_for_usb_serial_cx(wait);
-        resp_doc["success"] = true;
-        
-
     } else if (cmd_is(SerCmd::LogLevel)) {
         const char* log_level = cmd_doc["level"];
         enum LogLevel ll = str_to_log_level(log_level);
@@ -239,15 +232,14 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
     // else {
     //     resp_doc["cmd"] = "unknown";
     // }
-    serializeJson(resp_doc, response_json.data(), response_json.capacity());
-    response_json.repair();
+    size_t len = serializeJson(resp_doc, response_json.data(), response_json.capacity() - 1);
+    response_json.uninitialized_resize(len);
     printf("%s\r\n", response_json.c_str());
 }
 
 extern "C" void bt_main()
 {
     if (cyw43_arch_init()) {
-        LOG_ERROR("failed to initialise cyw43_arch");
         return;
     }
     runtime_settings.init();
@@ -264,7 +256,11 @@ extern "C" void bt_main()
     async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
     usb_ser_ctx = ctx;
 
-    if (runtime_settings.wait_for_usb_serial_cx) {
+    logging_pending_worker.do_work = handle_logging_pending_worker;
+    async_context_add_when_pending_worker(ctx, &logging_pending_worker);
+    logging_ctx = ctx;
+
+    if (runtime_settings.hci_dump_enabled) {
         // Allow time for USB serial to connect before proceeding
         while (!stdio_usb_connected()) {
             sleep_ms(250);
