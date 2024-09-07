@@ -40,6 +40,9 @@ void RuntimeSettings::get_settings()
     if (!get_tlv_tag(Tag::HCIDump, hci_dump_enabled)) {
         hci_dump_enabled = false;
     }
+    if (!get_tlv_tag(Tag::FullSetPaired, full_set_paired)) {
+        full_set_paired = false;
+    }
     if (!get_tlv_tag(Tag::LogLevel, log_level)) {
         log_level = LogLevel::Info;
     }
@@ -68,6 +71,15 @@ bool RuntimeSettings::set_hci_dump_enabled(bool is_enabled)
     if (hci_dump_enabled != is_enabled) {
         hci_dump_enabled = is_enabled;
         return store_tlv_tag(Tag::HCIDump, hci_dump_enabled);
+    }
+    return false;
+}
+
+bool RuntimeSettings::set_full_set_paired(bool have_full_set)
+{
+    if (full_set_paired != have_full_set) {
+        full_set_paired = have_full_set;
+        return store_tlv_tag(Tag::FullSetPaired, have_full_set);
     }
     return false;
 }

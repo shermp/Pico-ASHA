@@ -202,6 +202,7 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
 
     } else if (cmd_is(SerCmd::ClearDevDb)) {
         delete_paired_devices();
+        runtime_settings.set_full_set_paired(false);
         resp_doc["success"] = true;
 
     } else if (cmd_is(SerCmd::UartSerial)) {
@@ -384,9 +385,9 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
             gap_local_bd_addr(local_addr);
             LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
-#ifdef ASHA_DELETE_PAIRINGS
+        if (!runtime_settings.full_set_paired) {
             delete_paired_devices();
-#endif
+        }
             start_scan();
         } else {
             scan_state = ScanState::Stop;
@@ -483,6 +484,9 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         case SM_EVENT_IDENTITY_RESOLVING_STARTED:
             break;
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
+            // If the full set is paired, only handle advertising
+            // reports from devices where identity resolving succeeds
+            if (runtime_settings.full_set_paired) break;
             if (curr_scan.report.is_hearing_aid) {
                 scan_state = ScanState::Connecting;
                 LOG_INFO("Hearing aid discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
@@ -831,6 +835,7 @@ static void finalise_curr_discovery()
     ha.on_gatt_connected();
     if (ha_mgr.set_complete()) {
         LOG_INFO("Connected to all aid(s) in set.");
+        runtime_settings.set_full_set_paired(true);
         scan_state = ScanState::Complete;
     } else {
         scan_state = ScanState::Scan;
