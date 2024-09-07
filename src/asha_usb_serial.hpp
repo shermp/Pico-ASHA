@@ -9,8 +9,6 @@ namespace asha
         constexpr const char AshaFWVers[] = "asha_fw_ver";
         constexpr const char Status[] = "status";
         constexpr const char CxDevices[] = "cx_devices";
-        constexpr const char Adverts[] = "adverts";
-        constexpr const char Pair[] = "pair";
         constexpr const char Unpair[] = "unpair";
         constexpr const char ClearDevDb[] = "clear_dev_db";
         constexpr const char WaitUSBSerCx[] = "wait_usb_ser_cx";
