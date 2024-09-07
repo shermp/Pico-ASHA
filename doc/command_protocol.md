@@ -50,7 +50,6 @@ Note: examples below include whitespace for clarity. They MUST be packed for tra
     "cmd": "status",
     "num_conn": 2,
     "full_set": true,
-    "num_ad": 4,
     "settings": {
         "log_level": "INFO",
         "hci_dump_enabled": true,

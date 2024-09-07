@@ -182,7 +182,6 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
     } else if (cmd_is(SerCmd::Status)) {
         resp_doc["num_conn"] = ha_mgr.hearing_aids.size();
         resp_doc["full_set"] = ha_mgr.set_complete();
-        resp_doc["num_ad"] = 0;
         JsonObject settings = resp_doc["settings"].to<JsonObject>();
         settings["log_level"] = log_level_to_str(runtime_settings.log_level);
         settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
