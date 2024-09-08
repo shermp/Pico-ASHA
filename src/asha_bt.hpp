@@ -16,6 +16,8 @@ enum class ScanState {
     Disconnecting,
     DataLen,
     ServiceDiscovery,
+    ServiceChangedCharDiscovery,
+    ServiceChangedNotification,
     DeviceNameCharDiscovery,
     CharDiscovery,
     ReadDeviceName,
