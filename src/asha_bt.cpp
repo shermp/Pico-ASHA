@@ -177,7 +177,18 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
 {
     JsonDocument cmd_doc;
     JsonDocument resp_doc;
-    deserializeJson(cmd_doc, complete_std_line);
+    auto err = deserializeJson(cmd_doc, complete_std_line);
+    if (err != DeserializationError::Ok) {
+        // Dump the log if the user started monitoring USB serial late
+        if (err == DeserializationError::EmptyInput) {
+            if (logging_ctx) {
+                async_context_set_work_pending(logging_ctx, &logging_pending_worker);
+            }
+        } else {
+            printf("%s\r\n", R"("{"cmd":"error"}")");
+        }
+        return;
+    }
     const char* cmd = cmd_doc["cmd"];
     resp_doc["cmd"] = cmd;
 
