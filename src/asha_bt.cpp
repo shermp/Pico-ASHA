@@ -799,8 +799,11 @@ static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, 
     {
         HA& ha = ha_mgr.get_by_conn_handle(gatt_event_notification_get_handle(packet));
         if (ha) {
-            int8_t status_val = (int8_t)gatt_event_notification_get_value(packet)[0];
-            ha.on_asp_notification(status_val);
+            uint16_t val_handle = gatt_event_notification_get_value_handle(packet);
+            if (val_handle == ha.asha_service.asp.value_handle) {
+                int8_t status_val = (int8_t)gatt_event_notification_get_value(packet)[0];
+                ha.on_asp_notification(status_val);
+            }
         }
         break;
     }
