@@ -4,11 +4,16 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 ## Status
 
-**This project is still highly experimental.** Currently, it is possible to discover (Oticon) hearing aids, and limited audio streaming has been implemented.
+**This project is still a Work in Progress.** Currently, it is possible to discover and stream audio to Oticon More hearing aids.
+
+### Device Status
+
+| Device | Status |
+| --- | --- |
+| Oticon More 2 | Working |
+| Starkey Arc AI | Can Pair, but not open L2CAP CoC Connection |
 
 **It should be safe, but I cannot guarantee it will not mess up your hearing aids!**
-
-**Note, I have yet to settle on a USB VID/PID combo. Untill this occurs, I recommend against testing this on Windows. I have only tested on Linux thus far**
 
 ## How to test/develop
 
@@ -22,7 +27,7 @@ Binaries are available for download from the Github Actions tab. You mist be log
 
 ### Compile for dev/testing
 
-Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 1.5.1, using the provided instructions.
+Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.0.0, using the provided instructions.
 
 Create an environment variable called `PICO_SDK_PATH` that points to the downloaded SDK location.
 
@@ -71,8 +76,6 @@ Alternatively, Pico-ASHA can log output via UART. To view debugging info over UA
 Pass `-DENABLE_USB_SERIAL=OFF` to cmake during configure to enable UART serial.
 
 ### Testing
-
-**Again, I advise against testing on Windows at this time**
 
 It is recommended that your hearing devices are not connected to any phone/tablet/streamer while testing Pico-ASHA. It should not be necessary to unpair from existing bluethooth devices, although this will be device specific.
 
