@@ -14,6 +14,7 @@
 #include "asha_uuid.hpp"
 #include "asha_bt.hpp"
 #include "asha_usb_serial.hpp"
+#include "asha_led.hpp"
 
 #include "util.hpp"
 
@@ -54,6 +55,22 @@ static void finalise_curr_discovery();
 static bool device_db_empty();
 static void delete_paired_devices();
 static void delete_paired_device(const bd_addr_t addr);
+
+static LEDManager led_mgr = {};
+
+static LEDManager::Pattern none_connected = {
+    .len = 2,
+    .interval_ms = 250,
+    .delay_ms = 0,
+    .pattern = 0b10
+};
+
+static LEDManager::Pattern one_connected = {
+    .len = 2,
+    .interval_ms = 100,
+    .delay_ms = 0,
+    .pattern = 0b10
+};
 
 #ifdef ASHA_AD_DUMP
 extern "C" void dump_advertisement_data(const uint8_t * adv_data, uint8_t adv_size);
@@ -279,6 +296,8 @@ extern "C" void bt_main()
     async_context_add_when_pending_worker(ctx, &logging_pending_worker);
     logging_ctx = ctx;
 
+    led_mgr.set_ctx(ctx);
+
     if (runtime_settings.hci_dump_enabled) {
         // Allow time for USB serial to connect before proceeding
         while (!stdio_usb_connected()) {
@@ -393,6 +412,7 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     switch(hci_ev_type) {
     case BTSTACK_EVENT_STATE:
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING) {
+            led_mgr.set_led_pattern(none_connected);
             // Set 2M PHY
             gap_set_connection_phys(2);
             // Set connection parameters including connection interval
@@ -944,8 +964,10 @@ static void finalise_curr_discovery()
     if (ha_mgr.set_complete()) {
         LOG_INFO("Connected to all aid(s) in set.");
         runtime_settings.set_full_set_paired(true);
+        led_mgr.set_led(LEDManager::State::On);
         scan_state = ScanState::Complete;
     } else {
+        led_mgr.set_led_pattern(one_connected);
         scan_state = ScanState::Scan;
     }
 }
