@@ -500,6 +500,11 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             LOG_INFO("%s: Disconnected with %hu available credits.", ha.side_str, ha.avail_credits);
             ha_mgr.remove_by_conn_handle(c);
         }
+        if (ha_mgr.hearing_aids.size() > 0) {
+            led_mgr.set_led_pattern(one_connected);
+        } else {
+            led_mgr.set_led_pattern(none_connected);
+        }
         scan_state = ScanState::Scan;
         curr_scan.reset();
         break;
