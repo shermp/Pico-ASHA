@@ -69,12 +69,6 @@ By default, Pico-ASHA logs output via USB serial. The USB serial settings are as
 
 You can also reset the Pico into `BOOTSEL` mode (to upload new firmware) by changing the baud rate to 1200 baud.
 
-#### UART
-
-Alternatively, Pico-ASHA can log output via UART. To view debugging info over UART, you will need a method to interface with the UART pins. Such options include another pico using the [debugprobe](https://github.com/raspberrypi/debugprobe) project, a USB to UART adapter, The Raspberry Pi debug probe, a full Raspberry Pi or other SBC etc.
-
-Pass `-DENABLE_USB_SERIAL=OFF` to cmake during configure to enable UART serial.
-
 ### Testing
 
 It is recommended that your hearing devices are not connected to any phone/tablet/streamer while testing Pico-ASHA. It should not be necessary to unpair from existing bluethooth devices, although this will be device specific.
