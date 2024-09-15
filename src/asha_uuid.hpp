@@ -2,9 +2,35 @@
 
 #include <cstdint>
 #include <cstring>
+#include <array>
 
 namespace asha 
 {
+
+constexpr std::array<uint8_t, 16> uuid_from_str(const char uuid_str[37])
+{
+    auto conv_nibble = [](unsigned char n) {
+        if (n >= '0' && n <= '9') {
+            return n - '0';
+        } else if (n >= 'a' && n <= 'f') {
+            return (n - 'a') + 10;
+        } else {
+            return (n - 'A') + 10;
+        }
+    };
+    std::array<uint8_t, 16> uuid = {};
+    const char *u = uuid_str;
+    for (auto& v : uuid) {
+        if (*u == '-') {
+            u += 1;
+        }
+        uint8_t n1 = conv_nibble(u[1]);
+        uint8_t n2 = conv_nibble(u[0]);
+        v = n1 | (n2 << 4);
+        u += 2;
+    }
+    return uuid;
+}
 
 /* UUID's for the ASHA service and it's characteristics */
 namespace AshaUUID
