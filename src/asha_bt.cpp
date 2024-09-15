@@ -131,7 +131,7 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
             break;
         case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
         case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
-            for (i = 0; i < size; i += sizeof(AshaUUID::service)) {
+            for (i = 0; i < size; i += AshaUUID::service.size()) {
                 reverse_128(adv_data + i, tmp_uuid128);
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
                     LOG_SCAN("ASHA 128 bit UUID service discovered");
