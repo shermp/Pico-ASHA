@@ -499,6 +499,7 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
         case SM_EVENT_IDENTITY_RESOLVING_STARTED:
             break;
         case SM_EVENT_IDENTITY_RESOLVING_FAILED:
+        {
             // If the full set is paired, only handle advertising
             // reports from devices where identity resolving succeeds
             if (runtime_settings.full_set_paired) {
@@ -507,12 +508,18 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 scan_state = ScanState::Connecting;
                 LOG_INFO("HA discovered with addr %s. Connecting...", bd_addr_to_str(curr_scan.report.address));
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
-                gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
+                auto gap_res = gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
+                if (gap_res != ERROR_CODE_SUCCESS) {
+                    LOG_ERROR("gap_connect failed with error: %02x", (unsigned int)gap_res);
+                    scan_state = ScanState::Scan;
+                    return;
+                }
             } else {
                 LOG_SCAN("Ad Report for addr %s is not HA", bd_addr_to_str(curr_scan.report.address));
                 scan_state = ScanState::Scan;
             }
             break;
+        }
         case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
         {
             LOG_INFO("Identity resolving succeeded");
@@ -524,7 +531,12 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
             scan_state = ScanState::Connecting;
             auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
             LOG_INFO("Connecting to address %s", bd_addr_to_str(curr_scan.ha.addr));
-            gap_connect(curr_scan.ha.addr, static_cast<bd_addr_type_t>(addr_type));
+            auto gap_res = gap_connect(curr_scan.ha.addr, static_cast<bd_addr_type_t>(addr_type));
+            if (gap_res != ERROR_CODE_SUCCESS) {
+                LOG_ERROR("gap_connect failed with error: %02x", (unsigned int)gap_res);
+                scan_state = ScanState::Scan;
+                return;
+            }
             break;
         }
         default: break;
