@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "etl/vector.h"
 #include "btstack.h"
 
 #include "hearing_aid.hpp"
@@ -16,10 +17,8 @@ enum class ScanState {
     Disconnecting,
     DataLen,
     ServiceDiscovery,
-    ServiceChangedCharDiscovery,
-    ServiceChangedNotification,
-    DeviceNameCharDiscovery,
     CharDiscovery,
+    ServiceChangedNotification,
     ReadDeviceName,
     ReadROP,
     ReadPSM,
@@ -55,6 +54,8 @@ struct ScanResult {
     bool service_found = false;
     HA ha = HA();
     AdvertisingReport report = AdvertisingReport();
+    etl::vector<gatt_client_service_t*, 8> services = {};
+    gatt_client_service_t** services_it = services.end();
     void reset();
 };
 

@@ -153,6 +153,8 @@ void ScanResult::reset()
     service_found = false;
     ha = HA();
     report = AdvertisingReport();
+    services.clear();
+    services_it = services.end();
 }
 
 static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker)
@@ -658,6 +660,14 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
     }
 }
 
+#define GATT_QUERY_ASSERT(cmd, msg) { \
+    auto res = (cmd); \
+    if (res != ERROR_CODE_SUCCESS) { \
+        LOG_ERROR(msg ": 0x%02x", static_cast<unsigned int>(res)); \
+        scan_state = ScanState::Disconnecting; \
+        gap_disconnect(curr_scan.ha.conn_handle); \
+    }}
+
 /* Handler for reading GATT service and characteristic values
    and subscribing to the AudioStatusPoint characteristic notification 
    during the connection process.
@@ -675,130 +685,37 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             if (service.uuid16 == AshaUUID::service16 || uuid_eq(service.uuid128, AshaUUID::service)) {
                 memcpy(&curr_scan.ha.asha_service.service, &service, sizeof(service));
                 curr_scan.service_found = true;
+                curr_scan.services.push_back(&curr_scan.ha.asha_service.service);
                 LOG_INFO("ASHA service found");
             } else if (service.uuid16 == GapUUID::service16) {
                 LOG_INFO("GAP service found");
                 memcpy(&curr_scan.ha.gap_service.service, &service, sizeof(service));
+                curr_scan.services.push_back(&curr_scan.ha.gap_service.service);
             } else if (service.uuid16 == GattUUID::service16) {
                 LOG_INFO("GATT service found");
                 memcpy(&curr_scan.ha.gatt_service.service, &service, sizeof(service));
+                curr_scan.services.push_back(&curr_scan.ha.gatt_service.service);
             }
+
             break;
         case GATT_EVENT_QUERY_COMPLETE:
         {
             // Older hearing aids may support MFI but not ASHA
-            if (!curr_scan.service_found) {
+            if (!curr_scan.service_found || curr_scan.services.empty()) {
                 LOG_INFO("ASHA service not found. Continuing scanning");
                 scan_state = ScanState::Disconnecting;
                 gap_disconnect(curr_scan.ha.conn_handle);
                 break;
             }
-            scan_state = ScanState::ServiceChangedCharDiscovery;
-            // Service found. Discover characteristics
-            auto res = gatt_client_discover_characteristics_for_service(
-                    &scan_gatt_event_handler,
-                    curr_scan.ha.conn_handle,
-                    &curr_scan.ha.gatt_service.service
-            );
-            if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register GATT characteristics query: %d", static_cast<int>(res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
-            break;
-        }
-        }
-        break;
-    }
-    case ScanState::ServiceChangedCharDiscovery:
-    {
-        gatt_client_characteristic_t characteristic;
-        switch (hci_event_packet_get_type(packet)) {
-        case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
-            gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
-            if (characteristic.uuid16 == GattUUID::serviceChanged) {
-                LOG_INFO("Got Service Changed Characteristic");
-                curr_scan.ha.gatt_service.service_changed = characteristic;
-            }
-            break;
-        case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("GATT service characteristic discovery complete");
-            // Start ASHA characteristic discovery
-            scan_state = ScanState::ServiceChangedNotification;
-            // Service found. Discover characteristics
-            auto res = gatt_client_write_client_characteristic_configuration(
-                scan_gatt_event_handler,
-                curr_scan.ha.conn_handle,
-                &curr_scan.ha.gatt_service.service_changed,
-                GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_INDICATION
-            );
-            if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register GATT service changed indication config: %d", static_cast<int>(res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
-            break;
-        }
-        break;
-    }
-    case ScanState::ServiceChangedNotification:
-    {
-        switch (hci_event_packet_get_type(packet)) {
-        case GATT_EVENT_QUERY_COMPLETE:
-        {
-            auto att_res = gatt_event_query_complete_get_att_status(packet);
-            if (att_res != ATT_ERROR_SUCCESS) {
-                LOG_ERROR("Subscribing to GATT Service changed indication failed: %d", static_cast<int>(att_res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-                break;
-            }
-
-            LOG_INFO("Subscribed to GATT Service changed indication");
-            scan_state = ScanState::DeviceNameCharDiscovery;
-            // Service found. Discover characteristics
-            auto res = gatt_client_discover_characteristics_for_service(
-                    &scan_gatt_event_handler,
-                    curr_scan.ha.conn_handle,
-                    &curr_scan.ha.gap_service.service
-            );
-            if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register device name characteristics query: %d", static_cast<int>(res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
-            break;
-        }
-        }
-        break;
-    }
-    case ScanState::DeviceNameCharDiscovery:
-    {
-        gatt_client_characteristic_t characteristic;
-        switch (hci_event_packet_get_type(packet)) {
-        case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
-            gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
-            if (characteristic.uuid16 == GapUUID::deviceName16) {
-                LOG_INFO("Got Device Name Characteristic");
-                curr_scan.ha.gap_service.device_name = characteristic;
-            }
-            break;
-        case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("Device name characteristic discovery complete");
-            // Start ASHA characteristic discovery
+            curr_scan.services_it = curr_scan.services.begin();
             scan_state = ScanState::CharDiscovery;
             // Service found. Discover characteristics
-            auto res = gatt_client_discover_characteristics_for_service(
-                    &scan_gatt_event_handler,
-                    curr_scan.ha.conn_handle,
-                    &curr_scan.ha.asha_service.service
-            );
-            if (res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("Could not register asha characteristics query: %d", static_cast<int>(res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-            }
+            LOG_INFO("Discovering characteristics for found services");
+            GATT_QUERY_ASSERT(gatt_client_discover_characteristics_for_service(
+                &scan_gatt_event_handler, curr_scan.ha.conn_handle, *curr_scan.services_it),
+                "Could not register GATT characteristics query");
             break;
+        }
         }
         break;
     }
@@ -808,7 +725,13 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
-            if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
+            if (characteristic.uuid16 == GattUUID::serviceChanged) {
+                LOG_INFO("Got Service Changed Characteristic");
+                curr_scan.ha.gatt_service.service_changed = characteristic;
+            } else if (characteristic.uuid16 == GapUUID::deviceName16) {
+                LOG_INFO("Got Device Name Characteristic");
+                curr_scan.ha.gap_service.device_name = characteristic;
+            } else if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
                 LOG_INFO("Got ROP Characteristic");
                 curr_scan.ha.asha_service.rop = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioControlPoint)) {
@@ -828,15 +751,52 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             //          characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
-            LOG_INFO("ASHA characteristic discovery complete");
+            LOG_INFO("Characteristic discovery complete");
+            curr_scan.services_it++;
+            if (curr_scan.services_it != curr_scan.services.end()) {
+                LOG_INFO("Continue discovering more characteristics");
+
+                GATT_QUERY_ASSERT(gatt_client_discover_characteristics_for_service(
+                    &scan_gatt_event_handler, curr_scan.ha.conn_handle, *curr_scan.services_it
+                ), "Could not register GATT characteristics query");
+                return;
+            } else {
+                LOG_INFO("Characteristic discovery complete");
+            }
+            scan_state = ScanState::ServiceChangedNotification;
+            GATT_QUERY_ASSERT(gatt_client_write_client_characteristic_configuration(
+                scan_gatt_event_handler,
+                curr_scan.ha.conn_handle,
+                &curr_scan.ha.gatt_service.service_changed,
+                GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_INDICATION
+            ), "Could not register GATT service changed indication config");
+            break;
+        }
+        break;
+    }
+    case ScanState::ServiceChangedNotification:
+    {
+        switch (hci_event_packet_get_type(packet)) {
+        case GATT_EVENT_QUERY_COMPLETE:
+        {
+            auto att_res = gatt_event_query_complete_get_att_status(packet);
+            if (att_res != ATT_ERROR_SUCCESS) {
+                LOG_ERROR("Subscribing to GATT Service changed indication failed: 0x%02x", static_cast<unsigned int>(att_res));
+                scan_state = ScanState::Disconnecting;
+                gap_disconnect(curr_scan.ha.conn_handle);
+                return;
+            }
+
+            LOG_INFO("Subscribed to GATT Service changed indication");
             // Start reading the Device name characteristic
             scan_state = ScanState::ReadDeviceName;
-            gatt_client_read_value_of_characteristic(
+            GATT_QUERY_ASSERT(gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler, 
                 curr_scan.ha.conn_handle, 
                 &curr_scan.ha.gap_service.device_name
-            );
+            ), "Could not register read of device name");
             break;
+        }
         }
         break;
     }
@@ -856,11 +816,11 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             LOG_INFO("Completed value read of Device Name");
             // Start reading the Read Only Properties characteristic
             scan_state = ScanState::ReadROP;
-            gatt_client_read_value_of_characteristic(
+            GATT_QUERY_ASSERT(gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler, 
                 curr_scan.ha.conn_handle, 
                 &curr_scan.ha.asha_service.rop
-            );
+            ), "Could not register read of ROP");
             break;
         }
         break;
@@ -877,11 +837,11 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             LOG_INFO("Completed value read of ReadOnlyProperties");
             /* Next get the PSM value */
             scan_state = ScanState::ReadPSM;
-            gatt_client_read_value_of_characteristic(
+            GATT_QUERY_ASSERT(gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler,
                 curr_scan.ha.conn_handle,
                 &curr_scan.ha.asha_service.psm
-            );
+            ), "Could not register read of PSM");
             break;
         }
         break;
@@ -960,6 +920,7 @@ static void finalise_curr_discovery()
     curr_scan.ha.l2cap_packet_handler = &l2cap_cbm_event_handler;
     curr_scan.ha.gatt_packet_handler = &connected_gatt_event_handler;
     auto& ha = ha_mgr.add(curr_scan.ha);
+    curr_scan.reset();
     if (!ha) {
         LOG_ERROR("Error adding this device.");
         scan_state = ScanState::Scan;
