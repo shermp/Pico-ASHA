@@ -286,8 +286,9 @@ void HA::send_audio_packet()
             zero_credit_count = 0;
             l2cap_send(cid, audio_packet, sdu_size_bytes);
         }
+    default:
+        break;
     }
-
 }
 
 void HA::on_audio_packet_sent()
