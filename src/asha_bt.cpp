@@ -672,7 +672,17 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
         LOG_ERROR(msg ": 0x%02x", static_cast<unsigned int>(res)); \
         scan_state = ScanState::Disconnecting; \
         gap_disconnect(curr_scan.ha.conn_handle); \
+        return; \
     }}
+
+#define GATT_COMPLETE_ASSERT(pkt, msg) { \
+    if (gatt_event_query_complete_get_att_status((pkt)) != ATT_ERROR_SUCCESS) { \
+        LOG_ERROR("%s: 0x%02x", (msg), static_cast<unsigned int>(gatt_event_query_complete_get_att_status((pkt)))); \
+        scan_state = ScanState::Disconnecting; \
+        gap_disconnect(curr_scan.ha.conn_handle); \
+        return; \
+    } \
+}
 
 /* Handler for reading GATT service and characteristic values
    and subscribing to the AudioStatusPoint characteristic notification 
@@ -706,6 +716,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             break;
         case GATT_EVENT_QUERY_COMPLETE:
         {
+            GATT_COMPLETE_ASSERT(packet, "ATT error discovering services");
             // Older hearing aids may support MFI but not ASHA
             if (!curr_scan.service_found || curr_scan.services.empty()) {
                 LOG_INFO("ASHA service not found. Continuing scanning");
@@ -757,6 +768,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             //          characteristic.start_handle, characteristic.value_handle, characteristic.end_handle);
             break;
         case GATT_EVENT_QUERY_COMPLETE:
+            GATT_COMPLETE_ASSERT(packet, "ATT error discovering characteristics");
             LOG_INFO("Characteristic discovery complete");
             curr_scan.services_it++;
             if (curr_scan.services_it != curr_scan.services.end()) {
@@ -785,14 +797,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_QUERY_COMPLETE:
         {
-            auto att_res = gatt_event_query_complete_get_att_status(packet);
-            if (att_res != ATT_ERROR_SUCCESS) {
-                LOG_ERROR("Subscribing to GATT Service changed indication failed: 0x%02x", static_cast<unsigned int>(att_res));
-                scan_state = ScanState::Disconnecting;
-                gap_disconnect(curr_scan.ha.conn_handle);
-                return;
-            }
-
+            GATT_COMPLETE_ASSERT(packet, "ATT error service changed indication");
             LOG_INFO("Subscribed to GATT Service changed indication");
             // Start reading the Device name characteristic
             scan_state = ScanState::ReadDeviceName;
@@ -819,6 +824,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             break;
         }
         case GATT_EVENT_QUERY_COMPLETE:
+            GATT_COMPLETE_ASSERT(packet, "ATT error reading device name");
             LOG_INFO("Completed value read of Device Name");
             // Start reading the Read Only Properties characteristic
             scan_state = ScanState::ReadROP;
@@ -840,6 +846,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             //curr_scan.device.read_only_props.dump_values();
             break;
         case GATT_EVENT_QUERY_COMPLETE:
+            GATT_COMPLETE_ASSERT(packet, "ATT error reading ROP");
             LOG_INFO("Completed value read of ReadOnlyProperties");
             /* Next get the PSM value */
             scan_state = ScanState::ReadPSM;
@@ -861,6 +868,7 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
             LOG_INFO("PSM: %d", static_cast<int>(curr_scan.ha.psm));
             break;
         case GATT_EVENT_QUERY_COMPLETE:
+            GATT_COMPLETE_ASSERT(packet, "ATT error reading PSM");
             LOG_INFO("Completed value read of PSM");
             curr_scan.ha.rop.print_values();
             scan_state = ScanState::Finalizing;
