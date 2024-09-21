@@ -85,6 +85,9 @@ if (HAVE_DEP_ENNUM_ENUM_CONV)
 endif (HAVE_DEP_ENNUM_ENUM_CONV)
 
 target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
+target_compile_options(pico-asha PRIVATE
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Werror>
+)
 
 pico_add_extra_outputs(pico-asha)
 
