@@ -34,12 +34,14 @@ static void asha_log(enum LogLevel level, const char* fmt, Arg...args)
     } else {
         etl::string<log_line_len> line = {};
         int len = snprintf(line.data(), line.capacity(), fmt, log_level_to_str(level), to_ms_since_boot(get_absolute_time()), args...);
-        line.uninitialized_resize(len <= log_line_len ? len : log_line_len);
-        log_buffer.push(line);
-        if (logging_ctx) {
-            async_context_set_work_pending(logging_ctx, &logging_pending_worker);
+        if (len >= 0) {
+            line.uninitialized_resize((size_t)len <= log_line_len ? (size_t)len : log_line_len);
+            log_buffer.push(line);
+            if (logging_ctx) {
+                async_context_set_work_pending(logging_ctx, &logging_pending_worker);
+            }
+            //printf(fmt, log_level_to_str(level), to_ms_since_boot(get_absolute_time()), args...);
         }
-        //printf(fmt, log_level_to_str(level), to_ms_since_boot(get_absolute_time()), args...);
     }
 }
 
