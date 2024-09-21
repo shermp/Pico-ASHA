@@ -112,7 +112,6 @@ AdvertisingReport::AdvertisingReport(uint8_t* packet, bool extended)
 void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
 {
     ad_context_t context;
-    bd_addr_t address;
     for (ad_iterator_init(&context, length, data) ; ad_iterator_has_more(&context) ; ad_iterator_next(&context)) {
         uint8_t data_type    = ad_iterator_get_data_type(&context);
         uint8_t size         = ad_iterator_get_data_len(&context);
@@ -157,7 +156,8 @@ void ScanResult::reset()
     services_it = services.end();
 }
 
-static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker)
+static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *context, 
+                                           [[maybe_unused]] async_when_pending_worker_t *worker)
 {
     // No need to do anything if no hearing aids are connected!
     using enum HA::State;
@@ -192,7 +192,8 @@ static void handle_bt_audio_pending_worker(async_context_t *context, async_when_
     }
 }
 
-static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker)
+static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context, 
+                                     [[maybe_unused]] async_when_pending_worker_t *worker)
 {
     JsonDocument cmd_doc;
     JsonDocument resp_doc;
@@ -404,7 +405,10 @@ static void discover_services()
     }
 }
 
-static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
+static void hci_event_handler(uint8_t packet_type, 
+                             [[maybe_unused]] uint16_t channel, 
+                             uint8_t *packet, 
+                             [[maybe_unused]] uint16_t size)
 {
     ASHA_ASSERT_PACKET_TYPE(HCI_EVENT_PACKET);
     bd_addr_t local_addr;
@@ -468,6 +472,8 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             sm_request_pairing(curr_scan.ha.conn_handle);
             break;
         }
+        default:
+            break;
         }
     case HCI_EVENT_LE_META:
         switch(hci_event_le_meta_get_subevent_code(packet)) {
@@ -518,7 +524,10 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 }
 
 /* Handler for security manager events */
-static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
+static void sm_event_handler (uint8_t packet_type, 
+                              [[maybe_unused]] uint16_t channel, 
+                              uint8_t *packet, 
+                              [[maybe_unused]] uint16_t size) {
     ASHA_ASSERT_PACKET_TYPE(HCI_EVENT_PACKET);
     auto ev_type = hci_event_packet_get_type(packet);
     if (scan_state == ScanState::IdentityResolving) {
@@ -643,7 +652,10 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
     }
 }
 
-static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
+static void l2cap_cbm_event_handler (uint8_t packet_type, 
+                                     [[maybe_unused]] uint16_t channel, 
+                                     uint8_t *packet, 
+                                     [[maybe_unused]] uint16_t size)
 {
     if (packet_type != HCI_EVENT_PACKET) return;
     switch (hci_event_packet_get_type(packet)) {
@@ -688,7 +700,10 @@ static void l2cap_cbm_event_handler (uint8_t packet_type, uint16_t channel, uint
    and subscribing to the AudioStatusPoint characteristic notification 
    during the connection process.
    This function can be read in sequence for the order of events */
-static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
+static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type, 
+                                     [[maybe_unused]] uint16_t channel, 
+                                     uint8_t *packet, 
+                                     [[maybe_unused]] uint16_t size)
 {
     switch (scan_state) {
     case ScanState::ServiceDiscovery:
@@ -880,7 +895,10 @@ static void scan_gatt_event_handler (uint8_t packet_type, uint16_t channel, uint
     }
 }
 
-static void connected_gatt_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
+static void connected_gatt_event_handler([[maybe_unused]] uint8_t packet_type, 
+                                         [[maybe_unused]] uint16_t channel, 
+                                         uint8_t *packet, 
+                                         [[maybe_unused]] uint16_t size)
 {
     switch (hci_event_packet_get_type(packet)) {
     case GATT_EVENT_NOTIFICATION:
