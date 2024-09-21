@@ -76,7 +76,7 @@ static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for
 static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for master channel 0
 
 // Buffer for microphone data
-static int16_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 2] = {};
+[[maybe_unused]] static int16_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 2] = {};
 // Buffer for speaker data
 static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2] = {};
 // Speaker data size received in the last frame
@@ -100,7 +100,9 @@ static constexpr uint32_t silence_timeout = 10'000ul;
 void audio_task(void);
 void serial_task(void);
 
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
+                           bool dtr, 
+                           [[maybe_unused]] bool rts)
 {
   if (dtr) {
     async_context_set_work_pending(logging_ctx, &logging_pending_worker);
@@ -181,10 +183,8 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
     }
     else if (request->bRequest == AUDIO_CS_REQ_RANGE)
     {
-      audio_control_range_4_n_t(N_SAMPLE_RATES) rangef =
-      {
-        .wNumSubRanges = tu_htole16(N_SAMPLE_RATES)
-      };
+      audio_control_range_4_n_t(N_SAMPLE_RATES) rangef = {};
+      rangef.wNumSubRanges = tu_htole16(N_SAMPLE_RATES);
       TU_LOG1("Clock get %d freq ranges\n", N_SAMPLE_RATES);
       for(uint8_t i = 0; i < N_SAMPLE_RATES; i++)
       {
@@ -349,8 +349,8 @@ extern "C" bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_reque
 {
   (void)rhport;
 
-  uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
-  uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
+  [[maybe_unused]] uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
+  [[maybe_unused]] uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
   return true;
 }
@@ -358,7 +358,7 @@ extern "C" bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_reque
 extern "C" bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void)rhport;
-  uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
+  [[maybe_unused]] uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
   TU_LOG2("Set interface %d alt %d\n", itf, alt);
