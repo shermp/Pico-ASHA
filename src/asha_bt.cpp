@@ -329,7 +329,7 @@ extern "C" void bt_main()
     sm_init();
     sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
-    sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
+    sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
     sm_allow_ltk_reconstruction_without_le_device_db_entry(0);
 
     /* Init GATT client. Required to read/write GATT characteristics */
@@ -596,13 +596,19 @@ static void sm_event_handler (uint8_t packet_type, uint16_t channel, uint8_t *pa
                 scan_state = ScanState::Scan;
                 break;
             case ERROR_CODE_AUTHENTICATION_FAILURE:
-                LOG_ERROR("Pairing failed, auth failure with reason: %d",
-                        static_cast<int>(sm_event_pairing_complete_get_reason(packet)));
-                // Try and upgrade to LE Secure connections
-                sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
+            {
+                uint8_t reason = sm_event_pairing_complete_get_reason(packet);
+                if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS) {
+                    LOG_ERROR("Auth requirements not met. Attempting downgrade");
+                    // Try and downgrade from LE Secure connections
+                    sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
+                } else {
+                    LOG_ERROR("Pairing failed, auth failure with reason: %d", static_cast<int>(reason));
+                }
                 gap_disconnect(curr_scan.ha.conn_handle);
                 scan_state = ScanState::Disconnecting;
                 break;
+            }
             default:
                 break;
             }
