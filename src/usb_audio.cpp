@@ -27,10 +27,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tusb.h"
-#include "usb_descriptors.h"
+#include <pico/time.h>
+#include <tusb.h>
 
-#include "pico/time.h"
+#include "usb_descriptors.h"
 
 #include "asha_audio.hpp"
 #include "asha_usb_serial.hpp"

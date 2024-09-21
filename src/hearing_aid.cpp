@@ -104,7 +104,7 @@ void HA::on_l2cap_channel_created(uint8_t status)
     if (status != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x", side_str, status);
         // Try again
-        create_l2cap_channel();
+        //create_l2cap_channel();
         return;
     }
     LOG_INFO("%s: L2CAP CoC channel created", side_str);

@@ -1,7 +1,7 @@
 #include <bitset>
+#include <pico/cyw43_arch.h>
 
 #include "asha_led.hpp"
-#include "pico/cyw43_arch.h"
 
 namespace asha
 {

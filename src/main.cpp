@@ -1,10 +1,10 @@
 #include <stdio.h>
-#include "pico/stdio.h"
-#include "pico/multicore.h"
-#include "pico/flash.h"
+#include <pico/stdio.h>
+#include <pico/multicore.h>
+#include <pico/flash.h>
 // TinyUSB
-#include "bsp/board.h"
-#include "tusb.h"
+#include <bsp/board.h>
+#include <tusb.h>
 
 #include "asha_unique_id.hpp"
 #include "asha_audio.hpp"

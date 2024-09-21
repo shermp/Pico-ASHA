@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include "etl/vector.h"
-#include "btstack.h"
+#include <etl/vector.h>
+#include <btstack.h>
 
 #include "hearing_aid.hpp"
 
