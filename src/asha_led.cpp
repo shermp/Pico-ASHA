@@ -9,6 +9,7 @@ namespace asha
 LEDManager::LEDManager()
 {
     led_worker.user_data = this;
+    led_worker.do_work = &LEDManager::handle_led_work;
 }
 
 void LEDManager::set_led(LEDManager::State led_state)
@@ -34,9 +35,9 @@ void LEDManager::handle_led_work(async_context_t* ctx, async_at_time_worker_t *w
     ++p.pos;
     if (p.pos >= p.len) {
         p.pos = 0;
-        async_context_add_at_time_worker_in_ms(this_->led_ctx, &this_->led_worker, p.interval_ms + p.delay_ms);
+        async_context_add_at_time_worker_in_ms(ctx, worker, p.interval_ms + p.delay_ms);
     } else {
-        async_context_add_at_time_worker_in_ms(this_->led_ctx, &this_->led_worker, p.interval_ms);
+        async_context_add_at_time_worker_in_ms(ctx, worker, p.interval_ms);
     }
 }
 

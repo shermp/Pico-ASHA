@@ -39,7 +39,7 @@ private:
     void disable_curr_led_pattern();
     static void handle_led_work(async_context_t* ctx, async_at_time_worker_t *worker);
     async_context_t *led_ctx = nullptr;
-    async_at_time_worker_t led_worker = {.do_work = &LEDManager::handle_led_work};
+    async_at_time_worker_t led_worker = {};
     Pattern curr_pattern = {};
 };
 
