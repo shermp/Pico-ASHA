@@ -3,10 +3,10 @@
 #include <array>
 #include <cstdint>
 //#include <vector>
-#include "etl/vector.h"
-#include "etl/string.h"
+#include <etl/vector.h>
+#include <etl/string.h>
 
-#include "btstack.h"
+#include <btstack.h>
 #include "asha_audio.hpp"
 
 namespace asha 
