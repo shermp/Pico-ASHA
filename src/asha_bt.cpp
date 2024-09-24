@@ -52,7 +52,6 @@ static void handle_stdin_line_worker(async_context_t *context, async_when_pendin
 static void set_data_length();
 static void discover_services();
 static void finalise_curr_discovery();
-static bool device_db_empty();
 static void delete_paired_devices();
 static void delete_paired_device(const bd_addr_t addr);
 
@@ -971,21 +970,6 @@ static void finalise_curr_discovery()
         led_mgr.set_led_pattern(one_connected);
         scan_state = ScanState::Scan;
     }
-}
-
-static bool device_db_empty()
-{
-    int addr_type;
-    bd_addr_t addr;
-    sm_key_t sm_key;
-    int max_db = le_device_db_max_count();
-    for (int i = 0; i < max_db; ++i) {
-        le_device_db_info(i, &addr_type, addr, sm_key);
-        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
-            return false;
-        }
-    }
-    return true;
 }
 
 static void delete_paired_devices()
