@@ -437,7 +437,7 @@ static void hci_event_handler(uint8_t packet_type,
     /* Every time a GAP advertising report is received, handle it here */
     case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
         LOG_SCAN("Got extended advertising report.");
-        // Fallthrough
+        [[fallthrough]];
     case GAP_EVENT_ADVERTISING_REPORT:
         if (scan_state != ScanState::Scan) return;
         if (hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT) {

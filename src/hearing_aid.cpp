@@ -275,7 +275,7 @@ void HA::send_audio_packet()
         write_volume();
         state = State::AudioPacketSending;
     }
-        // fallthrough
+        [[fallthrough]];
     case State::AudioPacketSending:
         if (avail_credits == 0) {
             LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
