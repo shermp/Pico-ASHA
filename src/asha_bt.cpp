@@ -475,6 +475,7 @@ static void hci_event_handler(uint8_t packet_type,
         default:
             break;
         }
+        break;
     case HCI_EVENT_LE_META:
         switch(hci_event_le_meta_get_subevent_code(packet)) {
         case HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE:
