@@ -892,6 +892,8 @@ static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type,
         }
         break;
     }
+    default:
+        break;
     }
 }
 
