@@ -75,9 +75,7 @@ void HA::subscribe_to_asp_notification()
 void HA::create_l2cap_channel()
 {
     state = State::L2Connecting;
-    int cx_attempts = 0;
     uint8_t res = ERROR_CODE_SUCCESS;
-    do {
         LOG_INFO("%s: Connecting to L2CAP", side_str);
         res = l2cap_cbm_create_channel(l2cap_packet_handler, 
                                         conn_handle, 
@@ -89,14 +87,9 @@ void HA::create_l2cap_channel()
                                         &cid);
         if (res != ERROR_CODE_SUCCESS) {
             LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x", side_str, (unsigned int)res);
-            ++cx_attempts;
-        }
-    } while (res != ERROR_CODE_SUCCESS && cx_attempts < 5);
-    if (res != ERROR_CODE_SUCCESS) {
         state = State::GATTDisconnect;
         gap_disconnect(conn_handle);
     }
-
 }
 
 void HA::on_l2cap_channel_created(uint8_t status) 
