@@ -35,8 +35,7 @@ FetchContent_Declare(ArduinoJson
 )
 FetchContent_MakeAvailable(ArduinoJson)
 
-
-add_executable(pico-asha
+set(ASHA_SRC
   src/main.cpp
   src/runtime_settings.cpp
   src/asha_audio.cpp
@@ -50,6 +49,10 @@ add_executable(pico-asha
   src/util.cpp
   lib/g722/g722_encode.cc
 )
+
+set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
+
+add_executable(pico-asha ${ASHA_SRC})
 
 target_include_directories(pico-asha PUBLIC src/ lib/)
 
@@ -85,9 +88,6 @@ if (HAVE_DEP_ENNUM_ENUM_CONV)
 endif (HAVE_DEP_ENNUM_ENUM_CONV)
 
 target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
-target_compile_options(pico-asha PRIVATE
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Werror>
-)
 
 pico_add_extra_outputs(pico-asha)
 
