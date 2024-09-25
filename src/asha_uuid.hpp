@@ -4,6 +4,8 @@
 #include <cstring>
 #include <array>
 
+#include <bluetooth_gatt.h>
+
 namespace asha 
 {
 
@@ -54,14 +56,22 @@ inline constexpr std::array<uint8_t, 16> mfiUUID = uuid_from_str("7d74f4bd-c74a-
 
 namespace GapUUID
 {
-    constexpr uint16_t service16 = 0x1800;
-    constexpr uint16_t deviceName16 = 0x2A00;
+    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_GENERIC_ACCESS;
+    constexpr uint16_t deviceName16 = ORG_BLUETOOTH_CHARACTERISTIC_GAP_DEVICE_NAME;
 }
 
 namespace GattUUID
 {
-    constexpr uint16_t service16 = 0x1801;
-    constexpr uint16_t serviceChanged = 0x2A05;
+    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_GENERIC_ATTRIBUTE;
+    constexpr uint16_t serviceChanged = ORG_BLUETOOTH_CHARACTERISTIC_GATT_SERVICE_CHANGED;
+}
+
+namespace DisUUID
+{
+    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_DEVICE_INFORMATION;
+    constexpr uint16_t ManNameString = ORG_BLUETOOTH_CHARACTERISTIC_MANUFACTURER_NAME_STRING;
+    constexpr uint16_t ModelNumString = ORG_BLUETOOTH_CHARACTERISTIC_MODEL_NUMBER_STRING;
+    constexpr uint16_t FWRevString = ORG_BLUETOOTH_CHARACTERISTIC_FIRMWARE_REVISION_STRING;
 }
 
 inline bool uuid_eq(const uint8_t* u1, const uint8_t* u2) { return memcmp(u1, u2, sizeof(AshaUUID::service)) == 0; }
