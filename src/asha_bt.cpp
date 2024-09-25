@@ -722,12 +722,7 @@ static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type,
                 LOG_INFO("GAP service found");
                 memcpy(&curr_scan.ha.gap_service.service, &service, sizeof(service));
                 curr_scan.services.push_back(&curr_scan.ha.gap_service.service);
-            } else if (service.uuid16 == GattUUID::service16) {
-                LOG_INFO("GATT service found");
-                memcpy(&curr_scan.ha.gatt_service.service, &service, sizeof(service));
-                curr_scan.services.push_back(&curr_scan.ha.gatt_service.service);
             }
-
             break;
         case GATT_EVENT_QUERY_COMPLETE:
         {
@@ -757,10 +752,7 @@ static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type,
         switch (hci_event_packet_get_type(packet)) {
         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
             gatt_event_characteristic_query_result_get_characteristic(packet, &characteristic);
-            if (characteristic.uuid16 == GattUUID::serviceChanged) {
-                LOG_INFO("Got Service Changed Characteristic");
-                curr_scan.ha.gatt_service.service_changed = characteristic;
-            } else if (characteristic.uuid16 == GapUUID::deviceName16) {
+            if (characteristic.uuid16 == GapUUID::deviceName16) {
                 LOG_INFO("Got Device Name Characteristic");
                 curr_scan.ha.gap_service.device_name = characteristic;
             } else if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
@@ -796,25 +788,6 @@ static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type,
             } else {
                 LOG_INFO("Characteristic discovery complete");
             }
-            scan_state = ScanState::ServiceChangedNotification;
-            GATT_QUERY_ASSERT(gatt_client_write_client_characteristic_configuration(
-                scan_gatt_event_handler,
-                curr_scan.ha.conn_handle,
-                &curr_scan.ha.gatt_service.service_changed,
-                GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_INDICATION
-            ), "Could not register GATT service changed indication config");
-            break;
-        }
-        break;
-    }
-    case ScanState::ServiceChangedNotification:
-    {
-        switch (hci_event_packet_get_type(packet)) {
-        case GATT_EVENT_QUERY_COMPLETE:
-        {
-            GATT_COMPLETE_ASSERT(packet, "ATT error service changed indication");
-            LOG_INFO("Subscribed to GATT Service changed indication");
-            // Start reading the Device name characteristic
             scan_state = ScanState::ReadDeviceName;
             GATT_QUERY_ASSERT(gatt_client_read_value_of_characteristic(
                 &scan_gatt_event_handler, 
@@ -822,7 +795,6 @@ static void scan_gatt_event_handler ([[maybe_unused]] uint8_t packet_type,
                 &curr_scan.ha.gap_service.device_name
             ), "Could not register read of device name");
             break;
-        }
         }
         break;
     }
@@ -911,17 +883,6 @@ static void connected_gatt_event_handler([[maybe_unused]] uint8_t packet_type,
             if (val_handle == ha.asha_service.asp.value_handle) {
                 int8_t status_val = (int8_t)gatt_event_notification_get_value(packet)[0];
                 ha.on_asp_notification(status_val);
-            }
-        }
-        break;
-    }
-    case GATT_EVENT_INDICATION:
-    {
-        HA& ha = ha_mgr.get_by_conn_handle(gatt_event_indication_get_handle(packet));
-        if (ha) {
-            uint16_t val_handle = gatt_event_indication_get_value_handle(packet);
-            if (val_handle == ha.gatt_service.service_changed.value_handle) {
-                LOG_INFO("%s: Service changed indication received", ha.side_str);
             }
         }
         break;

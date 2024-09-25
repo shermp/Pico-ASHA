@@ -115,11 +115,6 @@ public:
 
     struct {
         gatt_client_service_t service = {};
-        gatt_client_characteristic_t service_changed = {};
-    } gatt_service = {};
-
-    struct {
-        gatt_client_service_t service = {};
         gatt_client_characteristic_t rop = {};
         gatt_client_characteristic_t acp = {};
         gatt_client_characteristic_t asp = {};

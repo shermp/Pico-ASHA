@@ -60,12 +60,6 @@ namespace GapUUID
     constexpr uint16_t deviceName16 = ORG_BLUETOOTH_CHARACTERISTIC_GAP_DEVICE_NAME;
 }
 
-namespace GattUUID
-{
-    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_GENERIC_ATTRIBUTE;
-    constexpr uint16_t serviceChanged = ORG_BLUETOOTH_CHARACTERISTIC_GATT_SERVICE_CHANGED;
-}
-
 namespace DisUUID
 {
     constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_DEVICE_INFORMATION;
