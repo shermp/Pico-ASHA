@@ -17,11 +17,6 @@ enum class ScanState {
     Disconnecting,
     DataLen,
     ServiceDiscovery,
-    CharDiscovery,
-    ServiceChangedNotification,
-    ReadDeviceName,
-    ReadROP,
-    ReadPSM,
     Finalizing,
     Complete,
 };
@@ -54,8 +49,6 @@ struct ScanResult {
     bool service_found = false;
     HA ha = HA();
     AdvertisingReport report = AdvertisingReport();
-    etl::vector<gatt_client_service_t*, 8> services = {};
-    gatt_client_service_t** services_it = services.end();
     void reset();
 };
 

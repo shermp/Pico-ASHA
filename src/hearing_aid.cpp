@@ -4,6 +4,7 @@
 
 #include "asha_logging.h"
 #include "hearing_aid.hpp"
+#include "asha_uuid.hpp"
 
 #include "util.hpp"
 
@@ -33,6 +34,47 @@ static T get_val(const uint8_t *start)
     return val;
 }
 
+static const char* state_to_str(HA::State state)
+{
+    using enum HA::State;
+    switch(state) {
+        case Invalid: return "";
+        case Cached: return "";
+        case ServicesDiscovered: return "";
+        case DiscoverGAPChars: return "Discover GAP Chars";
+        case GAPCharsDiscovered: return "";
+        case DiscoverDISChars: return "Discover DIS Chars";
+        case DISCharsDiscovered: return "";
+        case DiscoverASHAChars: return "Discover ASHA Chars";
+        case ASHACharsDiscovered: return "";
+        case ReadDeviceName: return "Read Device Name";
+        case DeviceNameRead: return "";
+        case ReadManufacturerName: return "Read Manufacture Name";
+        case ManufacturerNameRead: return "";
+        case ReadModelNum: return "Read Model Num";
+        case ModelNumRead: return "";
+        case ReadFWVers: return "Read FW Version";
+        case FWVersRead: return "";
+        case ReadROP: return "Read ROP";
+        case ROPRead: return "";
+        case ReadPSM: return "Read PSM";
+        case PSMRead: return "";
+        case SubscribeASPNotification: return "Subscribe to ASP";
+        case ASPNotificationSubscribed: return "";
+        case GAPDisconnect: return "";
+        case L2Connecting: return "";
+        case L2Connected: return "";
+        case ACPStart: return "ACP Start";
+        case ASPStartOk: return "";
+        case ASPStopOK: return "";
+        case AudioPacketReady: return "";
+        case AudioPacketSending: return "";
+        case AudioPacketSent: return "";
+        case ACPStop: return "ACP Stop";
+        default: return "";
+    }
+}
+
 HA::HA()
 {}
 
@@ -51,14 +93,155 @@ HA::Mode HA::mode() const
     return rop.mode;
 }
 
-void HA::on_gatt_connected()
+void HA::dec_state_enum()
 {
-    subscribe_to_asp_notification();
+    state = State(static_cast<int>(state) - 1);
 }
+
+void HA::discover_chars()
+{
+    using enum State;
+    gatt_client_service_t* service = nullptr;
+    const char *serv_name = "";
+    if (state == DiscoverGAPChars) {
+        serv_name = "GAP";
+        service = &gap_service.service;
+    } else if (state == DiscoverDISChars) {
+        serv_name = "DIS";
+        service = &dis_service.service;
+    } else if (state == DiscoverASHAChars) {
+        serv_name = "ASHA";
+        service = &asha_service.service;
+    } else {
+        LOG_ERROR("discover_chars: incorrect state");
+        return;
+    }
+    LOG_INFO("%s: Discovering characteristics for %s service", side_str, serv_name);
+    uint8_t res = gatt_client_discover_characteristics_for_service(
+        gatt_packet_handler,
+        conn_handle,
+        service
+    );
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Error registering char discovery for service %s 0x%02x", side_str, serv_name, static_cast<unsigned int>(res));
+        state = GAPDisconnect;
+        gap_disconnect(conn_handle);
+        return;
+    }
+}
+void HA::on_char_discovered(uint8_t* char_query_res_packet)
+{
+    gatt_client_characteristic_t characteristic;
+    gatt_event_characteristic_query_result_get_characteristic(char_query_res_packet, &characteristic);
+    if (characteristic.uuid16 == GapUUID::deviceName16) {
+        LOG_INFO("%s: Got Device Name Characteristic", side_str);
+        gap_service.device_name = characteristic;
+    } else if (characteristic.uuid16 == DisUUID::ManNameString) {
+        LOG_INFO("%s: Got Manufacture Name Characteristic", side_str);
+        dis_service.manufacture_name = characteristic;
+    } else if (characteristic.uuid16 == DisUUID::ModelNumString) {
+        LOG_INFO("%s: Got Model Number Characteristic", side_str);
+        dis_service.model_num = characteristic;
+    } else if (characteristic.uuid16 == DisUUID::FWRevString) {
+        LOG_INFO("%s: Got FW Version Characteristic", side_str);
+        dis_service.fw_vers = characteristic;
+    } else if (uuid_eq(characteristic.uuid128, AshaUUID::readOnlyProps)) {
+        LOG_INFO("%s: Got ROP Characteristic", side_str);
+        asha_service.rop = characteristic;
+    } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioControlPoint)) {
+        LOG_INFO("%s: Got ACP Characteristic", side_str);
+        asha_service.acp = characteristic;
+    } else if (uuid_eq(characteristic.uuid128, AshaUUID::audioStatus)) {
+        LOG_INFO("%s: Got AUS Characteristic", side_str);
+        asha_service.asp = characteristic;
+    } else if (uuid_eq(characteristic.uuid128, AshaUUID::volume)) {
+        LOG_INFO("%s: Got VOL Characteristic", side_str);
+        asha_service.vol = characteristic;
+    } else if (uuid_eq(characteristic.uuid128, AshaUUID::psm)) {
+        LOG_INFO("%s: Got PSM Characteristic", side_str);
+        asha_service.psm = characteristic;
+    }
+}
+
+// void HA::on_char_discovery_complete([[maybe_unused]] uint8_t status)
+// {}
+
+void HA::read_char()
+{
+    using enum State;
+    auto gatt_query = [&](gatt_client_characteristic_t* c) {
+        uint8_t res = gatt_client_read_value_of_characteristic(
+            gatt_packet_handler, conn_handle, c
+        );
+        if (res != ERROR_CODE_SUCCESS) {
+            LOG_ERROR("%s: %s error", side_str, state_to_str(state));
+            dec_state_enum();
+        }
+    };
+
+    // Note: order is same as enum declaration
+    switch(state) {
+    case ReadDeviceName:
+        gatt_query(&gap_service.device_name);
+        break;
+    case ReadManufacturerName:
+        gatt_query(&dis_service.manufacture_name);
+        break;
+    case ReadModelNum:
+        gatt_query(&dis_service.model_num);
+        break;
+    case ReadFWVers:
+        gatt_query(&dis_service.fw_vers);
+        break;
+    case ReadROP:
+        gatt_query(&asha_service.rop);
+        break;
+    case ReadPSM:
+        gatt_query(&asha_service.psm);
+        break;
+    default:
+        break;
+    }
+}
+void HA::on_read_char_value(uint8_t* char_val_query_res_packet)
+{
+    using enum State;
+    size_t len = static_cast<size_t>(gatt_event_characteristic_value_query_result_get_value_length(char_val_query_res_packet));
+    const uint8_t *val = gatt_event_characteristic_value_query_result_get_value(char_val_query_res_packet);
+    switch(state) {
+    case ReadROP:
+        rop.read(val);
+        side_str = rop.side == Side::Left ? "Left" : "Right";
+        break;
+    case ReadPSM:
+        psm = val[0];
+        LOG_INFO("%s: PSM: %u", side_str, static_cast<unsigned int>(psm));
+        break;
+    case ReadDeviceName:
+        name.clear();
+        name.append((const char*)val, len);
+        break;
+    case ReadManufacturerName:
+        manufacturer.clear();
+        manufacturer.append((const char*)val, len);
+        break;
+    case ReadModelNum:
+        model.clear();
+        model.append((const char*)val, len);
+        break;
+    case ReadFWVers:
+        fw_vers.clear();
+        fw_vers.append((const char*)val, len);
+        break;
+    default:
+        break;
+    }
+}
+// void HA::on_read_char_complete([[maybe_unused]] uint8_t status)
+// {}
 
 void HA::subscribe_to_asp_notification()
 {
-    state = State::SubscribeASPNotification;
     auto res = gatt_client_write_client_characteristic_configuration(
         gatt_packet_handler,
         conn_handle,
@@ -67,14 +250,12 @@ void HA::subscribe_to_asp_notification()
     );
     if (res != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: Error writing ASP notification configuration: 0x%02x", side_str, (unsigned int)res);
-        state = State::GATTConnected;
-        on_gatt_connected();
+        state = State::PSMRead;
     }
 }
 
 void HA::create_l2cap_channel()
 {
-    state = State::L2Connecting;
     uint8_t res = ERROR_CODE_SUCCESS;
         LOG_INFO("%s: Connecting to L2CAP", side_str);
         res = l2cap_cbm_create_channel(l2cap_packet_handler, 
@@ -87,17 +268,16 @@ void HA::create_l2cap_channel()
                                         &cid);
         if (res != ERROR_CODE_SUCCESS) {
             LOG_ERROR("%s: Failure creating l2cap channel with error code: 0x%02x", side_str, (unsigned int)res);
-        state = State::GATTDisconnect;
-        gap_disconnect(conn_handle);
-    }
+            state = State::GAPDisconnect;
+            gap_disconnect(conn_handle);
+        }
 }
 
 void HA::on_l2cap_channel_created(uint8_t status) 
 {
     if (status != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x", side_str, status);
-        // Try again
-        //create_l2cap_channel();
+        state = State::ASPNotificationSubscribed;
         return;
     }
     LOG_INFO("%s: L2CAP CoC channel created", side_str);
@@ -136,7 +316,7 @@ void HA::write_acp_stop()
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: ACP Write: Stop error 0x%02x", side_str, (unsigned int)res);
-        state = State::GATTDisconnect;
+        state = State::GAPDisconnect;
         gap_disconnect(conn_handle);
     }
 }
@@ -155,29 +335,75 @@ void HA::write_acp_status(uint8_t status)
     return;
 }
 
-void HA::on_gatt_event_query_complete(uint8_t att_status)
+void HA::on_gatt_event_query_complete(uint8_t* query_complete_packet)
 {
-    switch (state) {
-    case State::SubscribeASPNotification:
+    using enum State;
+    unsigned int att_status = gatt_event_query_complete_get_att_status(query_complete_packet);
+    if (att_status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: %s failed with error code: 0x%02x", side_str, state_to_str(state), att_status);
+    }
+    auto set_state = [&](State if_success) {
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("Enabling ASP notifications failed with error code: 0x%02x", att_status);
-            state = State::SubscribeASPNotification;
-            subscribe_to_asp_notification();
+            dec_state_enum();
+        } else {
+            LOG_INFO("%s: %s success", side_str, state_to_str(state));
+            state = if_success;
         }
-        LOG_INFO("%s: Subscribed to ASP Notification", side_str);
-        create_l2cap_channel();
+    };
+    switch (state) {
+    case DiscoverASHAChars:
+        set_state(ASHACharsDiscovered);
         break;
-    case State::ACPStart:
+    case ReadROP:
+        set_state(ROPRead);
+        if (state == ROPRead && other_ha) {
+            if (rop.id != other_ha->rop.id) {
+                LOG_ERROR("%s: HiSyncID does not match", side_str);
+                state = GAPDisconnect;
+                gap_disconnect(conn_handle);
+            }
+        }
+        break;
+    case ReadPSM:
+        rop.print_values();
+        LOG_INFO("%s: %u", side_str, static_cast<unsigned int>(psm));
+        set_state(PSMRead);
+        break;
+    case DiscoverGAPChars:
+        set_state(GAPCharsDiscovered);
+        break;
+    case DiscoverDISChars:
+        set_state(DISCharsDiscovered);
+        break;
+    case ReadDeviceName:
+        set_state(DeviceNameRead);
+        break;
+    case ReadManufacturerName:
+        set_state(ManufacturerNameRead);
+        break;
+    case ReadModelNum:
+        set_state(ModelNumRead);
+        break;
+    case ReadFWVers:
+        LOG_INFO("%s: HA: %s %s - FW %s", side_str, manufacturer.c_str(), model.c_str(), fw_vers.c_str());
+        set_state(FWVersRead);
+        break;
+    case SubscribeASPNotification:
+        set_state(ASPNotificationSubscribed);
+        break;
+    // If this case is hit, it means the connection attempt probably timed out
+    case L2Connecting:
+        set_state(L2Connected);
+        break;
+    case ACPStart:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: ACP Start: write failed with error: 0x%02x", side_str, (unsigned int)att_status);
-            state = State::L2Connected;
+            state = L2Connected;
             return;
         }
         break;
-    case State::ACPStop:
+    case ACPStop:
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: ACP Stop: write failed with error: 0x%02x", side_str, (unsigned int)att_status);
-            state = State::L2Connected;
+            state = L2Connected;
         }
         break;
     default:
@@ -389,27 +615,10 @@ bool HAManager::exists(HA const& ha)
 bool HAManager::set_complete()
 {
     return  (hearing_aids.size() == 1 && hearing_aids[0].mode() == HA::Mode::Mono) ||
-            (hearing_aids.size() == 2 && hearing_aids[0].rop.id == hearing_aids[1].rop.id);
-}
-
-HA& HAManager::get_from_cache(const bd_addr_t addr)
-{
-    for (auto& ha : cache) {
-        if (bd_addr_cmp(addr, ha.addr) == 0) {
-            return ha;
-        }
-    }
-    return invalid_ha;
-}
-
-void HAManager::add_to_cache(HA const& ha)
-{
-    if (!get_from_cache(ha.addr)) {
-        uint32_t i = cache_write_index & ha_cache_mask;
-        cache[i] = ha;
-        cache[i].reset_uncached_vars();
-        ++cache_write_index;
-    }
+            (hearing_aids.size() == 2 && 
+                hearing_aids[0].rop.side != HA::Side::Unset && 
+                hearing_aids[1].rop.side != HA::Side::Unset && 
+                hearing_aids[0].rop.id == hearing_aids[1].rop.id);
 }
 
 HA& HAManager::add(HA const& new_ha)
@@ -422,25 +631,15 @@ HA& HAManager::add(HA const& new_ha)
         LOG_INFO("Add: Already hold max number of hearing aids");
         return invalid_ha;
     }
-    if (hearing_aids.size() == 1) {
-        if (hearing_aids[0].mode() == HA::Mode::Mono || new_ha.mode() == HA::Mode::Mono) {
-            LOG_INFO("Add: Mono HA");
-            return invalid_ha;
-        }
-        if (hearing_aids[0].rop.id != new_ha.rop.id) {
-            LOG_INFO("Add: ID does not match other hearing aid");
-            return invalid_ha;
-        }
-    }
+
     hearing_aids.emplace_back(new_ha);
-    add_to_cache(new_ha);
     assert(hearing_aids.size() <= 2);
     if (hearing_aids.size() == 2) {
         hearing_aids[0].other_ha = &hearing_aids[1];
         hearing_aids[1].other_ha = &hearing_aids[0];
     }
     HA& added_ha = hearing_aids.back();
-    added_ha.side_str = (added_ha.side() == HA::Side::Left) ? "Left" : "Right";
+    // added_ha.side_str = (added_ha.side() == HA::Side::Left) ? "Left" : "Right";
     return added_ha;
 }
 

@@ -23,16 +23,38 @@ constexpr uint16_t max_mtu = 512;
 class HA
 {
 public:
-    enum class Side {Left = 0, Right = 1};
-    enum class Mode {Mono = 0, Binaural = 1};
+    enum class Side {Left = 0, Right = 1, Unset = 2};
+    enum class Mode {Mono = 0, Binaural = 1, Unset = 2};
+
+    /*  Current state of device
+        Note: Order is important, as previous state
+        enum set on error  */
     enum class State {
         Invalid,
         Cached,
-        GATTConnected,
-        GATTDisconnect,
+        ServicesDiscovered,
+        DiscoverASHAChars,
+        ASHACharsDiscovered,
+        ReadROP,
+        ROPRead,
+        ReadPSM,
+        PSMRead,
+        DiscoverGAPChars,
+        GAPCharsDiscovered,
+        DiscoverDISChars,
+        DISCharsDiscovered,
+        ReadDeviceName,
+        DeviceNameRead,
+        ReadManufacturerName,
+        ManufacturerNameRead,
+        ReadModelNum,
+        ModelNumRead,
+        ReadFWVers,
+        FWVersRead,
+        SubscribeASPNotification,
+        ASPNotificationSubscribed,
         L2Connecting,
         L2Connected,
-        SubscribeASPNotification,
         ACPStart,
         ASPStartOk,
         ASPStopOK,
@@ -40,6 +62,7 @@ public:
         AudioPacketSending,
         AudioPacketSent,
         ACPStop,
+        GAPDisconnect,
     };
     enum class ACPOpCode : uint8_t {
         Start = 1,
@@ -57,7 +80,14 @@ public:
     // Gets the mode (monoaural/binaural) of the hearing aid
     Mode mode() const;
 
-    void on_gatt_connected();
+    void discover_chars();
+    void on_char_discovered(uint8_t* char_query_res_packet);
+    //void on_char_discovery_complete(uint8_t status);
+
+    void read_char();
+    void on_read_char_value(uint8_t* char_val_query_res_packet);
+    //void on_read_char_complete(uint8_t status);
+
     void subscribe_to_asp_notification();
 
     void create_l2cap_channel();
@@ -67,7 +97,7 @@ public:
     void write_acp_stop();
     void write_acp_status(uint8_t status);
 
-    void on_gatt_event_query_complete(uint8_t att_status);
+    void on_gatt_event_query_complete(uint8_t* query_complete_packet);
     void on_asp_notification(int8_t asp_status);
 
     void set_volume(AudioBuffer::Volume& volume);
@@ -97,6 +127,9 @@ public:
     uint8_t psm = 0u;
 
     etl::string<32> name = {};
+    etl::string<32> manufacturer = {};
+    etl::string<32> model = {};
+    etl::string<32> fw_vers = {};
 
     // ASHA volume
     int8_t volume = -128;
@@ -115,6 +148,13 @@ public:
 
     struct {
         gatt_client_service_t service = {};
+        gatt_client_characteristic_t manufacture_name = {};
+        gatt_client_characteristic_t model_num = {};
+        gatt_client_characteristic_t fw_vers = {};
+    } dis_service = {};
+
+    struct {
+        gatt_client_service_t service = {};
         gatt_client_characteristic_t rop = {};
         gatt_client_characteristic_t acp = {};
         gatt_client_characteristic_t asp = {};
@@ -125,8 +165,8 @@ public:
     // ASHA ReadOnlyProperties
     struct ROP {
         uint8_t version;
-        Side side;
-        Mode mode;
+        Side side = Side::Unset;
+        Mode mode = Mode::Unset;
         bool csis_supported;
         struct HiSyncID {
             uint16_t manufacturer_id;
@@ -164,6 +204,7 @@ public:
 private:
     bool change_vol = false;
     uint32_t curr_write_index = 0u;
+    void dec_state_enum();
 };
 
 class HAManager
@@ -178,16 +219,11 @@ public:
     bool exists(HA const& ha);
     bool set_complete();
 
-    HA& get_from_cache(const bd_addr_t addr);
-    void add_to_cache(HA const& ha);
-
     HA& add(HA const& new_ha);
     void remove_by_conn_handle(hci_con_handle_t handle);
 
     etl::vector<HA, max_num_ha> hearing_aids;
 private:
-    etl::vector<HA, ha_cache_size> cache;
-    uint32_t cache_write_index = 0;
     HA invalid_ha = {};
 };
 

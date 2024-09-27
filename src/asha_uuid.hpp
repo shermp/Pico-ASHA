@@ -65,7 +65,7 @@ namespace DisUUID
     constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_DEVICE_INFORMATION;
     constexpr uint16_t ManNameString = ORG_BLUETOOTH_CHARACTERISTIC_MANUFACTURER_NAME_STRING;
     constexpr uint16_t ModelNumString = ORG_BLUETOOTH_CHARACTERISTIC_MODEL_NUMBER_STRING;
-    constexpr uint16_t FWRevString = ORG_BLUETOOTH_CHARACTERISTIC_FIRMWARE_REVISION_STRING;
+    constexpr uint16_t FWRevString = ORG_BLUETOOTH_CHARACTERISTIC_SOFTWARE_REVISION_STRING;
 }
 
 inline bool uuid_eq(const uint8_t* u1, const uint8_t* u2) { return memcmp(u1, u2, sizeof(AshaUUID::service)) == 0; }
