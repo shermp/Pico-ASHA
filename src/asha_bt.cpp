@@ -33,6 +33,14 @@ static constexpr uint16_t pdu_len = 167u;
 
 static constexpr uint16_t max_tx_time = 1064;
 
+/* Bonding requirements */
+
+// Bonding with LE Secure Connections
+static constexpr uint8_t authreq_le_sc = SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION;
+
+// Bonding without LE Secure Connections
+static constexpr uint8_t authreq_bonding = SM_AUTHREQ_BONDING;
+
 static constexpr size_t json_resp_str_size = 4096;
 
 static etl::string<json_resp_str_size> response_json = {};
@@ -151,6 +159,7 @@ void ScanResult::reset()
     service_found = false;
     ha = HA();
     report = AdvertisingReport();
+    auth_downgrade_in_progress = false;
 }
 
 static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *context, 
@@ -388,7 +397,6 @@ extern "C" void bt_main()
     sm_init();
     sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
-    sm_set_authentication_requirements(SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION);
     sm_allow_ltk_reconstruction_without_le_device_db_entry(0);
 
     /* Init GATT client. Required to read/write GATT characteristics */
@@ -490,6 +498,7 @@ static void hci_event_handler(uint8_t packet_type,
         [[fallthrough]];
     case GAP_EVENT_ADVERTISING_REPORT:
         if (scan_state != ScanState::Scan) return;
+        sm_set_authentication_requirements(authreq_le_sc);
         if (hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT) {
             curr_scan.report = AdvertisingReport(packet, true);
         } else {
@@ -545,13 +554,26 @@ static void hci_event_handler(uint8_t packet_type,
         break;
     case HCI_EVENT_DISCONNECTION_COMPLETE:
     {
+        if (curr_scan.auth_downgrade_in_progress) {
+            LOG_INFO("Auth requirements not met. Attempting downgrade");
+            curr_scan.ha.conn_handle = HCI_CON_HANDLE_INVALID;
+            scan_state = ScanState::Connecting;
+            auto gap_res = gap_connect(curr_scan.ha.addr, curr_scan.ha.addr_type);
+            if (gap_res != ERROR_CODE_SUCCESS) {
+                curr_scan.auth_downgrade_in_progress = false;
+                LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                scan_state = ScanState::Scan;
+                return;
+            }
+            return;
+        }
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
         LOG_INFO("Received disconnection event.");
         // Expected disconnection, reenable scanning
         if (scan_state == ScanState::Disconnecting) {
             LOG_INFO("Expected disconnection");
         } else {
-            LOG_ERROR("Disconnected with reason: %d", static_cast<int>(reason));
+            LOG_ERROR("Disconnected with reason: 0x%02x", static_cast<unsigned int>(reason));
         }
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto ha = ha_mgr.get_by_conn_handle(c);
@@ -597,7 +619,7 @@ static void sm_event_handler (uint8_t packet_type,
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 auto gap_res = gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
                 if (gap_res != ERROR_CODE_SUCCESS) {
-                    LOG_ERROR("gap_connect failed with error: %02x", (unsigned int)gap_res);
+                    LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
                     scan_state = ScanState::Scan;
                     return;
                 }
@@ -613,14 +635,15 @@ static void sm_event_handler (uint8_t packet_type,
             sm_event_identity_resolving_succeeded_get_address(packet, curr_scan.ha.addr);
             if (ha_mgr.get_by_addr(curr_scan.ha.addr)) {
                 LOG_INFO("Device already connected.");
+                scan_state = ScanState::Scan;
                 return;
             }
             scan_state = ScanState::Connecting;
-            auto addr_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
+            curr_scan.ha.addr_type = static_cast<bd_addr_type_t>(sm_event_identity_resolving_succeeded_get_addr_type(packet));
             LOG_INFO("Connecting to address %s", bd_addr_to_str(curr_scan.ha.addr));
-            auto gap_res = gap_connect(curr_scan.ha.addr, static_cast<bd_addr_type_t>(addr_type));
+            auto gap_res = gap_connect(curr_scan.ha.addr, curr_scan.ha.addr_type);
             if (gap_res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("gap_connect failed with error: %02x", (unsigned int)gap_res);
+                LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
                 scan_state = ScanState::Scan;
                 return;
             }
@@ -644,6 +667,7 @@ static void sm_event_handler (uint8_t packet_type,
                 LOG_INFO("Pairing complete, success");
                 // scan_state = ScanState::ServiceDiscovery;
                 // discover_services();
+                curr_scan.auth_downgrade_in_progress = false;
                 scan_state = ScanState::DataLen;
                 set_data_length();
                 break;
@@ -658,15 +682,16 @@ static void sm_event_handler (uint8_t packet_type,
             case ERROR_CODE_AUTHENTICATION_FAILURE:
             {
                 uint8_t reason = sm_event_pairing_complete_get_reason(packet);
-                if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS) {
-                    LOG_ERROR("Auth requirements not met. Attempting downgrade");
+                if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS && !curr_scan.auth_downgrade_in_progress) {
                     // Try and downgrade from LE Secure connections
-                    sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
+                    sm_set_authentication_requirements(authreq_bonding);
+                    curr_scan.auth_downgrade_in_progress = true;
                 } else {
-                    LOG_ERROR("Pairing failed, auth failure with reason: %d", static_cast<int>(reason));
+                    curr_scan.auth_downgrade_in_progress = false;
+                    LOG_ERROR("Pairing failed, auth failure with reason: 0x%02x", static_cast<int>(reason));
                 }
-                gap_disconnect(curr_scan.ha.conn_handle);
                 scan_state = ScanState::Disconnecting;
+                gap_disconnect(curr_scan.ha.conn_handle);
                 break;
             }
             default:
@@ -682,16 +707,25 @@ static void sm_event_handler (uint8_t packet_type,
                 LOG_INFO("Reencryption complete");
                 // scan_state = ScanState::ServiceDiscovery;
                 // discover_services();
+                curr_scan.auth_downgrade_in_progress = false;
                 scan_state = ScanState::DataLen;
                 set_data_length();
                 break;
             case ERROR_CODE_PIN_OR_KEY_MISSING:
             {   
                 LOG_ERROR("Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING");
-                bd_addr_t addr;
-                sm_event_reencryption_complete_get_address(packet, addr);
-                delete_paired_device(addr);
-                scan_state = ScanState::Scan;
+                if (!curr_scan.auth_downgrade_in_progress) {
+                    curr_scan.auth_downgrade_in_progress = true;
+                    sm_set_authentication_requirements(authreq_bonding);
+                } else {
+                    curr_scan.auth_downgrade_in_progress = false;
+                    bd_addr_t addr;
+                    sm_event_reencryption_complete_get_address(packet, addr);
+                    delete_paired_device(addr);
+                    runtime_settings.set_full_set_paired(false);
+                }
+                scan_state = ScanState::Disconnecting;
+                gap_disconnect(curr_scan.ha.conn_handle);
                 break;
             }
             default:

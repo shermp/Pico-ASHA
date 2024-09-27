@@ -49,6 +49,7 @@ struct ScanResult {
     bool service_found = false;
     HA ha = HA();
     AdvertisingReport report = AdvertisingReport();
+    bool auth_downgrade_in_progress = false;
     void reset();
 };
 

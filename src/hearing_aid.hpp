@@ -117,6 +117,9 @@ public:
     // HA Bluetooth address
     bd_addr_t addr = {};
 
+    // HA Bluetooth address type
+    bd_addr_type_t addr_type = BD_ADDR_TYPE_UNKNOWN;
+
     // HA HCI connection handle
     hci_con_handle_t conn_handle = HCI_CON_HANDLE_INVALID;
 
