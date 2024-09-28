@@ -561,7 +561,12 @@ static void hci_event_handler(uint8_t packet_type,
             auto gap_res = gap_connect(curr_scan.ha.addr, curr_scan.ha.addr_type);
             if (gap_res != ERROR_CODE_SUCCESS) {
                 curr_scan.auth_downgrade_in_progress = false;
-                LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                // For some reeason, there may still be a pending connection
+                if (gap_res == ERROR_CODE_COMMAND_DISALLOWED) {
+                    gap_connect_cancel();
+                } else {
+                    LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                }
                 scan_state = ScanState::Scan;
                 return;
             }
@@ -619,7 +624,12 @@ static void sm_event_handler (uint8_t packet_type,
                 bd_addr_copy(curr_scan.ha.addr, curr_scan.report.address);
                 auto gap_res = gap_connect(curr_scan.report.address, static_cast<bd_addr_type_t>(curr_scan.report.address_type));
                 if (gap_res != ERROR_CODE_SUCCESS) {
-                    LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                    // For some reeason, there may still be a pending connection
+                    if (gap_res == ERROR_CODE_COMMAND_DISALLOWED) {
+                        gap_connect_cancel();
+                    } else {
+                        LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                    }
                     scan_state = ScanState::Scan;
                     return;
                 }
@@ -643,7 +653,12 @@ static void sm_event_handler (uint8_t packet_type,
             LOG_INFO("Connecting to address %s", bd_addr_to_str(curr_scan.ha.addr));
             auto gap_res = gap_connect(curr_scan.ha.addr, curr_scan.ha.addr_type);
             if (gap_res != ERROR_CODE_SUCCESS) {
-                LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                // For some reeason, there may still be a pending connection
+                if (gap_res == ERROR_CODE_COMMAND_DISALLOWED) {
+                    gap_connect_cancel();
+                } else {
+                    LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
+                }
                 scan_state = ScanState::Scan;
                 return;
             }
