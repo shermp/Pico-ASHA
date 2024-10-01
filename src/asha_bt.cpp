@@ -173,6 +173,10 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
     AudioBuffer::Volume vol = audio_buff.get_volume();
     bool pcm_is_streaming = audio_buff.pcm_streaming.Load();
     for (auto& ha : ha_mgr.hearing_aids) {
+        if (ha.gatt_wait_count > 0) {
+            ha.gatt_wait_count--;
+            continue;
+        }
         switch(ha.state) {
         case ServicesDiscovered:
             ha.state = DiscoverASHAChars;

@@ -278,6 +278,7 @@ void HA::on_l2cap_channel_created(uint8_t status)
     if (status != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x", side_str, status);
         state = State::ASPNotificationSubscribed;
+        gatt_wait_count = 1000;
         return;
     }
     LOG_INFO("%s: L2CAP CoC channel created", side_str);
@@ -390,6 +391,7 @@ void HA::on_gatt_event_query_complete(uint8_t* query_complete_packet)
         break;
     case SubscribeASPNotification:
         set_state(ASPNotificationSubscribed);
+        gatt_wait_count = 1000;
         break;
     // If this case is hit, it means the connection attempt probably timed out
     case L2Connecting:

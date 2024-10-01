@@ -190,6 +190,8 @@ public:
         void print_values();
     } rop = {};
 
+    int gatt_wait_count = 0;
+
     // Pointer to current audio packet
     uint8_t* audio_packet = nullptr;
 
