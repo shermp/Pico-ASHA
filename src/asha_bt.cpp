@@ -577,15 +577,16 @@ static void hci_event_handler(uint8_t packet_type,
             return;
         }
         uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
-        LOG_INFO("Received disconnection event.");
-        // Expected disconnection, reenable scanning
-        if (scan_state == ScanState::Disconnecting) {
-            LOG_INFO("Expected disconnection");
-        } else {
-            LOG_ERROR("Disconnected with reason: 0x%02x", static_cast<unsigned int>(reason));
-        }
         auto c = hci_event_disconnection_complete_get_connection_handle(packet);
         auto ha = ha_mgr.get_by_conn_handle(c);
+        const char *side = ha ? ha.side_str : "";
+        LOG_INFO("%s: Received disconnection event", side);
+        // Expected disconnection, reenable scanning
+        if (scan_state == ScanState::Disconnecting) {
+            LOG_INFO("%s: Expected disconnection", side);
+        } else {
+            LOG_ERROR("%s: Disconnected with reason: 0x%02x", side, static_cast<unsigned int>(reason));
+        }
         if (ha) {
             LOG_INFO("%s: Disconnected with %hu available credits.", ha.side_str, ha.avail_credits);
             ha_mgr.remove_by_conn_handle(c);
@@ -599,8 +600,21 @@ static void hci_event_handler(uint8_t packet_type,
         curr_scan.reset();
         break;
     }
+    case HCI_EVENT_NUMBER_OF_COMPLETED_PACKETS:
+    case HCI_EVENT_TRANSPORT_PACKET_SENT:
+    case HCI_EVENT_COMMAND_COMPLETE:
+    case HCI_EVENT_COMMAND_STATUS:
+        // Don't care about these, so ignore them from unhandled logging
+        break;
+    case HCI_EVENT_ENCRYPTION_CHANGE:
+        LOG_INFO("HCI: HCI_EVENT_ENCRYPTION_CHANGE");
+        break;
+    case BTSTACK_EVENT_NR_CONNECTIONS_CHANGED:
+        LOG_INFO("HCI: Num Connnections changed to %u", 
+                 (unsigned int)btstack_event_nr_connections_changed_get_number_connections(packet));
+        break;
     default:
-        // LOG_INFO("Unhandled HCI event: %hu", (uint16_t)hci_ev_type);
+        LOG_INFO("HCI: Unhandled event 0x%02x", (unsigned int)hci_ev_type);
         break;
     }
 }
@@ -659,6 +673,7 @@ static void sm_event_handler (uint8_t packet_type,
             if (gap_res != ERROR_CODE_SUCCESS) {
                 // For some reeason, there may still be a pending connection
                 if (gap_res == ERROR_CODE_COMMAND_DISALLOWED) {
+                    LOG_ERROR("ERROR_CODE_COMMAND_DISALLOWED");
                     gap_connect_cancel();
                 } else {
                     LOG_ERROR("gap_connect failed with error: 0x%02x", (unsigned int)gap_res);
