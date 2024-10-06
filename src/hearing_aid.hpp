@@ -210,6 +210,7 @@ private:
     bool change_vol = false;
     uint32_t curr_write_index = 0u;
     void dec_state_enum();
+    void inc_state_enum();
 };
 
 class HAManager

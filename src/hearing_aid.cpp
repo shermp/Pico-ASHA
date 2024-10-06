@@ -98,6 +98,11 @@ void HA::dec_state_enum()
     state = State(static_cast<int>(state) - 1);
 }
 
+void HA::inc_state_enum()
+{
+    state = State(static_cast<int>(state) + 1);
+}
+
 void HA::discover_chars()
 {
     using enum State;
@@ -170,12 +175,17 @@ void HA::read_char()
 {
     using enum State;
     auto gatt_query = [&](gatt_client_characteristic_t* c) {
-        uint8_t res = gatt_client_read_value_of_characteristic(
-            gatt_packet_handler, conn_handle, c
-        );
-        if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: %s error", side_str, state_to_str(state));
-            dec_state_enum();
+        if (is_valid(c)) {
+            uint8_t res = gatt_client_read_value_of_characteristic(
+                gatt_packet_handler, conn_handle, c
+            );
+            if (res != ERROR_CODE_SUCCESS) {
+                LOG_ERROR("%s: %s error", side_str, state_to_str(state));
+                dec_state_enum();
+            }
+        } else {
+            LOG_INFO("%s: Skipping %s", side_str, state_to_str(state));
+            inc_state_enum();
         }
     };
 
