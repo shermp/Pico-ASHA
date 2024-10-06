@@ -215,6 +215,10 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
             ha.read_char();
             break;
         case FWVersRead:
+            ha.state = L2Connecting;
+            ha.create_l2cap_channel();
+            break;
+        case L2Connected:
             ha.state = SubscribeASPNotification;
             ha.subscribe_to_asp_notification();
             break;
@@ -224,15 +228,11 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
                 led_mgr.set_led(LEDManager::State::On);
                 scan_state = ScanState::Complete;
             }
-            ha.state = L2Connecting;
-            ha.create_l2cap_channel();
-            break;
-        case L2Connected:
             ha.avail_credits = l2cap_cbm_available_credits(ha.cid);
             /* Ensure sufficient credits are available to (re)start
                audio streaming */
             if (pcm_is_streaming && ha.avail_credits >= 8) {
-                ha.write_acp_start();
+                 ha.write_acp_start();
             }
             break;
         case AudioPacketReady:

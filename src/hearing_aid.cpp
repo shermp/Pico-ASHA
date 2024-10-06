@@ -181,6 +181,12 @@ void HA::read_char()
 
     // Note: order is same as enum declaration
     switch(state) {
+    case ReadROP:
+        gatt_query(&asha_service.rop);
+        break;
+    case ReadPSM:
+        gatt_query(&asha_service.psm);
+        break;
     case ReadDeviceName:
         gatt_query(&gap_service.device_name);
         break;
@@ -192,12 +198,6 @@ void HA::read_char()
         break;
     case ReadFWVers:
         gatt_query(&dis_service.fw_vers);
-        break;
-    case ReadROP:
-        gatt_query(&asha_service.rop);
-        break;
-    case ReadPSM:
-        gatt_query(&asha_service.psm);
         break;
     default:
         break;
@@ -250,7 +250,7 @@ void HA::subscribe_to_asp_notification()
     );
     if (res != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: Error writing ASP notification configuration: 0x%02x", side_str, (unsigned int)res);
-        state = State::PSMRead;
+        state = State::L2Connected;
     }
 }
 
@@ -277,7 +277,7 @@ void HA::on_l2cap_channel_created(uint8_t status)
 {
     if (status != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: L2CAP CoC failed with status code: 0x%02x", side_str, status);
-        state = State::ASPNotificationSubscribed;
+        state = State::FWVersRead;
         gatt_wait_count = 1000;
         return;
     }
@@ -302,7 +302,7 @@ void HA::write_acp_start()
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: ACP Write: Start error 0x%02x", side_str, (unsigned int)res);
-        state = State::L2Connected;
+        state = State::ASPNotificationSubscribed;
     }
 }
 
@@ -389,13 +389,13 @@ void HA::on_gatt_event_query_complete(uint8_t* query_complete_packet)
         LOG_INFO("%s: HA: %s %s - FW %s", side_str, manufacturer.c_str(), model.c_str(), fw_vers.c_str());
         set_state(FWVersRead);
         break;
-    case SubscribeASPNotification:
-        set_state(ASPNotificationSubscribed);
-        gatt_wait_count = 1000;
-        break;
     // If this case is hit, it means the connection attempt probably timed out
     case L2Connecting:
         set_state(L2Connected);
+        break;
+    case SubscribeASPNotification:
+        set_state(ASPNotificationSubscribed);
+        gatt_wait_count = 1000;
         break;
     case ACPStart:
         if (att_status != ATT_ERROR_SUCCESS) {
@@ -432,7 +432,7 @@ void HA::on_asp_notification(int8_t asp_status)
             if (other_ha && other_ha->is_streaming_audio()) {
                 other_ha->write_acp_status(ACPStatus::other_disconnected);
             }
-            state = State::L2Connected;
+            state = State::ASPNotificationSubscribed;
         }
         break;
     case ASPStatus::unkown_command:
