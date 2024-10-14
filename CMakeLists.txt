@@ -56,6 +56,7 @@ set(ASHA_SRC
   src/asha_bt.cpp
   src/asha_logging.cpp
   src/asha_led.cpp
+  src/pico_bt.cpp
   src/hearing_aid.cpp
   src/usb_descriptors.cpp
   src/usb_audio.cpp
