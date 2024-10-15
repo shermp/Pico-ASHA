@@ -389,8 +389,8 @@ private:
     Remote* get_by_local_cid (uint16_t local_cid);
 
     /* BTStack packet handlers */
-    static btstack_packet_callback_registration_t hci_cb_reg;
-    static btstack_packet_callback_registration_t sm__cb_reg;
+    btstack_packet_callback_registration_t hci_cb_reg;
+    btstack_packet_callback_registration_t sm_cb_reg;
     static void   hci_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
     static void    sm_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
     static void  gatt_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
