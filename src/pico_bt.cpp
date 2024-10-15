@@ -148,9 +148,9 @@ void BT::configure(Config const& config)
 
     /* Register BTStack callbacks */
     hci_cb_reg.callback = &BT::hci_handler;
-    sm__cb_reg.callback = &BT::sm_handler;
+    sm_cb_reg.callback = &BT::sm_handler;
     hci_add_event_handler(&hci_cb_reg);
-    sm_add_event_handler(&sm__cb_reg);
+    sm_add_event_handler(&sm_cb_reg);
 
     /* Register the listener for GATT notifications and indications */
     gatt_client_listen_for_characteristic_value_updates(
