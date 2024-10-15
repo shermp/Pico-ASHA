@@ -1,12 +1,11 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <tuple>
 
-#include <etl/array.h>
-#include <etl/flat_map.h>
 #include <etl/set.h>
 #include <etl/span.h>
 #include <etl/string.h>
@@ -21,12 +20,18 @@ constexpr size_t max_num_services = 4U;
 constexpr size_t max_chars_for_service = 8U;
 
 struct UUID {
-    etl::array<uint8_t, 16> uuid_128;
-    uint16_t uuid_16;
-    constexpr UUID(const char uuid_str[37]);
-    constexpr UUID(const char uuid_str[37], uint16_t uuid16);
-    constexpr UUID(uint16_t uuid16);
-    UUID(const uint8_t* bytes);
+    std::array<uint8_t, 16> uuid_128 = {};
+    uint16_t uuid_16 = 0U;
+
+    constexpr UUID(const char uuid_str[37]) : uuid_128(uuid_from_str(uuid_str)) {}
+
+    constexpr UUID(const char uuid_str[37], uint16_t uuid16)
+        : uuid_128(uuid_from_str(uuid_str)),
+          uuid_16(uuid16) {}
+    constexpr UUID(const uint16_t uuid16) : uuid_16(uuid16) {}
+
+    UUID(const uint8_t* bytes) { std::copy_n(bytes, uuid_128.size(), uuid_128.begin()); }
+
     bool operator==(const UUID&) const = default;
     bool operator<(const UUID& u) const 
     { 
@@ -36,6 +41,32 @@ struct UUID {
     {
         return std::tie((*this).uuid_128, (*this).uuid_16) > std::tie(u.uuid_128, u.uuid_16);
     }
+
+private:
+    constexpr std::array<uint8_t, 16> uuid_from_str(const char uuid_str[37]) const
+    {
+        auto conv_nibble = [](unsigned char n) {
+            if (n >= '0' && n <= '9') {
+                return n - '0';
+            } else if (n >= 'a' && n <= 'f') {
+                return (n - 'a') + 10;
+            } else {
+                return (n - 'A') + 10;
+            }
+        };
+        std::array<uint8_t, 16> uuid = {};
+        const char *u = uuid_str;
+        for (auto& v : uuid) {
+            if (*u == '-') {
+                u += 1;
+            }
+            uint8_t n1 = conv_nibble(u[1]);
+            uint8_t n2 = conv_nibble(u[0]);
+            v = n1 | (n2 << 4);
+            u += 2;
+        }
+        return uuid;
+    }    
 };
 
 struct AdReport {

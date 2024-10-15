@@ -15,49 +15,6 @@ static etl::pool<BT::Service, service_pool_size> service_pool = {};
 constexpr uint8_t authreq_le_sec = SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION;
 constexpr uint8_t authreq_no_le_sec = SM_AUTHREQ_BONDING;
 
-constexpr etl::array<uint8_t, 16> uuid_from_str(const char uuid_str[37])
-{
-    auto conv_nibble = [](unsigned char n) {
-        if (n >= '0' && n <= '9') {
-            return n - '0';
-        } else if (n >= 'a' && n <= 'f') {
-            return (n - 'a') + 10;
-        } else {
-            return (n - 'A') + 10;
-        }
-    };
-    etl::array<uint8_t, 16> uuid = {};
-    const char *u = uuid_str;
-    for (auto& v : uuid) {
-        if (*u == '-') {
-            u += 1;
-        }
-        uint8_t n1 = conv_nibble(u[1]);
-        uint8_t n2 = conv_nibble(u[0]);
-        v = n1 | (n2 << 4);
-        u += 2;
-    }
-    return uuid;
-}
-
-constexpr UUID::UUID(const char uuid_str[37]) 
-    : uuid_128(uuid_from_str(uuid_str))
-{}
-
-constexpr UUID::UUID(const char uuid_str[37], uint16_t uuid16)
-    : uuid_128(uuid_from_str(uuid_str)),
-      uuid_16(uuid16)
-{}
-
-constexpr UUID::UUID(uint16_t uuid16)
-    : uuid_16(uuid16)
-{}
-
-UUID::UUID(const uint8_t* bytes)
-{
-    std::copy_n(bytes, uuid_128.size(), uuid_128.begin());
-}
-
 AdReport::AdReport(uint8_t* packet, bool extended)
 {
     uint8_t         length;
