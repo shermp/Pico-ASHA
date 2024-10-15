@@ -387,6 +387,7 @@ private:
     void set_idle_state();
     Remote* get_by_con_handle(hci_con_handle_t handle);
     Remote* get_by_local_cid (uint16_t local_cid);
+    bool address_connected(bd_addr_t addr);
 
     /* BTStack packet handlers */
     btstack_packet_callback_registration_t hci_cb_reg;
