@@ -324,10 +324,16 @@ public:
 
         /* Variables */
         size_t curr_service_char_index = 0;
+        
+        size_t curr_char_val_handle_index = 0;
+        etl::span<uint16_t> char_val_handles = {};
 
         /* Pending L2CAP data */
         uint8_t const* l2cap_data = nullptr;
         uint16_t l2cap_len = 0U;
+
+        /* Methods */
+        Result read_characteristic_value(uint8_t* bt_err);
     };
 
     /**

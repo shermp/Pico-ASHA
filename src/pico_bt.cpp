@@ -269,21 +269,9 @@ BT::Result BT::Remote::read_characteristic_values(etl::span<uint16_t> value_hand
 {
     p_char_val_cb = char_val_cb;
     p_char_val_complete_cb = char_val_complete_cb;
-    if (state == RemoteState::Connected) {
-        state = RemoteState::ReadCharVal;
-        uint8_t err = gatt_client_read_multiple_characteristic_values(
-            &BT::gatt_handler,
-            con_handle,
-            value_handles.size(),
-            value_handles.data());
-        if (err != ERROR_CODE_SUCCESS) {
-            state = RemoteState::Connected;
-            *bt_err = err;
-            return Result::BTError;
-        }
-        return Result::Ok;
-    }
-    return Result::WrongState;
+    char_val_handles = value_handles;
+    curr_char_val_handle_index = 0;
+    return read_characteristic_value(bt_err);
 }
 
 BT::Result BT::Remote::write_characteristic_value_no_resp(uint16_t val_handle,
@@ -411,6 +399,25 @@ BT::Result BT::Remote::send_l2cap_data(uint8_t const* data,
 /************************************
  * Private methods
  ************************************/
+
+BT::Result BT::Remote::read_characteristic_value(uint8_t* bt_err)
+{
+    if (state == RemoteState::Connected) {
+        state = RemoteState::ReadCharVal;
+        uint8_t err = gatt_client_read_value_of_characteristic_using_value_handle(
+            &BT::gatt_handler,
+            con_handle,
+            char_val_handles[curr_char_val_handle_index]
+        );
+        if (err != ERROR_CODE_SUCCESS) {
+            state = RemoteState::Connected;
+            *bt_err = err;
+            return Result::BTError;
+        }
+        return Result::Ok;
+    }
+    return Result::WrongState;
+}
 
 AdReport& BT::add_or_merge_ad_report(AdReport const& report)
 {
@@ -639,6 +646,17 @@ void BT::gatt_handler(uint8_t packet_type,
                     break;
                 case RemoteState::ReadCharVal:
                     r->state = RemoteState::Connected;
+                    r->curr_char_val_handle_index++;
+                    if (r->curr_char_val_handle_index < r->char_val_handles.size()) {
+                        uint8_t err = ERROR_CODE_SUCCESS;
+                        r->read_characteristic_value(&err);
+                        if (err != ERROR_CODE_SUCCESS) {
+                            r->state = RemoteState::Connected;
+                            r->p_char_val_complete_cb(err, r);
+                            return;
+                        }
+                        return;
+                    }
                     r->p_char_val_complete_cb(status, r);
                     break;
                 case RemoteState::WriteCharVal:
@@ -737,9 +755,11 @@ void BT::sm_handler(uint8_t packet_type,
                     bt.p_base_state = BaseState::Scan;
                     return;
                 }
-                bt.p_base_state = BaseState::Idle;
                 if (bt.p_scan_filter(*bt.p_curr_add_report)) {
+                    bt.p_base_state = BaseState::Idle;
                     bt.p_ad_report_cb(*bt.p_curr_add_report);
+                } else {
+                    bt.p_base_state = BaseState::Scan;
                 }
                 break;
             default:
