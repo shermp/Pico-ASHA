@@ -53,11 +53,10 @@ set(ASHA_SRC
   src/main.cpp
   src/runtime_settings.cpp
   src/asha_audio.cpp
-  src/asha_bt.cpp
+  src/asha_bt_ha.cpp
   src/asha_logging.cpp
   src/asha_led.cpp
   src/pico_bt.cpp
-  src/hearing_aid.cpp
   src/usb_descriptors.cpp
   src/usb_audio.cpp
   src/btstack_ad_dump.c
@@ -65,7 +64,7 @@ set(ASHA_SRC
   lib/g722/g722_encode.cc
 )
 
-set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
+set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror;-Wno-unused-parameter;-Wno-unused-function;-Wno-unused-variable")
 
 add_executable(pico_asha ${ASHA_SRC})
 
