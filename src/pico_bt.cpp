@@ -797,6 +797,12 @@ void BT::sm_handler(uint8_t packet_type,
                 uint8_t status = sm_event_reencryption_complete_get_status(packet);
                 Remote* r = bt.get_by_con_handle(sm_event_reencryption_complete_get_handle(packet));
                 if (!r) { return; }
+                if (status == ERROR_CODE_PIN_OR_KEY_MISSING && bt.auth_req == authreq_le_sec) {
+                    bt.auth_req = authreq_no_le_sec;
+                    sm_set_authentication_requirements(bt.auth_req);
+                    sm_request_pairing(r->con_handle);
+                    return;
+                }
                 r->state = RemoteState::Connected;
                 r->p_bond_cb(status, 0U, r);
                 break;
