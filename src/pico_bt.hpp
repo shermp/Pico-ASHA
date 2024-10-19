@@ -28,7 +28,10 @@ struct UUID {
     constexpr UUID(const char uuid_str[37], uint16_t uuid16)
         : uuid_128(uuid_from_str(uuid_str)),
           uuid_16(uuid16) {}
+
     constexpr UUID(const uint16_t uuid16) : uuid_16(uuid16) {}
+
+    constexpr UUID(std::array<uint8_t, 16> const& uuid128) : uuid_128(uuid128) {}
 
     UUID(const uint8_t* bytes) { std::copy_n(bytes, uuid_128.size(), uuid_128.begin()); }
 
@@ -73,7 +76,7 @@ struct AdReport {
     bd_addr_t address;
     uint8_t   type;
     uint8_t   event_type;
-    uint8_t   address_type;
+    bd_addr_type_t   address_type;
     uint8_t   rssi;
     etl::string<16> short_name;
     etl::string<16> complete_name;
@@ -214,7 +217,7 @@ public:
          */
         Result read_characteristic_values(
             etl::span<uint16_t> value_handles,
-            std::function<void(Remote* remote, uint8_t const* data, uint16_t len)> char_val_cb,
+            std::function<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
             std::function<void(uint8_t status, Remote* remote)> char_val_complete_cb,
             uint8_t* bt_err
         );
@@ -307,7 +310,7 @@ public:
         std::function<void(uint8_t, uint8_t, Remote*)> p_bond_cb;
         std::function<void(uint8_t, Remote*)> p_services_cb;
         std::function<void(uint8_t, Remote*)> p_char_cb;
-        std::function<void(Remote*, uint8_t const*, uint16_t)> p_char_val_cb;
+        std::function<void(Remote*, uint16_t, uint8_t const*, uint16_t)> p_char_val_cb;
         std::function<void(uint8_t, Remote*)> p_char_val_complete_cb;
         std::function<void(uint8_t, Remote*)> p_char_write_cb;
         std::function<void(Remote*, uint8_t const*, uint16_t)> p_char_not_val_cb;
@@ -346,7 +349,7 @@ public:
      * the bt stack has started its event loop, or it has
      * failed to start.
      */
-    bool start(std::function<void(bool started)> start_cb);
+    bool start(std::function<void(bool started, uint8_t status)> start_cb);
 
     /** 
      * Enable scanning for advertisement packets.
@@ -354,7 +357,7 @@ public:
      * had its identity resolved, or matches filter 
      */
     void enable_scan(
-        std::function<void(AdReport const& report)> ad_report_cb,
+        std::function<void(AdReport& report)> ad_report_cb,
         std::function<bool(AdReport const& report)> filter,
         bool only_connectable = true
     );
@@ -382,6 +385,11 @@ public:
         uint8_t* bt_err
     );
 
+    /**
+     * Clear bonding data in the device DB
+     */
+    void clear_bonding_data();
+
     BT(BT&) = delete;
     BT(BT&&) = delete;
     BT(const BT&) = delete;
@@ -405,8 +413,8 @@ private:
     etl::vector<Remote, MAX_NR_HCI_CONNECTIONS> remotes;
 
     /* Callbacks */
-    std::function<void(bool)> p_start_cb;
-    std::function<void(AdReport const&)> p_ad_report_cb;
+    std::function<void(bool, uint8_t)> p_start_cb;
+    std::function<void(AdReport&)> p_ad_report_cb;
     std::function<void(uint8_t, Remote*)> p_connect_cb;
     std::function<void(uint8_t, Remote*)> p_disconnect_cb;
 

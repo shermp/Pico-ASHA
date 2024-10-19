@@ -22,14 +22,14 @@ AdReport::AdReport(uint8_t* packet, bool extended)
     if (extended) {
         gap_event_extended_advertising_report_get_address(packet, address);
         event_type = gap_event_extended_advertising_report_get_advertising_event_type(packet);
-        address_type = gap_event_extended_advertising_report_get_address_type(packet);
+        address_type = (bd_addr_type_t)gap_event_extended_advertising_report_get_address_type(packet);
         rssi = gap_event_extended_advertising_report_get_rssi(packet);
         length = gap_event_extended_advertising_report_get_data_length(packet);
         data = gap_event_extended_advertising_report_get_data(packet);
     } else {
         gap_event_advertising_report_get_address(packet, address);
         event_type = gap_event_advertising_report_get_advertising_event_type(packet);
-        address_type = gap_event_advertising_report_get_address_type(packet);
+        address_type = (bd_addr_type_t)gap_event_advertising_report_get_address_type(packet);
         rssi = gap_event_advertising_report_get_rssi(packet);
         length = gap_event_advertising_report_get_data_length(packet);
         data = gap_event_advertising_report_get_data(packet);
@@ -120,7 +120,7 @@ void BT::configure(Config const& config)
     p_configured = true;
 }
 
-bool BT::start(std::function<void(bool state)> start_cb)
+bool BT::start(std::function<void(bool started, uint8_t state)> start_cb)
 {
     if (p_configured && start_cb) {
         p_start_cb = start_cb;
@@ -130,7 +130,7 @@ bool BT::start(std::function<void(bool state)> start_cb)
     return false;
 }
 
-void BT::enable_scan(std::function<void(AdReport const& report)> ad_report_cb, 
+void BT::enable_scan(std::function<void(AdReport& report)> ad_report_cb, 
                      std::function<bool(AdReport const& report)> filter,
                      bool only_connectable)
 {
@@ -180,6 +180,20 @@ BT::Result BT::connect(bd_addr_t addr,
     }
     set_idle_state();
     return Result::InternalError;
+}
+
+void BT::clear_bonding_data()
+{
+    int addr_type;
+    bd_addr_t addr; 
+    sm_key_t irk;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
+            le_device_db_remove(i);
+        }
+    }
 }
 
 BT::Result BT::Remote::disconnect(uint8_t* bt_err)
@@ -249,7 +263,7 @@ BT::Result BT::Remote::discover_characteristics(std::function<void(uint8_t statu
 }
 
 BT::Result BT::Remote::read_characteristic_values(etl::span<uint16_t> value_handles,
-        std::function<void(Remote* remote, uint8_t const* data, uint16_t len)> char_val_cb,
+        std::function<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
         std::function<void(uint8_t status, Remote* remote)> char_val_complete_cb,
         uint8_t* bt_err)
 {
@@ -459,25 +473,26 @@ void BT::hci_handler(uint8_t packet_type,
     switch(hci_ev_type) {
         /* BTStack sends this event at startup */
         case BTSTACK_EVENT_STATE:
+        {
             if (bt.p_base_state != BaseState::Starting) { return; }
-            if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING) {
-                bt.p_base_state = BaseState::Stopped;
-                return bt.p_start_cb(false);
+            uint8_t start_state = btstack_event_state_get_state(packet);
+            if (start_state == HCI_STATE_WORKING) {
+                gap_local_bd_addr(bt.p_local_addr);
+                gap_set_connection_parameters(
+                    bt.p_config.scan_interval,
+                    bt.p_config.scan_window,
+                    bt.p_config.min_conn_interval,
+                    bt.p_config.max_conn_interval,
+                    bt.p_config.conn_latency,
+                    bt.p_config.supervision_timeout,
+                    bt.p_config.min_ce,
+                    bt.p_config.max_ce
+                );
+                bt.p_base_state = BaseState::Idle;
+                return bt.p_start_cb(true, 0U);
             }
-            gap_local_bd_addr(bt.p_local_addr);
-            gap_set_connection_parameters(
-                bt.p_config.scan_interval,
-                bt.p_config.scan_window,
-                bt.p_config.min_conn_interval,
-                bt.p_config.max_conn_interval,
-                bt.p_config.conn_latency,
-                bt.p_config.supervision_timeout,
-                bt.p_config.min_ce,
-                bt.p_config.max_ce
-            );
-            bt.p_base_state = BaseState::Idle;
-            return bt.p_start_cb(true);
-            
+            break;
+        }
         /* Handle advertising reports here */
         case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
         case GAP_EVENT_ADVERTISING_REPORT:
@@ -574,6 +589,7 @@ void BT::gatt_handler(uint8_t packet_type,
             if (!r) { return; }
             if (r->state != RemoteState::ReadCharVal) { return; }
             r->p_char_val_cb(r,
+                             gatt_event_characteristic_value_query_result_get_value_handle(packet),
                              gatt_event_characteristic_value_query_result_get_value(packet),
                              gatt_event_characteristic_value_query_result_get_value_length(packet));
             break;
@@ -619,7 +635,7 @@ void BT::gatt_handler(uint8_t packet_type,
                     }
                     r->curr_service_char_index = 0;
                     r->state = RemoteState::Connected;
-                    r->p_services_cb(status, r);
+                    r->p_char_cb(status, r);
                     break;
                 case RemoteState::ReadCharVal:
                     r->state = RemoteState::Connected;
@@ -696,7 +712,7 @@ void BT::sm_handler(uint8_t packet_type,
     BT& bt = BT::instance();
 
     uint8_t ev_type = hci_event_packet_get_type(packet);
-    if (bt.p_base_state != BaseState::IdentityResolve) { 
+    if (bt.p_base_state == BaseState::IdentityResolve) { 
         switch(ev_type) {
             case SM_EVENT_IDENTITY_RESOLVING_STARTED:
                 break;
@@ -705,7 +721,7 @@ void BT::sm_handler(uint8_t packet_type,
                 bt.p_curr_add_report->identity_resolved = true;
                 sm_event_identity_resolving_succeeded_get_address(packet, 
                                                                   bt.p_curr_add_report->address);
-                bt.p_curr_add_report->address_type = sm_event_identity_resolving_succeeded_get_addr_type(packet);
+                bt.p_curr_add_report->address_type = (bd_addr_type_t)sm_event_identity_resolving_succeeded_get_addr_type(packet);
                 if (bt.address_connected(bt.p_curr_add_report->address)) {
                     bt.p_base_state = BaseState::Scan;
                     return;
