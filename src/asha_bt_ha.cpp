@@ -644,6 +644,20 @@ struct HearingAidMgr
                 return false;
         }
     }
+
+    void set_led(LEDManager& led)
+    {
+        switch (hearing_aids.size()) {
+            case 0:
+                return led.set_led_pattern({.len = 2, .interval_ms = 250, .delay_ms = 0, .pattern = 0b10});
+            case 1:
+                return led.set_led_pattern({.len = 2, .interval_ms = 100, .delay_ms = 0, .pattern = 0b10});
+            case 2:
+                return led.set_led(LEDManager::State::On);
+            default:
+                return led.set_led(LEDManager::State::Off);
+        }
+    }
 };
 
 /* Global variables */
@@ -651,20 +665,6 @@ struct HearingAidMgr
 static HearingAidMgr ha_mgr = {};
 
 static LEDManager led_mgr = {};
-
-static LEDManager::Pattern none_connected = {
-    .len = 2,
-    .interval_ms = 250,
-    .delay_ms = 0,
-    .pattern = 0b10
-};
-
-static LEDManager::Pattern one_connected = {
-    .len = 2,
-    .interval_ms = 100,
-    .delay_ms = 0,
-    .pattern = 0b10
-};
 
 static constexpr size_t json_resp_str_size = 4096;
 
@@ -716,11 +716,10 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
                 if (ha_mgr.set_complete()) {
                     LOG_INFO("Set complete");
                     runtime_settings.set_full_set_paired(true);
-                    led_mgr.set_led(LEDManager::State::On);
                 } else {
-                    led_mgr.set_led_pattern(one_connected);
                     bt.continue_scan();
                 }
+                ha_mgr.set_led(led_mgr);
                 ha.state = AudioReady;
                 break;
             case AudioReady:
@@ -839,7 +838,7 @@ static void on_bt_started(bool started, uint8_t bt_state)
 {
     if (started) {
         LOG_INFO("BT Started")
-        led_mgr.set_led_pattern(none_connected);
+        ha_mgr.set_led(led_mgr);
         auto& bt = BT::instance();
         bt.enable_scan(&on_ad_report, 
                        [](const AdReport &report) {
@@ -915,6 +914,7 @@ static void on_bt_disconnected(uint8_t reason, BT::Remote* remote)
     } else {
         LOG_ERROR("Remote %s disconnected with reason 0x%02x", bd_addr_to_str(remote->addr), reason);
     }
+    ha_mgr.set_led(led_mgr);
     bt.continue_scan();
 }
 
