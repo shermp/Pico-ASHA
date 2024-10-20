@@ -105,6 +105,7 @@ public:
     enum class RemoteState {
         Invalid,
         Connected,
+        SetDataLength,
         Disconnect,
         Bonding,
         ServiceDiscovery,
@@ -149,6 +150,18 @@ public:
         uint16_t  local_cid = 0U;
         bd_addr_t addr = {};
         etl::vector<Service*, max_num_services> services = {};
+
+        /**
+         * Set the le data length
+         * dle_cb will be called on completion
+         * Result will be WrongState if in incorrect state, 
+         * or Ok otherwise
+         */
+        Result set_data_length(
+            uint16_t pdu_len, 
+            uint16_t max_tx_time,
+            etl::delegate<void(Remote* remote)> dle_cb
+        );
 
         /**
          * Disconnect from remote.
@@ -305,6 +318,7 @@ public:
         
     private:
         /* Callbacks */
+        etl::delegate<void(Remote*)> p_dle_cb;
         etl::delegate<void(uint8_t, uint8_t, Remote*)> p_bond_cb;
         etl::delegate<void(uint8_t, Remote*)> p_services_cb;
         etl::delegate<void(uint8_t, Remote*)> p_char_cb;

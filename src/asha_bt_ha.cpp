@@ -55,6 +55,11 @@ namespace ACPStatus
     constexpr uint8_t conn_param_updated = 2;
 }
 
+/* Data length variables */
+
+static constexpr uint16_t pdu_len = 167u;
+static constexpr uint16_t max_tx_time = 1064;
+
 /* Static function declarations */
 
 static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker);
@@ -118,6 +123,7 @@ HearingAid::HearingAid(BT::Remote* r) : remote(r)
 
     on_services_discovered_d.set<HearingAid, &HearingAid::on_services_discovered>(*this);
     service_filter_d.set<HearingAid, &HearingAid::service_filter>(*this);
+    on_data_length_set_d.set<HearingAid, &HearingAid::on_data_length_set>(*this);
     on_paired_and_bonded_d.set<HearingAid, &HearingAid::on_paired_and_bonded>(*this);
     on_chars_discovered_d.set<HearingAid, &HearingAid::on_chars_discovered>(*this);
     discover_chars_filter_d.set<HearingAid, &HearingAid::discover_chars_filter>(*this);
@@ -224,6 +230,24 @@ void HearingAid::discover_services()
         state = State::Connected;
     }
     return;
+}
+
+void HearingAid::on_data_length_set(BT::Remote*)
+{
+    LOG_INFO("%s: Data length set", bd_addr_to_str(remote->addr));
+    state = State::DataLengthSet;
+}
+
+void HearingAid::set_data_length()
+{
+    LOG_INFO("%s: Setting data length", bd_addr_to_str(remote->addr));
+    state = State::SetDataLength;
+    BT::Result res = remote->set_data_length(pdu_len, max_tx_time, on_data_length_set_d);
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        LOG_ERROR("%s: Failed to set data length", bd_addr_to_str(remote->addr));
+        disconnect();
+    }
 }
 
 void HearingAid::on_paired_and_bonded(uint8_t status, uint8_t reason, BT::Remote*)
@@ -665,6 +689,10 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
                 ha.discover_services();
                 break;
             case ServicesDiscovered:
+                LOG_INFO("%s: Set Data Length", bd_addr_to_str(ha.remote->addr));
+                ha.set_data_length();
+                break;
+            case DataLengthSet:
                 LOG_INFO("%s: Pair and bond", bd_addr_to_str(ha.remote->addr));
                 ha.pair_and_bond();
                 break;

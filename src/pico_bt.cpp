@@ -196,6 +196,24 @@ void BT::clear_bonding_data()
     }
 }
 
+BT::Result BT::Remote::set_data_length(uint16_t pdu_len, 
+        uint16_t max_tx_time,
+        etl::delegate<void(Remote* remote)> dle_cb)
+{
+    p_dle_cb = dle_cb;
+    if (state == RemoteState::Connected) {
+        state = RemoteState::SetDataLength;
+        while (1) {
+            if (hci_can_send_command_packet_now()) {
+                hci_send_cmd(&hci_le_set_data_length, con_handle, pdu_len, max_tx_time);
+                break;
+            }
+        }
+        return Result::Ok;
+    }
+    return Result::WrongState;
+}
+
 BT::Result BT::Remote::disconnect(uint8_t* bt_err)
 {
     if (state == RemoteState::Connected) {
@@ -531,6 +549,17 @@ void BT::hci_handler(uint8_t packet_type,
             }
             bt.p_base_state = BaseState::Idle;
             bt.p_connect_cb(status, nullptr);
+            break;
+        }
+        case HCI_EVENT_LE_META:
+        {
+            if (hci_event_le_meta_get_subevent_code(packet) == HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE) {
+                Remote* r = bt.get_by_con_handle(hci_subevent_le_data_length_change_get_connection_handle(packet));
+                if (!r) { return; }
+                if (r->state != RemoteState::SetDataLength) { return; }
+                r->state = RemoteState::Connected;
+                r->p_dle_cb(r);
+            }
             break;
         }
         case HCI_EVENT_DISCONNECTION_COMPLETE:
