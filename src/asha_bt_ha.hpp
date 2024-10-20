@@ -53,6 +53,8 @@ struct HearingAid
         Disconnecting,
         DiscoveringServices,
         ServicesDiscovered,
+        SetDataLength,
+        DataLengthSet,
         PairAndBonding,
         PairedAndBonded,
         DiscoverChars,
@@ -116,6 +118,8 @@ struct HearingAid
     void discover_services();
     void on_services_discovered(uint8_t status, BT::Remote*);
     bool service_filter(BT::Service const& service);
+    void set_data_length();
+    void on_data_length_set(BT::Remote*);
     void pair_and_bond();
     void on_paired_and_bonded(uint8_t status, uint8_t reason, BT::Remote*);
     void discover_characteristics();
@@ -142,6 +146,7 @@ private:
     /* Delegate variables */
     etl::delegate<void(uint8_t, BT::Remote*)> on_services_discovered_d;
     etl::delegate<bool(BT::Service const&)> service_filter_d;
+    etl::delegate<void(BT::Remote*)> on_data_length_set_d;
     etl::delegate<void(uint8_t, uint8_t, BT::Remote*)> on_paired_and_bonded_d;
     etl::delegate<void(uint8_t, BT::Remote*)> on_chars_discovered_d;
     etl::delegate<bool(gatt_client_characteristic_t*)> discover_chars_filter_d;
