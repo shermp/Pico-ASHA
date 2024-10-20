@@ -1,11 +1,9 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <tuple>
 
+#include <etl/delegate.h>
 #include <etl/set.h>
 #include <etl/span.h>
 #include <etl/string.h>
@@ -170,7 +168,7 @@ public:
          * may be said to provide more context
          */
         Result bond(
-            std::function<void(uint8_t status, uint8_t reason, Remote* remote)> bond_cb
+            etl::delegate<void(uint8_t status, uint8_t reason, Remote* remote)> bond_cb
         );
 
         /**
@@ -182,8 +180,8 @@ public:
          * underlying btstack error code
          */
         Result discover_services(
-            std::function<void(uint8_t status, Remote* remote)> services_cb,
-            std::function<bool(Service const& filter)> filter_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> services_cb,
+            etl::delegate<bool(Service const& filter)> filter_cb,
             uint8_t* bt_err
         );
 
@@ -199,8 +197,8 @@ public:
          * btstack error code, or an ATT status
          */
         Result discover_characteristics(
-            std::function<void(uint8_t status, Remote* remote)> char_cb,
-            std::function<bool(gatt_client_characteristic_t* filter)> filter_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> char_cb,
+            etl::delegate<bool(gatt_client_characteristic_t* filter)> filter_cb,
             uint8_t* bt_err
         );
 
@@ -217,8 +215,8 @@ public:
          */
         Result read_characteristic_values(
             etl::span<uint16_t> value_handles,
-            std::function<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
-            std::function<void(uint8_t status, Remote* remote)> char_val_complete_cb,
+            etl::delegate<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> char_val_complete_cb,
             uint8_t* bt_err
         );
 
@@ -250,7 +248,7 @@ public:
             uint16_t val_handle,
             uint8_t* data,
             uint16_t len,
-            std::function<void(uint8_t status, Remote* remote)> char_write_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> char_write_cb,
             uint8_t* bt_err
         );
 
@@ -263,8 +261,8 @@ public:
          */
         Result enable_notification(
             gatt_client_characteristic_t* characteristic,
-            std::function<void(Remote* remote, uint8_t const* data, uint16_t len)> char_not_val_cb,
-            std::function<void(uint8_t status, Remote* remote)> char_not_en_cb,
+            etl::delegate<void(Remote* remote, uint8_t const* data, uint16_t len)> char_not_val_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> char_not_en_cb,
             uint8_t* bt_err
         );
 
@@ -282,8 +280,8 @@ public:
             uint16_t psm,
             uint8_t* receive_buff,
             uint16_t receive_len,
-            std::function<void(uint8_t status, Remote* remote)> l2cap_created_cb,
-            std::function<void(Remote* remote)> l2cap_write_cb,
+            etl::delegate<void(uint8_t status, Remote* remote)> l2cap_created_cb,
+            etl::delegate<void(Remote* remote)> l2cap_write_cb,
             uint8_t* bt_err
         );
 
@@ -307,20 +305,20 @@ public:
         
     private:
         /* Callbacks */
-        std::function<void(uint8_t, uint8_t, Remote*)> p_bond_cb;
-        std::function<void(uint8_t, Remote*)> p_services_cb;
-        std::function<void(uint8_t, Remote*)> p_char_cb;
-        std::function<void(Remote*, uint16_t, uint8_t const*, uint16_t)> p_char_val_cb;
-        std::function<void(uint8_t, Remote*)> p_char_val_complete_cb;
-        std::function<void(uint8_t, Remote*)> p_char_write_cb;
-        std::function<void(Remote*, uint8_t const*, uint16_t)> p_char_not_val_cb;
-        std::function<void(uint8_t, Remote*)> p_char_not_en_cb;
-        std::function<void(uint8_t, Remote*)> p_l2cap_created_cb;
-        std::function<void(Remote*)> p_l2cap_write_cb;
+        etl::delegate<void(uint8_t, uint8_t, Remote*)> p_bond_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_services_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_char_cb;
+        etl::delegate<void(Remote*, uint16_t, uint8_t const*, uint16_t)> p_char_val_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_char_val_complete_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_char_write_cb;
+        etl::delegate<void(Remote*, uint8_t const*, uint16_t)> p_char_not_val_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_char_not_en_cb;
+        etl::delegate<void(uint8_t, Remote*)> p_l2cap_created_cb;
+        etl::delegate<void(Remote*)> p_l2cap_write_cb;
 
         /* Filters */
-        std::function<bool(Service const&)> p_service_filter_cb;
-        std::function<bool(gatt_client_characteristic_t*)> p_char_filter_cb;
+        etl::delegate<bool(Service const&)> p_service_filter_cb;
+        etl::delegate<bool(gatt_client_characteristic_t*)> p_char_filter_cb;
 
         /* Variables */
         size_t curr_service_char_index = 0;
@@ -355,7 +353,7 @@ public:
      * the bt stack has started its event loop, or it has
      * failed to start.
      */
-    bool start(std::function<void(bool started, uint8_t status)> start_cb);
+    bool start(etl::delegate<void(bool started, uint8_t status)> start_cb);
 
     /** 
      * Enable scanning for advertisement packets.
@@ -363,8 +361,8 @@ public:
      * had its identity resolved, or matches filter 
      */
     void enable_scan(
-        std::function<void(AdReport& report)> ad_report_cb,
-        std::function<bool(AdReport const& report)> filter,
+        etl::delegate<void(AdReport& report)> ad_report_cb,
+        etl::delegate<bool(AdReport const& report)> filter,
         bool only_connectable = true
     );
     
@@ -386,8 +384,8 @@ public:
     Result connect(
         bd_addr_t addr, 
         bd_addr_type_t addr_type,
-        std::function<void(uint8_t status, Remote* remote)> connect_cb,
-        std::function<void(uint8_t reason, Remote* remote)> disconnect_cb,
+        etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
+        etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb,
         uint8_t* bt_err
     );
 
@@ -419,13 +417,13 @@ private:
     etl::vector<Remote, MAX_NR_HCI_CONNECTIONS> remotes;
 
     /* Callbacks */
-    std::function<void(bool, uint8_t)> p_start_cb;
-    std::function<void(AdReport&)> p_ad_report_cb;
-    std::function<void(uint8_t, Remote*)> p_connect_cb;
-    std::function<void(uint8_t, Remote*)> p_disconnect_cb;
+    etl::delegate<void(bool, uint8_t)> p_start_cb;
+    etl::delegate<void(AdReport&)> p_ad_report_cb;
+    etl::delegate<void(uint8_t, Remote*)> p_connect_cb;
+    etl::delegate<void(uint8_t, Remote*)> p_disconnect_cb;
 
     /* Filters */
-    std::function<bool(AdReport const&)> p_scan_filter;
+    etl::delegate<bool(AdReport const&)> p_scan_filter;
 
     /* Private methods */
     AdReport& add_or_merge_ad_report(AdReport const& report);

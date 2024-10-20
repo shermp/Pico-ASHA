@@ -10,7 +10,9 @@
 #include <etl/vector.h>
 #include <etl/algorithm.h>
 #include <etl/bitset.h>
+#include <etl/delegate.h>
 
+#include "asha_bt_ha.hpp"
 #include "asha_audio.hpp"
 #include "asha_led.hpp"
 #include "asha_logging.h"
@@ -53,8 +55,6 @@ namespace ACPStatus
     constexpr uint8_t conn_param_updated = 2;
 }
 
-constexpr int8_t asha_mute = -128;
-
 /* Static function declarations */
 
 static void handle_bt_audio_pending_worker(async_context_t *context, async_when_pending_worker_t *worker);
@@ -64,6 +64,11 @@ static void on_bt_started(bool started, uint8_t bt_state);
 static void on_ad_report(AdReport &report);
 static void on_bt_connected(uint8_t status, BT::Remote* remote);
 static void on_bt_disconnected(uint8_t reason, BT::Remote* remote);
+
+static auto on_bt_started_delegate = etl::delegate<void(bool, uint8_t)>::create<on_bt_started>();
+static auto on_ad_report_delegate = etl::delegate<void(picobt::AdReport&)>::create<on_ad_report>();
+static auto on_bt_connected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_connected>();
+static auto on_bt_disconnected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_disconnected>();
 
 /* Utility functions */
 /* Get value from (sub) array of bytes */
@@ -107,557 +112,488 @@ namespace GapUUID
 
 /* Type definitions */
 
-enum class Side {Left = 0, Right = 1};
-enum class Mode {Mono = 0, Binaural = 1};
-
-// ASHA ReadOnlyProperties
-struct ROP {
-    uint8_t version;
-    Side side;
-    Mode mode;
-    bool csis_supported;
-    struct HiSyncID {
-        uint16_t manufacturer_id;
-        std::array<uint8_t, 6> unique_id;
-
-        bool operator==(const HiSyncID& other) const = default;
-        bool operator!=(const HiSyncID& other) const {return !(operator==(other));}
-    } id;
-    bool le_coc_supported;
-    uint16_t render_delay;
-    bool codec_16khz;
-    bool codec_24khz;
-
-    ROP() {}
-
-    void read(const uint8_t* data)
-    {
-        etl::bitset<8>  device_cap{data[1]};
-        etl::bitset<8>  feat_map{data[10]};
-        etl::bitset<16> codecs{get_val<uint16_t>(&data[15])};
-
-        version = data[0];
-        side = device_cap[0] ? Side::Right : Side::Left;
-        mode = device_cap[1] ? Mode::Binaural : Mode::Mono;
-        csis_supported = device_cap[2];
-        id.manufacturer_id = get_val<uint16_t>(&data[2]);
-        memcpy(id.unique_id.data(), &data[4], id.unique_id.size());
-        le_coc_supported = feat_map[0];
-        render_delay = get_val<uint16_t>(&data[11]);
-        codec_16khz = codecs[1];
-        codec_24khz = codecs[2];
-    }
-
-    void print_values()
-    {
-        LOG_INFO("ROP -"
-        " Side: %s,"
-        " Mode: %s,"
-        " M. ID: %04hx,"
-        " Delay: %hu,"
-        " 16KHz: %s,"
-        " 24KHz: %s",
-        (side == Side::Left ? "L" : "R"),
-        (mode == Mode::Binaural ? "B" : "M"),
-        id.manufacturer_id,
-        render_delay,
-        codec_16khz ? "Y" : "N",
-        codec_24khz ? "Y" : "N");
-    }
-
-    bool operator==(const ROP& other) const = default;
-    bool operator!=(const ROP& other) const {return !(operator==(other));}
-};
-
-struct HearingAid
+HearingAid::HearingAid(BT::Remote* r) : remote(r) 
 {
-    enum class State {
-        Connected,
-        Disconnecting,
-        DiscoveringServices,
-        ServicesDiscovered,
-        PairAndBonding,
-        PairedAndBonded,
-        DiscoverChars,
-        CharsDiscovered,
-        ReadChars,
-        CharsRead,
-        ConnectL2AP,
-        L2CAPConnected,
-        EnableASPNot,
-        ASPNotEnabled,
-        AudioReady,
-        AudioStarting,
-        AudioStarted,
-        AudioWorking,
-        AudioStopping,
-    };
+    /* Set delegates */
 
-    enum CharValRead : int {
-        DeviceName,
-        ReadOnlyProps,
-        PSM,
-        MaxNumVals
-    };
+    on_services_discovered_d.set<HearingAid, &HearingAid::on_services_discovered>(*this);
+    service_filter_d.set<HearingAid, &HearingAid::service_filter>(*this);
+    on_paired_and_bonded_d.set<HearingAid, &HearingAid::on_paired_and_bonded>(*this);
+    on_chars_discovered_d.set<HearingAid, &HearingAid::on_chars_discovered>(*this);
+    discover_chars_filter_d.set<HearingAid, &HearingAid::discover_chars_filter>(*this);
+    on_read_char_value_d.set<HearingAid, &HearingAid::on_read_char_value>(*this);
+    on_char_values_read_d.set<HearingAid, &HearingAid::on_char_values_read>(*this);
+    on_l2cap_connected_d.set<HearingAid, &HearingAid::on_l2cap_connected>(*this);
+    on_l2cap_write_d.set<HearingAid, &HearingAid::on_l2cap_write>(*this);
+    on_asp_notification_enabled_d.set<HearingAid, &HearingAid::on_asp_notification_enabled>(*this);
+    on_asp_notification_received_d.set<HearingAid, &HearingAid::on_asp_notification_received>(*this);
+    on_audio_start_written_d.set<HearingAid, &HearingAid::on_audio_start_written>(*this);
+    on_audio_stop_written_d.set<HearingAid, &HearingAid::on_audio_stop_written>(*this);
+}
 
-    enum class ACPOpCode : uint8_t {
-        Start = 1,
-        Stop = 2,
-        Status = 3,
-    };
+bool HearingAid::is_streaming()
+{
+    return state == State::AudioStarted || state == State::AudioWorking;
+}
 
-    State state = State::Connected;
-    int delay_counter = 0;
-    BT::Remote* remote = nullptr;
-    const char* side_str = "Unknown";
-    HearingAid* other_ha = nullptr;
-
-    uint32_t audio_w_index = 0U;
-    uint32_t audio_r_index = 0U;
-    const uint8_t* audio_data = nullptr;
-
-    uint16_t psm = 0U;
-    uint16_t outgoing_credits = 0U;
-    ROP rop = {};
-    etl::string<32> device_name = {};
-    struct Characteristics {
-        gatt_client_characteristic_t* acp = nullptr;
-        gatt_client_characteristic_t* asp = nullptr;
-        gatt_client_characteristic_t* vol = nullptr;
-    } asha_chars = {};
-    etl::array<uint16_t, CharValRead::MaxNumVals> read_val_handles = {};
-    etl::array<uint8_t, sdu_size_bytes> receive_buff = {};
-    etl::array<uint8_t, 5> acp_cmd_packet = {};
-    int8_t volume = asha_mute;
-    uint8_t bt_err = 0U;
-
-    HearingAid(BT::Remote* r) : remote(r) {}
-
-    bool is_streaming()
-    {
-        return state == State::AudioStarted || state == State::AudioWorking;
-    }
-
-    void set_characteristic_data()
-    {
-        if (remote) {
-            for (auto s : remote->services) {
-                for (auto& c : s->chars) {
-                    UUID u16(c.uuid16);
-                    UUID u128(c.uuid128);
-                    uint16_t val_handle = c.value_handle;
-                    if (u16 == GapUUID::deviceName16) {
-                        LOG_INFO("%s: Got device name char", bd_addr_to_str(remote->addr));
-                        read_val_handles[CharValRead::DeviceName] = val_handle;
-                    } else if (u128 == AshaUUID::readOnlyProps) {
-                        LOG_INFO("%s: Got ROP char", bd_addr_to_str(remote->addr));
-                        read_val_handles[CharValRead::ReadOnlyProps] = val_handle;
-                    } else if (u128 == AshaUUID::psm) {
-                        LOG_INFO("%s: Got PSM char", bd_addr_to_str(remote->addr));
-                        read_val_handles[CharValRead::PSM] = val_handle;
-                    } else if (u128 == AshaUUID::audioControlPoint) {
-                        LOG_INFO("%s: Got ACP char", bd_addr_to_str(remote->addr));
-                        asha_chars.acp = &c;
-                    } else if (u128 == AshaUUID::audioStatus) {
-                        LOG_INFO("%s: Got ASP char", bd_addr_to_str(remote->addr));
-                        asha_chars.asp = &c;
-                    } else if (u128 == AshaUUID::volume) {
-                        LOG_INFO("%s: Got Volume char", bd_addr_to_str(remote->addr));
-                        asha_chars.vol = &c;
-                    }
+void HearingAid::set_characteristic_data()
+{
+    if (remote) {
+        for (auto s : remote->services) {
+            for (auto& c : s->chars) {
+                UUID u16(c.uuid16);
+                UUID u128(c.uuid128);
+                uint16_t val_handle = c.value_handle;
+                if (u16 == GapUUID::deviceName16) {
+                    LOG_INFO("%s: Got device name char", bd_addr_to_str(remote->addr));
+                    read_val_handles[CharValRead::DeviceName] = val_handle;
+                } else if (u128 == AshaUUID::readOnlyProps) {
+                    LOG_INFO("%s: Got ROP char", bd_addr_to_str(remote->addr));
+                    read_val_handles[CharValRead::ReadOnlyProps] = val_handle;
+                } else if (u128 == AshaUUID::psm) {
+                    LOG_INFO("%s: Got PSM char", bd_addr_to_str(remote->addr));
+                    read_val_handles[CharValRead::PSM] = val_handle;
+                } else if (u128 == AshaUUID::audioControlPoint) {
+                    LOG_INFO("%s: Got ACP char", bd_addr_to_str(remote->addr));
+                    asha_chars.acp = &c;
+                } else if (u128 == AshaUUID::audioStatus) {
+                    LOG_INFO("%s: Got ASP char", bd_addr_to_str(remote->addr));
+                    asha_chars.asp = &c;
+                } else if (u128 == AshaUUID::volume) {
+                    LOG_INFO("%s: Got Volume char", bd_addr_to_str(remote->addr));
+                    asha_chars.vol = &c;
                 }
             }
         }
     }
+}
 
-    void disconnect() 
-    {
-        state = State::Disconnecting;
-        remote->disconnect(&bt_err); //TODO: add error handling
-    }
+void HearingAid::disconnect() 
+{
+    state = State::Disconnecting;
+    remote->disconnect(&bt_err); //TODO: add error handling
+}
 
-    void discover_services() 
-    {
-        LOG_INFO("%s: Discovering services", bd_addr_to_str(remote->addr));
-        state = State::DiscoveringServices;
-        BT::Result res = remote->discover_services(
-            [&](uint8_t status, BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Service discovery failed with ATT error 0x%02x", bd_addr_to_str(remote->addr), status);
-                    delay_counter = 500;
-                    state = State::Connected;
-                    return;
-                }
-                bool asha_found = false;
-                for (auto s : remote->services) {
-                    UUID u16(s->service.uuid16);
-                    UUID u128(s->service.uuid128);
-                    if (u16 == AshaUUID::service16 || u128 == AshaUUID::service) {
-                        asha_found = true;
-                        break;
-                    }
-                }
-                if (asha_found) {
-                    LOG_INFO("%s: ASHA service found", bd_addr_to_str(remote->addr));
-                    state = State::ServicesDiscovered;
-                } else {
-                    LOG_ERROR("%s: ASHA service not found", bd_addr_to_str(remote->addr));
-                    disconnect();
-                }
-                return;
-            },
-            [](BT::Service const& service) { 
-                UUID u16(service.service.uuid16);
-                UUID u128(service.service.uuid128);
-                return (u16 == AshaUUID::service16 || 
-                        u128 == AshaUUID::service || 
-                        u16 == GapUUID::service16);
-             },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::Connected;
-        }
+void HearingAid::on_services_discovered(uint8_t status, BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Service discovery failed with ATT error 0x%02x", bd_addr_to_str(remote->addr), status);
+        delay_counter = 500;
+        state = State::Connected;
         return;
     }
+    bool asha_found = false;
+    for (auto s : remote->services) {
+        UUID u16(s->service.uuid16);
+        UUID u128(s->service.uuid128);
+        if (u16 == AshaUUID::service16 || u128 == AshaUUID::service) {
+            asha_found = true;
+            break;
+        }
+    }
+    if (asha_found) {
+        LOG_INFO("%s: ASHA service found", bd_addr_to_str(remote->addr));
+        state = State::ServicesDiscovered;
+    } else {
+        LOG_ERROR("%s: ASHA service not found", bd_addr_to_str(remote->addr));
+        disconnect();
+    }
+    return;
+}
 
-    void pair_and_bond()
-    {
-        state = State::PairAndBonding;
-        BT::Result res = remote->bond(
-            [&](uint8_t status, uint8_t reason, BT::Remote*) {
-                if (status != ERROR_CODE_SUCCESS) {
-                    LOG_ERROR("%s: Pairing and bonding failed with status 0x%02x and reson 0x%02x", 
-                              bd_addr_to_str(remote->addr), status, reason);
-                    disconnect();
-                    return;
-                }
-                LOG_INFO("%s: Paired and bonded", bd_addr_to_str(remote->addr));
-                state = State::PairedAndBonded;
-                return;
+bool HearingAid::service_filter(BT::Service const& service)
+{
+    UUID u16(service.service.uuid16);
+    UUID u128(service.service.uuid128);
+    return (u16 == AshaUUID::service16 || 
+            u128 == AshaUUID::service || 
+            u16 == GapUUID::service16);
+}
+
+void HearingAid::discover_services() 
+{
+    LOG_INFO("%s: Discovering services", bd_addr_to_str(remote->addr));
+    state = State::DiscoveringServices;
+    BT::Result res = remote->discover_services(
+        on_services_discovered_d,
+        service_filter_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::Connected;
+    }
+    return;
+}
+
+void HearingAid::on_paired_and_bonded(uint8_t status, uint8_t reason, BT::Remote*)
+{
+    if (status != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Pairing and bonding failed with status 0x%02x and reson 0x%02x", 
+                    bd_addr_to_str(remote->addr), status, reason);
+        disconnect();
+        return;
+    }
+    LOG_INFO("%s: Paired and bonded", bd_addr_to_str(remote->addr));
+    state = State::PairedAndBonded;
+    return;
+}
+
+void HearingAid::pair_and_bond()
+{
+    state = State::PairAndBonding;
+    BT::Result res = remote->bond(on_paired_and_bonded_d);
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::ServicesDiscovered;
+    }
+    return;
+}
+
+void HearingAid::on_chars_discovered(uint8_t status, picobt::BT::Remote*)
+{
+    if (status != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Characteristic discovery failed with status 0x%02x",
+                    bd_addr_to_str(remote->addr), status);
+        delay_counter = 500;
+        state = State::PairedAndBonded;
+        return;
+    }
+    set_characteristic_data();
+    LOG_INFO("%s: Characteristics discovered", bd_addr_to_str(remote->addr));
+    state = State::CharsDiscovered;
+    return;
+}
+
+bool HearingAid::discover_chars_filter(gatt_client_characteristic_t*)
+{
+    return true;
+}
+
+void HearingAid::discover_characteristics()
+{
+    state = State::DiscoverChars;
+    BT::Result res = remote->discover_characteristics(
+        on_chars_discovered_d,
+        discover_chars_filter_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::PairedAndBonded;
+    }
+    return;
+}
+
+void HearingAid::on_read_char_value(BT::Remote*, uint16_t val_handle, const uint8_t *data, uint16_t len)
+{
+    if (val_handle == read_val_handles[CharValRead::DeviceName]) {
+        LOG_INFO("%s: Read device name", bd_addr_to_str(remote->addr));
+        device_name.append((const char*)data, len);
+    } else if (val_handle == read_val_handles[CharValRead::ReadOnlyProps]) {
+        LOG_INFO("%s: Read ROP", bd_addr_to_str(remote->addr));
+        rop.read(data);
+        side_str = rop.side == Side::Left ? "Left" : "Right";
+        rop.print_values();
+    } else if (val_handle == read_val_handles[CharValRead::PSM]) {
+        LOG_INFO("%s: Read PSM", bd_addr_to_str(remote->addr));
+        psm = get_val<uint16_t>(data);
+    }
+    return;
+}
+
+void HearingAid::on_char_values_read(uint8_t status, picobt::BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Read characteristic values failed with status 0x%02x",
+                    bd_addr_to_str(remote->addr), status);
+        delay_counter = 500;
+        state = State::CharsDiscovered;
+        return;
+    }
+    LOG_INFO("%s: Characteristics Read", side_str);
+    state = State::CharsRead;
+    return;
+}
+
+void HearingAid::read_characteristics()
+{
+    state = State::ReadChars;
+    BT::Result res = remote->read_characteristic_values(
+        etl::span<uint16_t>(read_val_handles),
+        on_read_char_value_d,
+        on_char_values_read_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::CharsDiscovered;
+    }
+    return;
+}
+
+void HearingAid::on_l2cap_connected(uint8_t status, BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Create l2cap channel failed with status 0x%02x",
+                    side_str, status);
+        delay_counter = 500;
+        state = State::CharsRead;
+        return;
+    }
+    LOG_INFO("%s: L2CAP CoC created", side_str);
+    state = State::L2CAPConnected;
+    return;
+}
+
+void HearingAid::on_l2cap_write(BT::Remote*)
+{
+    state = State::AudioStarted;
+}
+
+void HearingAid::connect_l2cap()
+{
+    state = State::ConnectL2AP;
+    BT::Result res = remote->create_l2cap_cbm_conn(
+        psm,
+        receive_buff.data(),
+        receive_buff.size(),
+        on_l2cap_connected_d,
+        on_l2cap_write_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::CharsRead;
+    }
+    return;
+}
+
+void HearingAid::on_asp_notification_enabled(uint8_t status, BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Enable ASP notification failed with status 0x%02x",
+                    side_str, status);
+        delay_counter = 500;
+        state = State::L2CAPConnected;
+        return;
+    }
+    LOG_INFO("%s: ASP Notification enabled", side_str);
+    state = State::ASPNotEnabled;
+    return;
+}
+
+void HearingAid::on_asp_notification_received(BT::Remote*, const uint8_t *data, uint16_t len)
+{
+    int8_t asp_status = (int8_t)data[0];
+    if (asp_status == ASPStatus::ok) {
+        LOG_INFO("%s: ASP Ok", side_str);
+        if (state == State::AudioStarting) {
+            state = State::AudioStarted;
+        } else if (state == State::AudioStopping) {
+            if (other_ha) {
+                other_ha->write_status(ACPStatus::other_disconnected);
             }
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::ServicesDiscovered;
-        }
-        return;
-    }
-
-    void discover_characteristics()
-    {
-        state = State::DiscoverChars;
-        BT::Result res = remote->discover_characteristics(
-            [&](uint8_t status, picobt::BT::Remote*) {
-                if (status != ERROR_CODE_SUCCESS) {
-                    LOG_ERROR("%s: Characteristic discovery failed with status 0x%02x",
-                              bd_addr_to_str(remote->addr), status);
-                    delay_counter = 500;
-                    state = State::PairedAndBonded;
-                    return;
-                }
-                set_characteristic_data();
-                LOG_INFO("%s: Characteristics discovered", bd_addr_to_str(remote->addr));
-                state = State::CharsDiscovered;
-                return;
-            },
-            [](gatt_client_characteristic_t*) { return true; },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::PairedAndBonded;
-        }
-        return;
-    }
-
-    void read_characteristics()
-    {
-        state = State::ReadChars;
-        BT::Result res = remote->read_characteristic_values(
-            etl::span<uint16_t>(read_val_handles),
-            [&](BT::Remote*, uint16_t val_handle, const uint8_t *data, uint16_t len) {
-                if (val_handle == read_val_handles[CharValRead::DeviceName]) {
-                    LOG_INFO("%s: Read device name", bd_addr_to_str(remote->addr));
-                    device_name.append((const char*)data, len);
-                } else if (val_handle == read_val_handles[CharValRead::ReadOnlyProps]) {
-                    LOG_INFO("%s: Read ROP", bd_addr_to_str(remote->addr));
-                    rop.read(data);
-                    side_str = rop.side == Side::Left ? "Left" : "Right";
-                    rop.print_values();
-                } else if (val_handle == read_val_handles[CharValRead::PSM]) {
-                    LOG_INFO("%s: Read PSM", bd_addr_to_str(remote->addr));
-                    psm = get_val<uint16_t>(data);
-                }
-                return;
-            },
-            [&](uint8_t status, picobt::BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Read characteristic values failed with status 0x%02x",
-                              bd_addr_to_str(remote->addr), status);
-                    delay_counter = 500;
-                    state = State::CharsDiscovered;
-                    return;
-                }
-                LOG_INFO("%s: Characteristics Read", side_str);
-                state = State::CharsRead;
-                return;
-            },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::CharsDiscovered;
-        }
-        return;
-    }
-
-    void connect_l2cap()
-    {
-        state = State::ConnectL2AP;
-        BT::Result res = remote->create_l2cap_cbm_conn(
-            psm,
-            receive_buff.data(),
-            receive_buff.size(),
-            [&](uint8_t status, BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Create l2cap channel failed with status 0x%02x",
-                              side_str, status);
-                    delay_counter = 500;
-                    state = State::CharsRead;
-                    return;
-                }
-                LOG_INFO("%s: L2CAP CoC created", side_str);
-                state = State::L2CAPConnected;
-                return;
-            },
-            [&](BT::Remote *) {
-                state = State::AudioStarted;
-            },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::CharsRead;
-        }
-        return;
-    }
-
-    void enable_asp_notification()
-    {
-        state = State::EnableASPNot;
-        BT::Result res = remote->enable_notification(
-            asha_chars.asp,
-            [&](BT::Remote*, const uint8_t *data, uint16_t len) {
-                int8_t asp_status = (int8_t)data[0];
-                if (asp_status == ASPStatus::ok) {
-                    LOG_INFO("%s: ASP Ok", side_str);
-                    if (state == State::AudioStarting) {
-                        state = State::AudioStarted;
-                    } else if (state == State::AudioStopping) {
-                        if (other_ha) {
-                            other_ha->write_status(ACPStatus::other_disconnected);
-                        }
-                        state = State::AudioReady;
-                    }
-                } else {
-                    LOG_ERROR("%s: ASP: %s", side_str, asp_status == ASPStatus::unkown_command ? "Unknown command" : "Illegal param");
-                }
-                return;
-            },
-            [&](uint8_t status, BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Enable ASP notification failed with status 0x%02x",
-                              side_str, status);
-                    delay_counter = 500;
-                    state = State::L2CAPConnected;
-                    return;
-                }
-                LOG_INFO("%s: ASP Notification enabled", side_str);
-                state = State::ASPNotEnabled;
-                return;
-            },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
-            state = State::L2CAPConnected;
-        }
-        return;
-    }
-
-    void write_status(uint8_t acp_status)
-    {
-        if (is_streaming()) {
-            acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Status);
-            acp_cmd_packet[1] = acp_status;
-            BT::Result res = remote->write_characteristic_value_no_resp(
-                asha_chars.acp->value_handle,
-                acp_cmd_packet.data(),
-                2U,
-                &bt_err
-            );
-            LOG_BT_RES(res, bt_err);
-        }
-    }
-
-    void start_audio()
-    {
-        state = State::AudioStarting;
-        LOG_INFO("%s: Starting audio", side_str);
-        acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Start); // Opcode
-        acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
-        acp_cmd_packet[2] = 0u; // Unkown audio type
-        acp_cmd_packet[3] = (uint8_t)volume; // Volume
-        acp_cmd_packet[4] = (other_ha && other_ha->is_streaming()) ? 1 : 0; // Otherstate
-        BT::Result res = remote->write_characteristic_value(
-            asha_chars.acp->value_handle,
-            acp_cmd_packet.data(),
-            acp_cmd_packet.size(),
-            [&](uint8_t status, BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Start audio failed with status 0x%02x",
-                              side_str, status);
-                    delay_counter = 500;
-                    state = State::AudioReady;
-                    return;
-                }
-            },
-            &bt_err
-        );
-        LOG_BT_RES(res, bt_err);
-        if (res != BT::Result::Ok) {
             state = State::AudioReady;
         }
-        return;
+    } else {
+        LOG_ERROR("%s: ASP: %s", side_str, asp_status == ASPStatus::unkown_command ? "Unknown command" : "Illegal param");
     }
+    return;
+}
 
-    void stop_audio()
-    {
-        state = State::AudioStopping;
-        LOG_INFO("%s: Stopping audio", side_str);
-        acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Stop);
-        BT::Result res = remote->write_characteristic_value(
+void HearingAid::enable_asp_notification()
+{
+    state = State::EnableASPNot;
+    BT::Result res = remote->enable_notification(
+        asha_chars.asp,
+        on_asp_notification_received_d,
+        on_asp_notification_enabled_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::L2CAPConnected;
+    }
+    return;
+}
+
+void HearingAid::write_status(uint8_t acp_status)
+{
+    if (is_streaming()) {
+        acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Status);
+        acp_cmd_packet[1] = acp_status;
+        BT::Result res = remote->write_characteristic_value_no_resp(
             asha_chars.acp->value_handle,
             acp_cmd_packet.data(),
-            1U,
-            [&](uint8_t status, BT::Remote*) {
-                if (status != ATT_ERROR_SUCCESS) {
-                    LOG_ERROR("%s: Stop audio failed with status 0x%02x",
-                              side_str, status);
-                    return;
-                }
-            },
+            2U,
             &bt_err
         );
         LOG_BT_RES(res, bt_err);
     }
+}
 
-    void set_volume(int8_t new_volume)
-    {
-        if (new_volume != volume) {
-            volume = new_volume;
-            LOG_INFO("%s: Setting volume to %d", side_str, volume);
-            if (is_streaming()) {
-                remote->write_characteristic_value_no_resp(
-                    asha_chars.vol->value_handle,
-                    (uint8_t*)&volume,
-                    1U,
-                    &bt_err
-                );
-            }
+void HearingAid::on_audio_start_written(uint8_t status, BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Start audio failed with status 0x%02x",
+                    side_str, status);
+        delay_counter = 500;
+        state = State::AudioReady;
+        return;
+    }
+}
+
+void HearingAid::start_audio()
+{
+    state = State::AudioStarting;
+    LOG_INFO("%s: Starting audio", side_str);
+    acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Start); // Opcode
+    acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
+    acp_cmd_packet[2] = 0u; // Unkown audio type
+    acp_cmd_packet[3] = (uint8_t)volume; // Volume
+    acp_cmd_packet[4] = (other_ha && other_ha->is_streaming()) ? 1 : 0; // Otherstate
+    BT::Result res = remote->write_characteristic_value(
+        asha_chars.acp->value_handle,
+        acp_cmd_packet.data(),
+        acp_cmd_packet.size(),
+        on_audio_start_written_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+    if (res != BT::Result::Ok) {
+        state = State::AudioReady;
+    }
+    return;
+}
+
+void HearingAid::on_audio_stop_written(uint8_t status, BT::Remote*)
+{
+    if (status != ATT_ERROR_SUCCESS) {
+        LOG_ERROR("%s: Stop audio failed with status 0x%02x",
+                    side_str, status);
+        return;
+    }
+}
+
+void HearingAid::stop_audio()
+{
+    state = State::AudioStopping;
+    LOG_INFO("%s: Stopping audio", side_str);
+    acp_cmd_packet[0] = static_cast<uint8_t>(ACPOpCode::Stop);
+    BT::Result res = remote->write_characteristic_value(
+        asha_chars.acp->value_handle,
+        acp_cmd_packet.data(),
+        1U,
+        on_audio_stop_written_d,
+        &bt_err
+    );
+    LOG_BT_RES(res, bt_err);
+}
+
+void HearingAid::set_volume(int8_t new_volume)
+{
+    if (new_volume != volume) {
+        volume = new_volume;
+        LOG_INFO("%s: Setting volume to %d", side_str, volume);
+        if (is_streaming()) {
+            remote->write_characteristic_value_no_resp(
+                asha_chars.vol->value_handle,
+                (uint8_t*)&volume,
+                1U,
+                &bt_err
+            );
         }
     }
+}
 
-    void send_audio(uint32_t write_index)
-    {
-        if (write_index > audio_w_index) {
-            audio_w_index = write_index;
-        }
-        if (outgoing_credits == 0) {
-            LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
-            stop_audio();
-            return;
-        }
-        if (audio_r_index >= audio_w_index) {
-            return;
-        }
-        state = State::AudioWorking;
-        if ((audio_w_index - audio_r_index) >= 2) {
-            audio_r_index = audio_w_index - 1;
-        }
-        AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(audio_r_index);
-        audio_data = rop.side == Side::Left ? packet.l.data() : packet.r.data();
-        ++audio_r_index;
-        remote->send_l2cap_data(audio_data, sdu_size_bytes, &bt_err);
+void HearingAid::send_audio(uint32_t write_index)
+{
+    if (write_index > audio_w_index) {
+        audio_w_index = write_index;
     }
-};
+    if (outgoing_credits == 0) {
+        LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
+        stop_audio();
+        return;
+    }
+    if (audio_r_index >= audio_w_index) {
+        return;
+    }
+    state = State::AudioWorking;
+    if ((audio_w_index - audio_r_index) >= 2) {
+        audio_r_index = audio_w_index - 1;
+    }
+    AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(audio_r_index);
+    audio_data = rop.side == Side::Left ? packet.l.data() : packet.r.data();
+    ++audio_r_index;
+    remote->send_l2cap_data(audio_data, sdu_size_bytes, &bt_err);
+}
 
 struct HearingAidMgr
 {
-    etl::vector<HearingAid, 2> hearing_aids = {};
+etl::vector<HearingAid, 2> hearing_aids = {};
 
-    HearingAid* get_ha_from_remote(BT::Remote* remote) 
-    {
-        for (auto& ha : hearing_aids) {
-            if (ha.remote == remote) {
-                return &ha;
-            }
-        }
-        return nullptr;
-    }
-
-    bool add_ha_from_remote(BT::Remote* remote)
-    {
-        if (!hearing_aids.full()) {
-            hearing_aids.emplace_back(remote);
-            if (hearing_aids.size() > 1) {
-                hearing_aids[0].other_ha = &hearing_aids[1];
-                hearing_aids[1].other_ha = &hearing_aids[0];
-            }
-            return true;
-        }
-        LOG_ERROR("hearing_aids vector full");
-        return false;
-    }
-
-    void remove_ha(HearingAid* hearing_aid)
-    {
-        etl::erase_if(hearing_aids, [hearing_aid](HearingAid& ha) { return &ha == hearing_aid; });
-    }
-
-    /**
-     * Test if a complete set of hearing aids is connected
-     */
-    bool set_complete()
-    {
-        switch (hearing_aids.size()) {
-            case 1:
-                return hearing_aids[0].rop.id.manufacturer_id > 0U &&
-                       hearing_aids[0].rop.mode == Mode::Mono;
-            case 2:
-                return hearing_aids[0].rop.id.manufacturer_id > 0U &&
-                       hearing_aids[1].rop.id.manufacturer_id > 0U &&
-                       hearing_aids[0].rop.id == hearing_aids[1].rop.id;
-            default:
-                return false;
+HearingAid* get_ha_from_remote(BT::Remote* remote) 
+{
+    for (auto& ha : hearing_aids) {
+        if (ha.remote == remote) {
+            return &ha;
         }
     }
+    return nullptr;
+}
 
-    void set_led(LEDManager& led)
-    {
-        switch (hearing_aids.size()) {
-            case 0:
-                return led.set_led_pattern({.len = 2, .interval_ms = 250, .delay_ms = 0, .pattern = 0b10});
-            case 1:
-                return led.set_led_pattern({.len = 2, .interval_ms = 100, .delay_ms = 0, .pattern = 0b10});
-            case 2:
-                return led.set_led(LEDManager::State::On);
-            default:
-                return led.set_led(LEDManager::State::Off);
+bool add_ha_from_remote(BT::Remote* remote)
+{
+    if (!hearing_aids.full()) {
+        hearing_aids.emplace_back(remote);
+        if (hearing_aids.size() > 1) {
+            hearing_aids[0].other_ha = &hearing_aids[1];
+            hearing_aids[1].other_ha = &hearing_aids[0];
         }
+        return true;
     }
+    LOG_ERROR("hearing_aids vector full");
+    return false;
+}
+
+void remove_ha(HearingAid* hearing_aid)
+{
+    etl::erase_if(hearing_aids, [hearing_aid](HearingAid& ha) { return &ha == hearing_aid; });
+}
+
+/**
+ * Test if a complete set of hearing aids is connected
+ */
+bool set_complete()
+{
+    switch (hearing_aids.size()) {
+        case 1:
+            return hearing_aids[0].rop.id.manufacturer_id > 0U &&
+                    hearing_aids[0].rop.mode == Mode::Mono;
+        case 2:
+            return hearing_aids[0].rop.id.manufacturer_id > 0U &&
+                    hearing_aids[1].rop.id.manufacturer_id > 0U &&
+                    hearing_aids[0].rop.id == hearing_aids[1].rop.id;
+        default:
+            return false;
+    }
+}
+
+void set_led(LEDManager& led)
+{
+    switch (hearing_aids.size()) {
+        case 0:
+            return led.set_led_pattern({.len = 2, .interval_ms = 250, .delay_ms = 0, .pattern = 0b10});
+        case 1:
+            return led.set_led_pattern({.len = 2, .interval_ms = 100, .delay_ms = 0, .pattern = 0b10});
+        case 2:
+            return led.set_led(LEDManager::State::On);
+        default:
+            return led.set_led(LEDManager::State::Off);
+    }
+}
 };
 
 /* Global variables */
@@ -669,6 +605,42 @@ static LEDManager led_mgr = {};
 static constexpr size_t json_resp_str_size = 4096;
 
 static etl::string<json_resp_str_size> response_json = {};
+
+/* Class member functions */
+void ROP::read(const uint8_t* data)
+{
+    etl::bitset<8>  device_cap{data[1]};
+    etl::bitset<8>  feat_map{data[10]};
+    etl::bitset<16> codecs{get_val<uint16_t>(&data[15])};
+
+    version = data[0];
+    side = device_cap[0] ? Side::Right : Side::Left;
+    mode = device_cap[1] ? Mode::Binaural : Mode::Mono;
+    csis_supported = device_cap[2];
+    id.manufacturer_id = get_val<uint16_t>(&data[2]);
+    memcpy(id.unique_id.data(), &data[4], id.unique_id.size());
+    le_coc_supported = feat_map[0];
+    render_delay = get_val<uint16_t>(&data[11]);
+    codec_16khz = codecs[1];
+    codec_24khz = codecs[2];
+}
+
+void ROP::print_values()
+{
+    LOG_INFO("ROP -"
+    " Side: %s,"
+    " Mode: %s,"
+    " M. ID: %04hx,"
+    " Delay: %hu,"
+    " 16KHz: %s,"
+    " 24KHz: %s",
+    (side == Side::Left ? "L" : "R"),
+    (mode == Mode::Binaural ? "B" : "M"),
+    id.manufacturer_id,
+    render_delay,
+    codec_16khz ? "Y" : "N",
+    codec_24khz ? "Y" : "N");
+}
 
 /* Static function definitions */
 
@@ -840,7 +812,7 @@ static void on_bt_started(bool started, uint8_t bt_state)
         LOG_INFO("BT Started")
         ha_mgr.set_led(led_mgr);
         auto& bt = BT::instance();
-        bt.enable_scan(&on_ad_report, 
+        bt.enable_scan(on_ad_report_delegate, 
                        [](const AdReport &report) {
                             for (auto& s : report.services) {
                                 UUID uuid16(s.uuid_16);
@@ -869,8 +841,8 @@ static void on_ad_report(AdReport &report)
     uint8_t bt_err = 0U;
     auto res = bt.connect(report.address, 
                           report.address_type, 
-                          &on_bt_connected, 
-                          &on_bt_disconnected,
+                          on_bt_connected_delegate, 
+                          on_bt_disconnected_delegate,
                           &bt_err);
     LOG_BT_RES(res, bt_err);
     if (res != BT::Result::Ok) {
@@ -960,7 +932,8 @@ extern "C" void bt_main()
     BT::Config cfg = {};
     bt.configure(cfg);
 
-    bt.start(&on_bt_started);
+    auto on_bt_started_delegate = etl::delegate<void (bool, uint8_t)>::create<on_bt_started>();
+    bt.start(on_bt_started_delegate);
 
     while(true) {
         sleep_ms(10000);
