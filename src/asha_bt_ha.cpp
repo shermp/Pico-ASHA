@@ -25,18 +25,6 @@ namespace asha
 {
 
 using namespace picobt;
-
-/* Filthy macros */
-
-#define LOG_BT_RES(res, err) switch ((res)) { \
-    case BT::Result::Ok: break; \
-    case BT::Result::BTError: LOG_ERROR("%s: BT error 0x%02x", __func__, (err)); break; \
-    case BT::Result::WrongState: LOG_ERROR("%s: In wrong state", __func__); break; \
-    case BT::Result::MaxConnections: LOG_ERROR("%s: max num connections", __func__); break; \
-    case BT::Result::InternalError: LOG_ERROR("%s: internal picobt error", __func__); break; \
-    default: LOG_ERROR("%s: unknown error", __func__); break; \
-}
-
 /* Constants */
 
 /* AudioStatusPoint notification value */
@@ -75,6 +63,8 @@ static auto on_ad_report_delegate = etl::delegate<void(picobt::AdReport&)>::crea
 static auto on_bt_connected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_connected>();
 static auto on_bt_disconnected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_disconnected>();
 
+static inline void log_bt_res(BT::Result res, uint8_t err, const char* msg);
+
 /* Utility functions */
 /* Get value from (sub) array of bytes */
 template<typename T>
@@ -83,6 +73,18 @@ static T get_val(const uint8_t *start)
     T val;
     std::memcpy(&val, start, sizeof(val));
     return val;
+}
+
+static inline void log_bt_res(BT::Result res, uint8_t err, const char* msg)
+{
+    switch (res) {
+        case BT::Result::Ok: break;
+        case BT::Result::BTError: LOG_ERROR("%s: BT error 0x%02x", msg, (err)); break;
+        case BT::Result::WrongState: LOG_ERROR("%s: In wrong state", msg); break;
+        case BT::Result::MaxConnections: LOG_ERROR("%s: max num connections", msg); break;
+        case BT::Result::InternalError: LOG_ERROR("%s: internal picobt error", msg); break;
+        default: LOG_ERROR("%s: unknown error", msg); break;
+    }
 }
 
 /* UUID definitions */
@@ -225,7 +227,7 @@ void HearingAid::discover_services()
         service_filter_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Discover services");
     if (res != BT::Result::Ok) {
         state = State::Connected;
     }
@@ -243,7 +245,7 @@ void HearingAid::set_data_length()
     LOG_INFO("%s: Setting data length", bd_addr_to_str(remote->addr));
     state = State::SetDataLength;
     BT::Result res = remote->set_data_length(pdu_len, max_tx_time, on_data_length_set_d);
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Set data length");
     if (res != BT::Result::Ok) {
         LOG_ERROR("%s: Failed to set data length", bd_addr_to_str(remote->addr));
         disconnect();
@@ -267,7 +269,7 @@ void HearingAid::pair_and_bond()
 {
     state = State::PairAndBonding;
     BT::Result res = remote->bond(on_paired_and_bonded_d);
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Pair and bond");
     if (res != BT::Result::Ok) {
         state = State::ServicesDiscovered;
     }
@@ -302,7 +304,7 @@ void HearingAid::discover_characteristics()
         discover_chars_filter_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Discover characteristics");
     if (res != BT::Result::Ok) {
         state = State::PairedAndBonded;
     }
@@ -349,7 +351,7 @@ void HearingAid::read_characteristics()
         on_char_values_read_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Read characteristics");
     if (res != BT::Result::Ok) {
         state = State::CharsDiscovered;
     }
@@ -386,7 +388,7 @@ void HearingAid::connect_l2cap()
         on_l2cap_write_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Connect L2CAP");
     if (res != BT::Result::Ok) {
         state = State::CharsRead;
     }
@@ -435,7 +437,7 @@ void HearingAid::enable_asp_notification()
         on_asp_notification_enabled_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Enable ASP notification");
     if (res != BT::Result::Ok) {
         state = State::L2CAPConnected;
     }
@@ -453,7 +455,7 @@ void HearingAid::write_status(uint8_t acp_status)
             2U,
             &bt_err
         );
-        LOG_BT_RES(res, bt_err);
+        log_bt_res(res, bt_err, "Write status");
     }
 }
 
@@ -484,7 +486,7 @@ void HearingAid::start_audio()
         on_audio_start_written_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Start audio");
     if (res != BT::Result::Ok) {
         state = State::AudioReady;
     }
@@ -512,7 +514,7 @@ void HearingAid::stop_audio()
         on_audio_stop_written_d,
         &bt_err
     );
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "Stop audio");
 }
 
 void HearingAid::set_volume(int8_t new_volume)
@@ -872,7 +874,7 @@ static void on_ad_report(AdReport &report)
                           on_bt_connected_delegate, 
                           on_bt_disconnected_delegate,
                           &bt_err);
-    LOG_BT_RES(res, bt_err);
+    log_bt_res(res, bt_err, "On AD Report");
     if (res != BT::Result::Ok) {
         LOG_INFO("Continue scanning");
         bt.continue_scan();
@@ -890,7 +892,7 @@ static void on_bt_connected(uint8_t status, BT::Remote* remote)
     if (!ha_mgr.add_ha_from_remote(remote)) {
         uint8_t bt_err;
         auto res = remote->disconnect(&bt_err);
-        LOG_BT_RES(res, bt_err);
+        log_bt_res(res, bt_err, "On BT Connected");
         return;
     }
     LOG_INFO("%s: Connected", bd_addr_to_str(remote->addr));
