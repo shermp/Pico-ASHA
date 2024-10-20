@@ -120,7 +120,7 @@ void BT::configure(Config const& config)
     p_configured = true;
 }
 
-bool BT::start(std::function<void(bool started, uint8_t state)> start_cb)
+bool BT::start(etl::delegate<void(bool started, uint8_t state)> start_cb)
 {
     if (p_configured && start_cb) {
         p_start_cb = start_cb;
@@ -130,8 +130,8 @@ bool BT::start(std::function<void(bool started, uint8_t state)> start_cb)
     return false;
 }
 
-void BT::enable_scan(std::function<void(AdReport& report)> ad_report_cb, 
-                     std::function<bool(AdReport const& report)> filter,
+void BT::enable_scan(etl::delegate<void(AdReport& report)> ad_report_cb, 
+                     etl::delegate<bool(AdReport const& report)> filter,
                      bool only_connectable)
 {
     if (!scan_enabled) {
@@ -159,8 +159,8 @@ BT::Result BT::continue_scan()
 
 BT::Result BT::connect(bd_addr_t addr, 
                     bd_addr_type_t addr_type,
-                    std::function<void(uint8_t status, Remote* remote)> connect_cb,
-                    std::function<void(uint8_t reason, Remote* remote)> disconnect_cb,
+                    etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
+                    etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb,
                     uint8_t* bt_err)
 {
     if (p_base_state == BaseState::Idle) {
@@ -210,7 +210,7 @@ BT::Result BT::Remote::disconnect(uint8_t* bt_err)
     return Result::WrongState;
 }
 
-BT::Result BT::Remote::bond(std::function<void(uint8_t status, uint8_t reason, Remote* remote)> bond_cb)
+BT::Result BT::Remote::bond(etl::delegate<void(uint8_t status, uint8_t reason, Remote* remote)> bond_cb)
 {
     p_bond_cb = bond_cb;
     if (state == RemoteState::Connected) {
@@ -221,8 +221,8 @@ BT::Result BT::Remote::bond(std::function<void(uint8_t status, uint8_t reason, R
     return Result::WrongState;
 }
 
-BT::Result BT::Remote::discover_services(std::function<void(uint8_t status, Remote* remote)> services_cb,
-        std::function<bool(Service const& filter)> filter_cb,
+BT::Result BT::Remote::discover_services(etl::delegate<void(uint8_t status, Remote* remote)> services_cb,
+        etl::delegate<bool(Service const& filter)> filter_cb,
         uint8_t* bt_err)
 {
     p_services_cb = services_cb;
@@ -240,8 +240,8 @@ BT::Result BT::Remote::discover_services(std::function<void(uint8_t status, Remo
     return Result::WrongState;
 }
 
-BT::Result BT::Remote::discover_characteristics(std::function<void(uint8_t status, Remote* remote)> char_cb,
-        std::function<bool(gatt_client_characteristic_t* filter)> filter_cb,
+BT::Result BT::Remote::discover_characteristics(etl::delegate<void(uint8_t status, Remote* remote)> char_cb,
+        etl::delegate<bool(gatt_client_characteristic_t* filter)> filter_cb,
         uint8_t* bt_err)
 {
     p_char_cb = char_cb;
@@ -263,8 +263,8 @@ BT::Result BT::Remote::discover_characteristics(std::function<void(uint8_t statu
 }
 
 BT::Result BT::Remote::read_characteristic_values(etl::span<uint16_t> value_handles,
-        std::function<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
-        std::function<void(uint8_t status, Remote* remote)> char_val_complete_cb,
+        etl::delegate<void(Remote* remote, uint16_t val_handle, uint8_t const* data, uint16_t len)> char_val_cb,
+        etl::delegate<void(uint8_t status, Remote* remote)> char_val_complete_cb,
         uint8_t* bt_err)
 {
     p_char_val_cb = char_val_cb;
@@ -298,7 +298,7 @@ BT::Result BT::Remote::write_characteristic_value_no_resp(uint16_t val_handle,
 BT::Result BT::Remote::write_characteristic_value(uint16_t val_handle,
         uint8_t* data,
         uint16_t len,
-        std::function<void(uint8_t status, Remote* remote)> char_write_cb,
+        etl::delegate<void(uint8_t status, Remote* remote)> char_write_cb,
         uint8_t* bt_err)
 {
     p_char_write_cb = char_write_cb;
@@ -322,8 +322,8 @@ BT::Result BT::Remote::write_characteristic_value(uint16_t val_handle,
 }
 
 BT::Result BT::Remote::enable_notification(gatt_client_characteristic_t* characteristic,
-        std::function<void(Remote* remote, uint8_t const* data, uint16_t len)> char_not_val_cb,
-        std::function<void(uint8_t status, Remote* remote)> char_not_en_cb,
+        etl::delegate<void(Remote* remote, uint8_t const* data, uint16_t len)> char_not_val_cb,
+        etl::delegate<void(uint8_t status, Remote* remote)> char_not_en_cb,
         uint8_t* bt_err)
 {
     p_char_not_val_cb = char_not_val_cb;
@@ -349,8 +349,8 @@ BT::Result BT::Remote::enable_notification(gatt_client_characteristic_t* charact
 BT::Result BT::Remote::create_l2cap_cbm_conn(uint16_t psm,
         uint8_t* receive_buff,
         uint16_t receive_len,
-        std::function<void(uint8_t status, Remote* remote)> l2cap_created_cb,
-        std::function<void(Remote* remote)> l2cap_write_cb,
+        etl::delegate<void(uint8_t status, Remote* remote)> l2cap_created_cb,
+        etl::delegate<void(Remote* remote)> l2cap_write_cb,
         uint8_t* bt_err)
 {
     p_l2cap_created_cb = l2cap_created_cb;
