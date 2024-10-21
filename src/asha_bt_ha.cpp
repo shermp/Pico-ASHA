@@ -147,8 +147,8 @@ bool HearingAid::is_streaming()
 void HearingAid::set_characteristic_data()
 {
     if (remote) {
-        for (auto s : remote->services) {
-            for (auto& c : s->chars) {
+        for (auto& s : remote->services) {
+            for (auto& c : s.chars) {
                 UUID u16(c.uuid16);
                 UUID u128(c.uuid128);
                 uint16_t val_handle = c.value_handle;
@@ -191,9 +191,9 @@ void HearingAid::on_services_discovered(uint8_t status, BT::Remote*)
         return;
     }
     bool asha_found = false;
-    for (auto s : remote->services) {
-        UUID u16(s->service.uuid16);
-        UUID u128(s->service.uuid128);
+    for (auto& s : remote->services) {
+        UUID u16(s.service.uuid16);
+        UUID u128(s.service.uuid128);
         if (u16 == AshaUUID::service16 || u128 == AshaUUID::service) {
             asha_found = true;
             break;
