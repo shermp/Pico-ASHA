@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <memory>
 
 #include <etl/delegate.h>
 #include <etl/set.h>
