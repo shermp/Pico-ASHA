@@ -149,7 +149,7 @@ public:
         hci_con_handle_t con_handle = HCI_CON_HANDLE_INVALID;
         uint16_t  local_cid = 0U;
         bd_addr_t addr = {};
-        etl::vector<Service*, max_num_services> services = {};
+        etl::vector<Service, max_num_services> services = {};
 
         /**
          * Set the le data length
@@ -312,7 +312,6 @@ public:
             uint8_t* bt_err
         );
 
-        ~Remote();
         explicit operator bool() const { return con_handle != HCI_CON_HANDLE_INVALID; }
         friend class BT;
         

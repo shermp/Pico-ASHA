@@ -1,4 +1,3 @@
-#include <etl/pool.h>
 #include <etl/algorithm.h>
 
 #include <pico/async_context.h>
@@ -7,10 +6,6 @@
 #include <hci_dump_embedded_stdout.h>
 
 namespace picobt {
-
-constexpr size_t service_pool_size = 16U;
-
-static etl::pool<BT::Service, service_pool_size> service_pool = {};
 
 constexpr uint8_t authreq_le_sec = SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION;
 constexpr uint8_t authreq_no_le_sec = SM_AUTHREQ_BONDING;
@@ -69,13 +64,6 @@ AdReport::AdReport(uint8_t* packet, bool extended)
         default:
             break;
         }
-    }
-}
-
-BT::Remote::~Remote()
-{
-    for (Service* s : services) {
-        service_pool.destroy(s);
     }
 }
 
@@ -269,7 +257,7 @@ BT::Result BT::Remote::discover_characteristics(etl::delegate<void(uint8_t statu
         uint8_t err = gatt_client_discover_characteristics_for_service(
             &BT::gatt_handler, 
             con_handle, 
-            &services[curr_service_char_index]->service);
+            &services[curr_service_char_index].service);
         if (err != ERROR_CODE_SUCCESS) {
             state = RemoteState::Connected;
             *bt_err = err;
@@ -594,13 +582,11 @@ void BT::gatt_handler(uint8_t packet_type,
             if (!r) { return; }
             if (r->state != RemoteState::ServiceDiscovery) { return; }
             if (r->services.full()) { return; }
-            Service* s = service_pool.create();
-            if (!s) { return; }
-            gatt_event_service_query_result_get_service(packet, &s->service);
-            if (r->p_service_filter_cb(*s)) {
-                r->services.push_back(s);
-            } else {
-                service_pool.destroy(s);
+            r->services.emplace_back();
+            Service& s = r->services.back();
+            gatt_event_service_query_result_get_service(packet, &s.service);
+            if (!r->p_service_filter_cb(s)) {
+                r->services.pop_back();
             }
             break;
         }
@@ -612,7 +598,7 @@ void BT::gatt_handler(uint8_t packet_type,
             gatt_client_characteristic_t c;
             gatt_event_characteristic_query_result_get_characteristic(packet, &c);
             if (r->p_char_filter_cb(&c)) {
-                auto& chars = r->services[r->curr_service_char_index]->chars;
+                auto& chars = r->services[r->curr_service_char_index].chars;
                 if (!chars.full()) {
                     chars.push_back(c);
                 }
@@ -661,7 +647,7 @@ void BT::gatt_handler(uint8_t packet_type,
                     if (r->curr_service_char_index < r->services.size()) {
                         uint8_t err = gatt_client_discover_characteristics_for_service(&BT::gatt_handler, 
                             r->con_handle, 
-                            &r->services[r->curr_service_char_index]->service);
+                            &r->services[r->curr_service_char_index].service);
                         if (err != ERROR_CODE_SUCCESS) {
                             r->state = RemoteState::Connected;
                             r->p_char_cb(err, r);
