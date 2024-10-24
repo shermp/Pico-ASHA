@@ -15,6 +15,7 @@ namespace asha
         constexpr const char UartSerial[] = "uart_serial";
         constexpr const char LogLevel[] = "log_level";
         constexpr const char HCIDump[] = "hci_dump";
+        constexpr const char Restart[] = "restart";
     };
 
     constexpr size_t stdin_str_size = 512u;
