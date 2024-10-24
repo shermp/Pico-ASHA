@@ -588,7 +588,7 @@ bool add_ha_from_remote(BT::Remote* remote)
 
 void remove_ha(HearingAid* hearing_aid)
 {
-    etl::erase_if(hearing_aids, [hearing_aid](HearingAid& ha) { return &ha == hearing_aid; });
+    etl::erase_if(hearing_aids, [hearing_aid](HearingAid const& ha) { return bd_addr_cmp(ha.remote->addr, hearing_aid->remote->addr) == 0; });
 }
 
 /**
