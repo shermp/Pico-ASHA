@@ -556,7 +556,7 @@ void BT::hci_handler(uint8_t packet_type,
             if (!r) { return; }
             uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
             bt.p_disconnect_cb(reason, r);
-            etl::erase_if(bt.remotes, [r](Remote& remote) { return r == &remote; });
+            etl::erase_if(bt.remotes, [r](Remote const& remote) { return bd_addr_cmp(r->addr, remote.addr) == 0; });
             break;
         }
         default:
