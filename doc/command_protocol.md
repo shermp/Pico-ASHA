@@ -192,3 +192,24 @@ Note, sending this command will restart Pico-ASHA.
     "success": true
 }
 ```
+
+### Restart
+
+Restart Pico-ASHA
+
+#### Command
+
+```json
+{
+    "cmd": "restart"
+}
+```
+
+#### Response
+
+```json
+{
+    "cmd": "restart",
+    "success": true
+}
+```

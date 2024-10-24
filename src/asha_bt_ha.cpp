@@ -63,6 +63,8 @@ static auto on_ad_report_delegate = etl::delegate<void(picobt::AdReport&)>::crea
 static auto on_bt_connected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_connected>();
 static auto on_bt_disconnected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_disconnected>();
 
+static void restart_pico();
+
 static inline void log_bt_res(BT::Result res, uint8_t err, const char* msg);
 
 /* Utility functions */
@@ -670,6 +672,12 @@ void ROP::print_values()
 
 /* Static function definitions */
 
+static void restart_pico()
+{
+    LOG_INFO("Restarting Pico-ASHA");
+    watchdog_enable(250, true);
+}
+
 static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *context, 
                                            [[maybe_unused]] async_when_pending_worker_t *worker)
 {
@@ -823,9 +831,11 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context, 
     } else if (cmd_is(SerCmd::HCIDump)) {
         bool hci_dump_enabled = cmd_doc["enabled"];
         if (runtime_settings.set_hci_dump_enabled(hci_dump_enabled)) {
-            LOG_INFO("Enabling Watchdog");
-            watchdog_enable(250, true);
+            restart_pico();
         }
+        resp_doc["success"] = true;
+    } else if (cmd_is(SerCmd::Restart)) {
+        restart_pico();
         resp_doc["success"] = true;
     }
     // else {
