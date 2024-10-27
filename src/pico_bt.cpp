@@ -136,9 +136,6 @@ void BT::enable_scan(etl::delegate<void(AdReport& report)> ad_report_cb,
 BT::Result BT::continue_scan()
 {
     if (scan_enabled && p_base_state == BaseState::Idle) {
-        if (remotes.full()) {
-            return Result::MaxConnections;
-        }
         p_base_state = BaseState::Scan;
         return Result::Ok;
     }
@@ -511,6 +508,7 @@ void BT::hci_handler(uint8_t packet_type,
         case GAP_EVENT_ADVERTISING_REPORT:
         {
             if (bt.p_base_state != BaseState::Scan) { return; }
+            if (bt.remotes.full()) { return; }
             AdReport ad_report(packet, hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT);
             AdReport& ad = bt.add_or_merge_ad_report(ad_report);
             if (bt.address_connected(ad.address)) { return; }
