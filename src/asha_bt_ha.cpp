@@ -927,7 +927,10 @@ static void on_bt_disconnected(uint8_t reason, BT::Remote* remote)
         LOG_ERROR("Remote %s disconnected with reason 0x%02x", bd_addr_to_str(remote->addr), reason);
     }
     ha_mgr.set_led(led_mgr);
-    bt.continue_scan();
+    if (bt.continue_scan() != BT::Result::Ok) {
+        LOG_ERROR("BT in wrong state to continue scanning");
+    } 
+    
 }
 
 extern "C" void bt_main()
