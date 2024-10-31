@@ -101,9 +101,9 @@ if (HAVE_DEP_ENNUM_ENUM_CONV)
     target_compile_options(pico_asha PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-enum-enum-conversion>)
 endif (HAVE_DEP_ENNUM_ENUM_CONV)
 
-target_compile_options(pico-asha PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>)
+target_compile_options(pico_asha PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>)
 
-target_compile_definitions(pico-asha PUBLIC ${pico_asha_defines})
+target_compile_definitions(pico_asha PUBLIC ${pico_asha_defines})
 
 pico_add_extra_outputs(pico_asha)
 
