@@ -113,6 +113,7 @@ public:
         WriteCharVal,
         EnableNotification,
         CreateL2CAP,
+        L2CAPDataPending,
         SendL2CAPData,
     };
 
@@ -121,6 +122,7 @@ public:
         InternalError,
         WrongState,
         MaxConnections,
+        TryAgain,
         BTError,
     };
 
@@ -296,6 +298,17 @@ public:
             etl::delegate<void(Remote* remote)> l2cap_write_cb,
             uint8_t* bt_err
         );
+
+        /**
+         * Prepare to send data over l2cap.
+         * Call try_send_current_l2cap_data to try and send data.
+         */
+        Result prepare_l2cap_data(
+            uint8_t const* data,
+            uint16_t len
+        );
+
+        Result try_send_current_l2cap_data(uint8_t* bt_err);
 
         /**
          * Send data on currently open L2CAP CoC channel

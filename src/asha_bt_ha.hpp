@@ -68,7 +68,8 @@ struct HearingAid
         AudioReady,
         AudioStarting,
         AudioStarted,
-        AudioWorking,
+        AudioPending,
+        AudioSending,
         AudioStopping,
     };
 

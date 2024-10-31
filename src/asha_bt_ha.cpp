@@ -143,7 +143,7 @@ HearingAid::HearingAid(BT::Remote* r) : remote(r)
 
 bool HearingAid::is_streaming()
 {
-    return state == State::AudioStarted || state == State::AudioWorking;
+    return state == State::AudioStarted || state == State::AudioPending || state == State::AudioSending;
 }
 
 void HearingAid::set_characteristic_data()
@@ -537,25 +537,49 @@ void HearingAid::set_volume(int8_t new_volume)
 
 void HearingAid::send_audio(uint32_t write_index)
 {
-    if (write_index > audio_w_index) {
-        audio_w_index = write_index;
+    switch (state) {
+        case State::AudioStarted:
+        {
+            audio_w_index = write_index;
+            if (audio_r_index >= audio_w_index) { return; }
+
+            if ((audio_w_index - audio_r_index) >= 2) {
+                audio_r_index = audio_w_index - 1;
+            }
+            AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(audio_r_index);
+            audio_data = rop.side == Side::Left ? packet.l.data() : packet.r.data();
+            ++audio_r_index;
+            state = State::AudioPending;
+            BT::Result res = remote->prepare_l2cap_data(audio_data, sdu_size_bytes);
+            log_bt_res(res, bt_err, "preparing audio");
+        };
+        [[fallthrough]];
+        case State::AudioPending:
+        {
+            if (outgoing_credits == 0) {
+                LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
+                stop_audio();
+                return;
+            }
+            state = State::AudioSending;
+            BT::Result res = remote->try_send_current_l2cap_data(&bt_err);
+            switch (res) {
+                case BT::Result::Ok:
+                    break;
+                case BT::Result::TryAgain:
+                    state = State::AudioPending;
+                    break;
+                default:
+                    log_bt_res(res, bt_err, "sending audio");
+                    state = State::AudioStarted;
+                    break;
+            }
+            break;
+        }
+        default:
+            break;
     }
-    if (outgoing_credits == 0) {
-        LOG_INFO("%s: Available credits: 0, restarting stream", side_str);
-        stop_audio();
-        return;
-    }
-    if (audio_r_index >= audio_w_index) {
-        return;
-    }
-    state = State::AudioWorking;
-    if ((audio_w_index - audio_r_index) >= 2) {
-        audio_r_index = audio_w_index - 1;
-    }
-    AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(audio_r_index);
-    audio_data = rop.side == Side::Left ? packet.l.data() : packet.r.data();
-    ++audio_r_index;
-    remote->send_l2cap_data(audio_data, sdu_size_bytes, &bt_err);
+    
 }
 
 struct HearingAidMgr
@@ -741,6 +765,7 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
                 }
                 break;
             case AudioStarted:
+            case AudioPending:
                 ha.outgoing_credits = l2cap_cbm_available_credits(ha.remote->local_cid);
                 if (!pcm_is_streaming) {
                     LOG_INFO("%s: USB audio no longer streaming. Stopping ASHA stream", ha.side_str);
@@ -754,6 +779,7 @@ static void handle_bt_audio_pending_worker([[maybe_unused]] async_context_t *con
 
                 ha.set_volume(ha.rop.side == Side::Left ? vol.l : vol.r);
                 ha.send_audio(write_index);
+                break;
             default:
                 break;
         }

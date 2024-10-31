@@ -380,6 +380,37 @@ BT::Result BT::Remote::create_l2cap_cbm_conn(uint16_t psm,
     return Result::WrongState;
 }
 
+BT::Result BT::Remote::prepare_l2cap_data(uint8_t const* data,
+            uint16_t len)
+{
+    if (state == RemoteState::Connected) {
+        state = RemoteState::L2CAPDataPending;
+        l2cap_data = data;
+        l2cap_len = len;
+        return Result::Ok;
+    }
+    return Result::WrongState;
+}
+
+BT::Result BT::Remote::try_send_current_l2cap_data(uint8_t* bt_err)
+{
+    if (state == RemoteState::L2CAPDataPending)
+    {
+        if (l2cap_can_send_packet_now(local_cid)) {
+            state = RemoteState::SendL2CAPData;
+            uint8_t err = l2cap_send(local_cid, l2cap_data, l2cap_len);
+            if (err != ERROR_CODE_SUCCESS) {
+                state = RemoteState::Connected;
+                *bt_err = err;
+                return Result::BTError;
+            }
+            return Result::Ok;
+        }
+        return Result::TryAgain;
+    }
+    return Result::WrongState;
+}
+
 BT::Result BT::Remote::send_l2cap_data(uint8_t const* data,
         uint16_t len,
         uint8_t* bt_err)
