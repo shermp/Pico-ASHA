@@ -58,6 +58,8 @@ static void on_ad_report(AdReport &report);
 static void on_bt_connected(uint8_t status, BT::Remote* remote);
 static void on_bt_disconnected(uint8_t reason, BT::Remote* remote);
 
+static void continue_connect_or_scan();
+
 static auto on_bt_started_delegate = etl::delegate<void(bool, uint8_t)>::create<on_bt_started>();
 static auto on_ad_report_delegate = etl::delegate<void(picobt::AdReport&)>::create<on_ad_report>();
 static auto on_bt_connected_delegate = etl::delegate<void(uint8_t, BT::Remote*)>::create<on_bt_connected>();
@@ -65,7 +67,7 @@ static auto on_bt_disconnected_delegate = etl::delegate<void(uint8_t, BT::Remote
 
 static void restart_pico();
 
-static inline void log_bt_res(BT::Result res, uint8_t err, const char* msg);
+static inline void log_bt_res(BT::Result res, uint8_t err, const char* state_str, const char* side, const char* msg);
 
 /* Utility functions */
 /* Get value from (sub) array of bytes */
@@ -77,15 +79,15 @@ static T get_val(const uint8_t *start)
     return val;
 }
 
-static inline void log_bt_res(BT::Result res, uint8_t err, const char* msg)
+static inline void log_bt_res(BT::Result res, uint8_t err, const char* state_str, const char* side, const char* msg)
 {
     switch (res) {
         case BT::Result::Ok: break;
-        case BT::Result::BTError: LOG_ERROR("%s: BT error 0x%02x", msg, (err)); break;
-        case BT::Result::WrongState: LOG_ERROR("%s: In wrong state", msg); break;
-        case BT::Result::MaxConnections: LOG_ERROR("%s: max num connections", msg); break;
-        case BT::Result::InternalError: LOG_ERROR("%s: internal picobt error", msg); break;
-        default: LOG_ERROR("%s: unknown error", msg); break;
+        case BT::Result::BTError: LOG_ERROR("%s: %s: BT error 0x%02x", side, msg, (err)); break;
+        case BT::Result::WrongState: LOG_ERROR("%s: %s: In wrong state: %s", side, msg, state_str); break;
+        case BT::Result::MaxConnections: LOG_ERROR("%s: %s: max num connections", side, msg); break;
+        case BT::Result::InternalError: LOG_ERROR("%s: %s: internal picobt error", side, msg); break;
+        default: LOG_ERROR("%s: %s: unknown error", side, msg); break;
     }
 }
 
@@ -229,7 +231,7 @@ void HearingAid::discover_services()
         service_filter_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Discover services");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Discover services");
     if (res != BT::Result::Ok) {
         state = State::Connected;
     }
@@ -247,7 +249,7 @@ void HearingAid::set_data_length()
     LOG_INFO("%s: Setting data length", bd_addr_to_str(remote->addr));
     state = State::SetDataLength;
     BT::Result res = remote->set_data_length(pdu_len, max_tx_time, on_data_length_set_d);
-    log_bt_res(res, bt_err, "Set data length");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Set data length");
     if (res != BT::Result::Ok) {
         LOG_ERROR("%s: Failed to set data length", bd_addr_to_str(remote->addr));
         disconnect();
@@ -271,7 +273,7 @@ void HearingAid::pair_and_bond()
 {
     state = State::PairAndBonding;
     BT::Result res = remote->bond(on_paired_and_bonded_d);
-    log_bt_res(res, bt_err, "Pair and bond");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Pair and bond");
     if (res != BT::Result::Ok) {
         state = State::ServicesDiscovered;
     }
@@ -306,7 +308,7 @@ void HearingAid::discover_characteristics()
         discover_chars_filter_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Discover characteristics");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Discover characteristics");
     if (res != BT::Result::Ok) {
         state = State::PairedAndBonded;
     }
@@ -353,7 +355,7 @@ void HearingAid::read_characteristics()
         on_char_values_read_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Read characteristics");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Read characteristics");
     if (res != BT::Result::Ok) {
         state = State::CharsDiscovered;
     }
@@ -390,7 +392,7 @@ void HearingAid::connect_l2cap()
         on_l2cap_write_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Connect L2CAP");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Connect L2CAP");
     if (res != BT::Result::Ok) {
         state = State::CharsRead;
     }
@@ -439,7 +441,7 @@ void HearingAid::enable_asp_notification()
         on_asp_notification_enabled_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Enable ASP notification");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Enable ASP notification");
     if (res != BT::Result::Ok) {
         state = State::L2CAPConnected;
     }
@@ -457,7 +459,7 @@ void HearingAid::write_status(uint8_t acp_status)
             2U,
             &bt_err
         );
-        log_bt_res(res, bt_err, "Write status");
+        log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Write status");
     }
 }
 
@@ -488,7 +490,7 @@ void HearingAid::start_audio()
         on_audio_start_written_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Start audio");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Start audio");
     if (res != BT::Result::Ok) {
         state = State::AudioReady;
     }
@@ -516,7 +518,7 @@ void HearingAid::stop_audio()
         on_audio_stop_written_d,
         &bt_err
     );
-    log_bt_res(res, bt_err, "Stop audio");
+    log_bt_res(res, bt_err, remote->get_curr_state_str(), side_str, "Stop audio");
 }
 
 void HearingAid::set_volume(int8_t new_volume)
@@ -849,11 +851,17 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context, 
 static void on_bt_started(bool started, uint8_t bt_state)
 {
     if (started) {
-        LOG_INFO("BT Started")
+        LOG_INFO("BT Started");
+        uint8_t bt_err = ERROR_CODE_SUCCESS;
         ha_mgr.set_led(led_mgr);
         auto& bt = BT::instance();
+        bt.set_connect_callbacks(
+            on_bt_connected_delegate, 
+            on_bt_disconnected_delegate
+        );
+        
         bt.enable_scan(on_ad_report_delegate, 
-                       [](const AdReport &report) {
+                    [](const AdReport &report) {
                             for (auto& s : report.services) {
                                 UUID uuid16(s.uuid_16);
                                 UUID uuid128(s.uuid_128);
@@ -864,7 +872,7 @@ static void on_bt_started(bool started, uint8_t bt_state)
                                 }
                             }
                             return false;
-                       });
+                    });
     } else {
         LOG_ERROR("BT did not start: Error code: 0x%02x", bt_state);
     }
@@ -879,14 +887,14 @@ static void on_ad_report(AdReport &report)
     LOG_INFO("HA with address %s discovered. Connecting", bd_addr_to_str(report.address));
     auto& bt = BT::instance();
     uint8_t bt_err = 0U;
-    auto res = bt.connect(report.address, 
-                          report.address_type, 
-                          on_bt_connected_delegate, 
-                          on_bt_disconnected_delegate,
-                          &bt_err);
-    log_bt_res(res, bt_err, "On AD Report");
+    auto res = runtime_settings.full_set_paired ? bt.connect_with_filter_accept_list(&bt_err) 
+                                                : bt.connect(report.address, 
+                                                             report.address_type, 
+                                                             &bt_err);
+    
+    log_bt_res(res, bt_err, bt.get_curr_bt_state_str(), "Unknown", "On AD Report");
     if (res != BT::Result::Ok) {
-        LOG_INFO("Continue scanning");
+        LOG_INFO("Continue connecting or scanning");
         bt.continue_scan();
     }
 }
@@ -902,7 +910,7 @@ static void on_bt_connected(uint8_t status, BT::Remote* remote)
     if (!ha_mgr.add_ha_from_remote(remote)) {
         uint8_t bt_err;
         auto res = remote->disconnect(&bt_err);
-        log_bt_res(res, bt_err, "On BT Connected");
+        log_bt_res(res, bt_err, bt.get_curr_bt_state_str(), "Unknown", "On BT Connected");
         return;
     }
     LOG_INFO("%s: Connected", bd_addr_to_str(remote->addr));
@@ -927,10 +935,19 @@ static void on_bt_disconnected(uint8_t reason, BT::Remote* remote)
         LOG_ERROR("Remote %s disconnected with reason 0x%02x", bd_addr_to_str(remote->addr), reason);
     }
     ha_mgr.set_led(led_mgr);
-    if (bt.continue_scan() != BT::Result::Ok) {
-        LOG_ERROR("BT in wrong state to continue scanning");
-    } 
-    
+    auto res = bt.continue_scan();
+    log_bt_res(res, 0, bt.get_curr_bt_state_str(), "Unknown", "Disconnect");
+}
+
+static void continue_connect_or_scan()
+{
+    auto& bt = BT::instance();
+    uint8_t bt_err = ERROR_CODE_SUCCESS;
+    if (runtime_settings.full_set_paired) {
+        bt.connect_with_filter_accept_list(&bt_err);
+    } else {
+        bt.continue_scan();
+    }
 }
 
 extern "C" void bt_main()
@@ -973,6 +990,7 @@ extern "C" void bt_main()
 
     auto& bt = BT::instance();
     BT::Config cfg = {};
+    cfg.hci_dump = runtime_settings.hci_dump_enabled;
     bt.configure(cfg);
 
     auto on_bt_started_delegate = etl::delegate<void (bool, uint8_t)>::create<on_bt_started>();

@@ -138,6 +138,11 @@ public:
         uint16_t max_ce = 12U;
     };
 
+    struct BdAddress {
+        int type = BD_ADDR_TYPE_UNKNOWN;
+        bd_addr_t addr = {};
+    };
+
     struct Service {
         gatt_client_service_t service = {};
         etl::vector<gatt_client_characteristic_t, max_chars_for_service> chars = {};
@@ -149,6 +154,8 @@ public:
         uint16_t  local_cid = 0U;
         bd_addr_t addr = {};
         etl::vector<Service, max_num_services> services = {};
+
+        const char* get_curr_state_str();
 
         /**
          * Set the le data length
@@ -355,6 +362,8 @@ public:
         return bt;
     }
 
+    const char* get_curr_bt_state_str();
+
     /**
      * Configure BT singleton. Should be called once at startup 
      */
@@ -375,7 +384,7 @@ public:
     void enable_scan(
         etl::delegate<void(AdReport& report)> ad_report_cb,
         etl::delegate<bool(AdReport const& report)> filter,
-        bool only_connectable = true
+        bool filter_accept_only = false
     );
     
     /* Continue scanning for advertisement packets.
@@ -384,20 +393,38 @@ public:
     Result continue_scan();
 
     /**
-     * Connect to remote with the specified addr and addr_type.
+     * Set global callbacks for connect and disconnect.
+     * 
      * connect_cb will be called on connection completion. If 
      * callback status is not ATT_ERROR_SUCCESS, then an error 
      * has occurred and the connection has failed. disconnect_cb 
      * will be called on disconnect. NOTE: connect_cb and disconnect_cb 
      * are global callbacks for all connections.
+     */
+    void set_connect_callbacks(
+        etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
+        etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb
+    );
+
+    /**
+     * Connect to remote with the specified addr and addr_type.
+     * 
      * If Result is BTError, then bt_err will be set to the 
      * underlying btstack error code 
      */
     Result connect(
         bd_addr_t addr, 
         bd_addr_type_t addr_type,
-        etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
-        etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb,
+        uint8_t* bt_err
+    );
+
+    /**
+     * Connect to remote devices using the filter accept list
+     * 
+     * Call add_bonded_devices_to_filter_accept_list to add 
+     * bonded devices to the filter accept list
+     */
+    Result connect_with_filter_accept_list(
         uint8_t* bt_err
     );
 
@@ -421,12 +448,13 @@ private:
     etl::circular_buffer<AdReport, 16> p_ad_reports = {};
     AdReport *p_curr_add_report = nullptr;
     bool scan_enabled = false;
-    bool p_only_show_connectable = false;
+    bool p_filter_accept_only = false;
     uint8_t auth_req;
 
     gatt_client_notification_t notification_listener = {};
 
     etl::vector<Remote, MAX_NR_HCI_CONNECTIONS> remotes;
+    etl::vector<BdAddress, MAX_NR_LE_DEVICE_DB_ENTRIES> bonded_addresses;
 
     /* Callbacks */
     etl::delegate<void(bool, uint8_t)> p_start_cb;
@@ -443,6 +471,8 @@ private:
     Remote* get_by_con_handle(hci_con_handle_t handle);
     Remote* get_by_local_cid (uint16_t local_cid);
     bool address_connected(bd_addr_t addr);
+    void populate_bonded_addresses();
+    void add_bonded_devices_to_filter_accept_list();
 
     /* BTStack packet handlers */
     btstack_packet_callback_registration_t hci_cb_reg;

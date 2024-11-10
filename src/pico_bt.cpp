@@ -67,6 +67,20 @@ AdReport::AdReport(uint8_t* packet, bool extended)
     }
 }
 
+const char* BT::get_curr_bt_state_str()
+{
+    using enum BaseState;
+    switch (p_base_state) {
+        case Starting: return "Starting";
+        case Stopped: return "Stopped";
+        case Idle: return "Idle";
+        case Scan: return "Scan";
+        case IdentityResolve: return "IdentityResolve";
+        case Connect: return "Connect";
+    }
+    return "";
+}
+
 void BT::configure(Config const& config)
 {
     if (p_configured) { return; }
@@ -120,14 +134,14 @@ bool BT::start(etl::delegate<void(bool started, uint8_t state)> start_cb)
 
 void BT::enable_scan(etl::delegate<void(AdReport& report)> ad_report_cb, 
                      etl::delegate<bool(AdReport const& report)> filter,
-                     bool only_connectable)
+                     bool filter_accept_only)
 {
     if (!scan_enabled) {
         scan_enabled = true;
-        p_only_show_connectable = only_connectable;
+        p_filter_accept_only = filter_accept_only;
         p_ad_report_cb = ad_report_cb;
         p_scan_filter = filter;
-        gap_set_scan_params(1, p_config.scan_interval, p_config.scan_window, 0);
+        gap_set_scan_params(1, p_config.scan_interval, p_config.scan_window, p_filter_accept_only ? 1 : 0);
         p_base_state = BaseState::Scan;
         gap_start_scan();
     }
@@ -135,25 +149,31 @@ void BT::enable_scan(etl::delegate<void(AdReport& report)> ad_report_cb,
 
 BT::Result BT::continue_scan()
 {
-    if (scan_enabled && p_base_state == BaseState::Idle) {
-        p_base_state = BaseState::Scan;
-        return Result::Ok;
+    if (scan_enabled) {
+        if (p_base_state == BaseState::Idle) {
+            p_base_state = BaseState::Scan;
+            return Result::Ok;
+        }
+        return Result::WrongState;
     }
     return Result::InternalError;
 }
 
+void BT::set_connect_callbacks(etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
+                               etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb)
+{
+    p_connect_cb = connect_cb;
+    p_disconnect_cb = disconnect_cb;
+}
+
 BT::Result BT::connect(bd_addr_t addr, 
                     bd_addr_type_t addr_type,
-                    etl::delegate<void(uint8_t status, Remote* remote)> connect_cb,
-                    etl::delegate<void(uint8_t reason, Remote* remote)> disconnect_cb,
                     uint8_t* bt_err)
 {
     if (p_base_state == BaseState::Idle) {
         if (remotes.full()) {
             return Result::MaxConnections;
         }
-        p_connect_cb = connect_cb;
-        p_disconnect_cb = disconnect_cb;
         p_base_state = BaseState::Connect;
         uint8_t err = gap_connect(addr, addr_type);
         if (err != ERROR_CODE_SUCCESS) {
@@ -163,8 +183,22 @@ BT::Result BT::connect(bd_addr_t addr,
         }
         return Result::Ok;
     }
-    set_idle_state();
-    return Result::InternalError;
+    return Result::WrongState;
+}
+
+BT::Result BT::connect_with_filter_accept_list(uint8_t* bt_err)
+{
+    if (p_base_state == BaseState::Idle) {
+        p_base_state = BaseState::Connect;
+        uint8_t err = gap_connect_with_whitelist();
+        if (err != ERROR_CODE_SUCCESS) {
+            set_idle_state();
+            *bt_err = err;
+            return Result::BTError;
+        }
+        return Result::Ok;
+    }
+    return Result::WrongState;
 }
 
 void BT::clear_bonding_data()
@@ -179,6 +213,26 @@ void BT::clear_bonding_data()
             le_device_db_remove(i);
         }
     }
+}
+
+const char* BT::Remote::get_curr_state_str()
+{
+    using enum RemoteState;
+    switch (state) {
+        case Invalid: return "Invalid";
+        case Connected: return "Connected";
+        case SetDataLength: return "SetDataLength";
+        case Disconnect: return "Disconnect";
+        case Bonding: return "Bonding";
+        case ServiceDiscovery: return "ServiceDiscovery";
+        case CharDiscovery: return "CharDiscovery";
+        case ReadCharVal: return "ReadCharVal";
+        case WriteCharVal: return "WriteCharVal";
+        case EnableNotification: return "EnableNotification";
+        case CreateL2CAP: return "CreateL2CAP";
+        case SendL2CAPData: return "SendL2CAPData";
+    }
+    return "";
 }
 
 BT::Result BT::Remote::set_data_length(uint16_t pdu_len, 
@@ -470,6 +524,27 @@ bool BT::address_connected(bd_addr_t addr) {
     return false;
 }
 
+void BT::populate_bonded_addresses()
+{
+    sm_key_t irk;
+    BdAddress bd_addr = {};
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &bd_addr.type, bd_addr.addr, irk);
+        if (bd_addr.type != BD_ADDR_TYPE_UNKNOWN) {
+            bonded_addresses.push_back(bd_addr);
+        }
+    }
+}
+
+void BT::add_bonded_devices_to_filter_accept_list()
+{
+    gap_load_resolving_list_from_le_device_db();
+    for (auto& a : bonded_addresses) {
+        gap_whitelist_add((bd_addr_type_t)a.type, a.addr);
+    }
+}
+
 void BT::hci_handler(uint8_t packet_type,  
                      [[maybe_unused]] uint16_t channel, 
                      uint8_t *packet, 
@@ -488,6 +563,8 @@ void BT::hci_handler(uint8_t packet_type,
             uint8_t start_state = btstack_event_state_get_state(packet);
             if (start_state == HCI_STATE_WORKING) {
                 gap_local_bd_addr(bt.p_local_addr);
+                bt.populate_bonded_addresses();
+                bt.add_bonded_devices_to_filter_accept_list();
                 gap_set_connection_parameters(
                     bt.p_config.scan_interval,
                     bt.p_config.scan_window,
