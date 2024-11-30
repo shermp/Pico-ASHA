@@ -159,9 +159,11 @@ public:
 
         /**
          * Set the le data length
-         * dle_cb will be called on completion
-         * Result will be WrongState if in incorrect state, 
-         * or Ok otherwise
+         * 
+         * @param pdu_len is the desired length of the PDU packet
+         * @param max_tx_time is the max transmit time
+         * @param dle_cb will be called on completion
+         * Result will be WrongState if in incorrect state, Ok otherwise
          */
         Result set_data_length(
             uint16_t pdu_len, 
@@ -173,8 +175,7 @@ public:
          * Disconnect from remote.
          * The disconnect callback set in connect will be called 
          * when the disconnect completes.
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code 
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */ 
         Result disconnect(
             uint8_t* bt_err
@@ -182,7 +183,7 @@ public:
 
         /**
          * Pair and bond to remote.
-         * bond_cb will be called on completion. Pairing and bonding
+         * @param bond_cb will be called on completion. Pairing and bonding
          * failed if status is not ERROR_CODE_SUCCESS, and reason 
          * may be said to provide more context
          */
@@ -193,10 +194,9 @@ public:
         /**
          * Discover services availabe on remote.
          * This may be called after connecting and before pairing. 
-         * services_cb will be call at the completion of service discovery.
-         * filter_cb will be called for each service found.
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param services_cb will be call at the completion of service discovery.
+         * @param filter_cb will be called for each service found.
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result discover_services(
             etl::delegate<void(uint8_t status, Remote* remote)> services_cb,
@@ -206,11 +206,10 @@ public:
 
         /**
          * Discover characteristics for discovered services on remote.
-         * char_cb will be called when all characteristics are discovered, 
+         * @param char_cb will be called when all characteristics are discovered, 
          * or an occurrs during discovery.
-         * Characteristics can be filtered using filter_cb
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param filter_cb Characteristics filter to apply.
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          * 
          * Note: the status variable in char_cb may be set to either a 
          * btstack error code, or an ATT status
@@ -223,14 +222,13 @@ public:
 
         /**
          * Read multiple characteristic values from remote
-         * value_handles is the list of characteristic value handles 
+         * @param value_handles is the list of characteristic value handles 
          * to read data from.
-         * char_val_cb will be called when a characteristic value has 
+         * @param char_val_cb will be called when a characteristic value has 
          * been read.
-         * char_val_complete_cb will be called when all characteristic 
+         * @param char_val_complete_cb will be called when all characteristic 
          * values has been read.
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result read_characteristic_values(
             etl::span<uint16_t> value_handles,
@@ -241,11 +239,10 @@ public:
 
         /**
          * Write value to characteristic with no rwsponse
-         * val_handle is the handle of the characteristic to write to
-         * data is the value to write
-         * len is the length of the value
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param val_handle is the handle of the characteristic to write to
+         * @param data is the value to write
+         * @param len is the length of the value
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result write_characteristic_value_no_resp(
             uint16_t val_handle,
@@ -256,12 +253,11 @@ public:
 
         /**
          * Write value to characteristic
-         * val_handle is the handle of the characteristic to write to
-         * data is the value to write
-         * len is the length of the value
-         * char_write_cb will be called when the write completes
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param val_handle is the handle of the characteristic to write to
+         * @param data is the value to write
+         * @param len is the length of the value
+         * @param char_write_cb will be called when the write completes
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result write_characteristic_value(
             uint16_t val_handle,
@@ -273,10 +269,9 @@ public:
 
         /**
          * Enable notification for characteristic
-         * char_not_val_cb will be called when a notification is received
-         * char_not_en_cb will be called when the notification has been enabled
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param char_not_val_cb will be called when a notification is received
+         * @param char_not_en_cb will be called when the notification has been enabled
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result enable_notification(
             gatt_client_characteristic_t* characteristic,
@@ -287,13 +282,12 @@ public:
 
         /**
          * Create a L2CAP CoC channel
-         * psm is the address to connect to on remote
-         * receive_buff will store incoming packets
-         * receive_len is the size of the incoming buffer
-         * l2cap_created_cb will be called when the channel is created (or failed)
-         * l2cap_write_cb will be called when a write using send_l2cap_data completes
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param psm is the address to connect to on remote
+         * @param receive_buff will store incoming packets
+         * @param receive_len is the size of the incoming buffer
+         * @param l2cap_created_cb will be called when the channel is created (or failed)
+         * @param l2cap_write_cb will be called when a write using send_l2cap_data completes
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result create_l2cap_cbm_conn(
             uint16_t psm,
@@ -306,11 +300,10 @@ public:
 
         /**
          * Send data on currently open L2CAP CoC channel
-         * data is the data to send. It must remain available until
+         * @param data is the data to send. It must remain available until
          * the write complete callback is called
-         * len is the size of the data to send
-         * If Result is BTError, then bt_err will be set to the 
-         * underlying btstack error code
+         * @param len is the size of the data to send
+         * @param bt_err is set to the underlying btstack error code if Result is BTError
          */
         Result send_l2cap_data(
             uint8_t const* data,
@@ -370,7 +363,8 @@ public:
     void configure(Config const& config);
 
     /**
-     * Start BT processing. start_cb will be invoked when
+     * Start BT processing. 
+     * @param start_cb will be invoked when
      * the bt stack has started its event loop, or it has
      * failed to start.
      */
@@ -378,8 +372,12 @@ public:
 
     /** 
      * Enable scanning for advertisement packets.
-     * ad_report_cb is called for every AdReport that has
-     * had its identity resolved, or matches filter 
+     * @param ad_report_cb is called for every AdReport that has
+     * had its identity resolved, or matches filter
+     * @param filter allows the application to filter what add reports
+     * invoke ad_report_cb
+     * @param filter_accept_only make the bt controller use the
+     * filter accept list for ad reports
      */
     void enable_scan(
         etl::delegate<void(AdReport& report)> ad_report_cb,
@@ -395,10 +393,12 @@ public:
     /**
      * Set global callbacks for connect and disconnect.
      * 
-     * connect_cb will be called on connection completion. If 
+     * @param connect_cb will be called on connection completion. If 
      * callback status is not ATT_ERROR_SUCCESS, then an error 
-     * has occurred and the connection has failed. disconnect_cb 
-     * will be called on disconnect. NOTE: connect_cb and disconnect_cb 
+     * has occurred and the connection has failed. 
+     * @param disconnect_cb will be called on disconnect. 
+     * 
+     * NOTE: connect_cb and disconnect_cb 
      * are global callbacks for all connections.
      */
     void set_connect_callbacks(
@@ -409,8 +409,9 @@ public:
     /**
      * Connect to remote with the specified addr and addr_type.
      * 
-     * If Result is BTError, then bt_err will be set to the 
-     * underlying btstack error code 
+     * @param addr is the BT address of remote device to connect to
+     * @param addr_type is the BT address type of the remote
+     * @param bt_err is set to the underlying btstack error code if Result is BTError
      */
     Result connect(
         bd_addr_t addr, 
