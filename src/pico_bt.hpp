@@ -96,7 +96,6 @@ public:
         Stopped,
         Idle,
         Scan,
-        IdentityResolve,
         Connect,
     };
 

@@ -75,7 +75,6 @@ const char* BT::get_curr_bt_state_str()
         case Stopped: return "Stopped";
         case Idle: return "Idle";
         case Scan: return "Scan";
-        case IdentityResolve: return "IdentityResolve";
         case Connect: return "Connect";
     }
     return "";
@@ -575,9 +574,16 @@ void BT::hci_handler(uint8_t packet_type,
             AdReport& ad = bt.add_or_merge_ad_report(ad_report);
             if (bt.address_connected(ad.address)) { return; }
             bt.p_curr_add_report = &ad;
-            bt.p_base_state = BaseState::IdentityResolve;
-            // Result returned in sm_handler()
-            sm_address_resolution_lookup(bt.p_curr_add_report->address_type, bt.p_curr_add_report->address);
+            if (bt.address_connected(bt.p_curr_add_report->address)) {
+                    bt.p_base_state = BaseState::Scan;
+                    return;
+            }
+            if (bt.p_filter_accept_only || bt.p_scan_filter(*bt.p_curr_add_report)) {
+                bt.p_base_state = BaseState::Idle;
+                bt.p_ad_report_cb(*bt.p_curr_add_report);
+            } else {
+                bt.p_base_state = BaseState::Scan;
+            }
             break;
         }
         case HCI_EVENT_META_GAP:
@@ -805,88 +811,50 @@ void BT::sm_handler(uint8_t packet_type,
     BT& bt = BT::instance();
 
     uint8_t ev_type = hci_event_packet_get_type(packet);
-    if (bt.p_base_state == BaseState::IdentityResolve) { 
-        switch(ev_type) {
-            case SM_EVENT_IDENTITY_RESOLVING_STARTED:
-                break;
-            /* Identity resolved to a bonded remote device */
-            case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
-                bt.p_curr_add_report->identity_resolved = true;
-                sm_event_identity_resolving_succeeded_get_address(packet, 
-                                                                  bt.p_curr_add_report->address);
-                bt.p_curr_add_report->address_type = (bd_addr_type_t)sm_event_identity_resolving_succeeded_get_addr_type(packet);
-                if (bt.address_connected(bt.p_curr_add_report->address)) {
-                    bt.p_base_state = BaseState::Scan;
-                    return;
-                }
-                bt.p_base_state = BaseState::Idle;
-                bt.p_ad_report_cb(*bt.p_curr_add_report);
-                break;
-            /* Identity not resolved to a bonded remote device.
-               Send Ad report to caller using provided callback,
-               only if filter returns true */
-            case SM_EVENT_IDENTITY_RESOLVING_FAILED:
-                if (bt.address_connected(bt.p_curr_add_report->address)) {
-                    bt.p_base_state = BaseState::Scan;
-                    return;
-                }
-                if (bt.p_scan_filter(*bt.p_curr_add_report)) {
-                    bt.p_base_state = BaseState::Idle;
-                    bt.p_ad_report_cb(*bt.p_curr_add_report);
-                } else {
-                    bt.p_base_state = BaseState::Scan;
-                }
-                break;
-            default:
-                break;
-        }
-    } else {
-        switch(ev_type) {
-            case SM_EVENT_JUST_WORKS_REQUEST:
-                sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
-                break;
-            case SM_EVENT_PAIRING_STARTED:
-                break;
-            case SM_EVENT_PAIRING_COMPLETE:
-            {
-                uint8_t status = sm_event_pairing_complete_get_status(packet);
-                uint8_t reason = sm_event_pairing_complete_get_reason(packet);
-                Remote* r = bt.get_by_con_handle(sm_event_pairing_complete_get_handle(packet));
-                if (!r) { return; }
-                if (status == ERROR_CODE_AUTHENTICATION_FAILURE) {
-                    if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS && bt.auth_req == authreq_le_sec) {
-                        bt.auth_req = authreq_no_le_sec;
-                        sm_set_authentication_requirements(bt.auth_req);
-                        sm_request_pairing(r->con_handle);
-                        return;
-                    }
-                }
-                r->state = RemoteState::Connected;
-                r->p_bond_cb(status, reason, r);
-                break;
-            }
-            case SM_EVENT_REENCRYPTION_STARTED:
-                break;
-            case SM_EVENT_REENCRYPTION_COMPLETE:
-            {
-                uint8_t status = sm_event_reencryption_complete_get_status(packet);
-                Remote* r = bt.get_by_con_handle(sm_event_reencryption_complete_get_handle(packet));
-                if (!r) { return; }
-                if (status == ERROR_CODE_PIN_OR_KEY_MISSING && bt.auth_req == authreq_le_sec) {
+    switch(ev_type) {
+        case SM_EVENT_JUST_WORKS_REQUEST:
+            sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+            break;
+        case SM_EVENT_PAIRING_STARTED:
+            break;
+        case SM_EVENT_PAIRING_COMPLETE:
+        {
+            uint8_t status = sm_event_pairing_complete_get_status(packet);
+            uint8_t reason = sm_event_pairing_complete_get_reason(packet);
+            Remote* r = bt.get_by_con_handle(sm_event_pairing_complete_get_handle(packet));
+            if (!r) { return; }
+            if (status == ERROR_CODE_AUTHENTICATION_FAILURE) {
+                if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS && bt.auth_req == authreq_le_sec) {
                     bt.auth_req = authreq_no_le_sec;
                     sm_set_authentication_requirements(bt.auth_req);
                     sm_request_pairing(r->con_handle);
                     return;
                 }
-                r->state = RemoteState::Connected;
-                r->p_bond_cb(status, 0U, r);
-                break;
             }
-            default:
-                break;
+            r->state = RemoteState::Connected;
+            r->p_bond_cb(status, reason, r);
+            break;
         }
-    }
-    
+        case SM_EVENT_REENCRYPTION_STARTED:
+            break;
+        case SM_EVENT_REENCRYPTION_COMPLETE:
+        {
+            uint8_t status = sm_event_reencryption_complete_get_status(packet);
+            Remote* r = bt.get_by_con_handle(sm_event_reencryption_complete_get_handle(packet));
+            if (!r) { return; }
+            if (status == ERROR_CODE_PIN_OR_KEY_MISSING && bt.auth_req == authreq_le_sec) {
+                bt.auth_req = authreq_no_le_sec;
+                sm_set_authentication_requirements(bt.auth_req);
+                sm_request_pairing(r->con_handle);
+                return;
+            }
+            r->state = RemoteState::Connected;
+            r->p_bond_cb(status, 0U, r);
+            break;
+        }
+        default:
+            break;
+    }    
 }
 
 } // namespace picobt
