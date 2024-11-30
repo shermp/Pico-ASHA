@@ -419,16 +419,6 @@ public:
     );
 
     /**
-     * Connect to remote devices using the filter accept list
-     * 
-     * Call add_bonded_devices_to_filter_accept_list to add 
-     * bonded devices to the filter accept list
-     */
-    Result connect_with_filter_accept_list(
-        uint8_t* bt_err
-    );
-
-    /**
      * Clear bonding data in the device DB
      */
     void clear_bonding_data();

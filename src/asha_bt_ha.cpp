@@ -872,7 +872,8 @@ static void on_bt_started(bool started, uint8_t bt_state)
                                 }
                             }
                             return false;
-                    });
+                    },
+                    runtime_settings.full_set_paired);
     } else {
         LOG_ERROR("BT did not start: Error code: 0x%02x", bt_state);
     }
@@ -887,11 +888,7 @@ static void on_ad_report(AdReport &report)
     LOG_INFO("HA with address %s discovered. Connecting", bd_addr_to_str(report.address));
     auto& bt = BT::instance();
     uint8_t bt_err = 0U;
-    auto res = runtime_settings.full_set_paired ? bt.connect_with_filter_accept_list(&bt_err) 
-                                                : bt.connect(report.address, 
-                                                             report.address_type, 
-                                                             &bt_err);
-    
+    auto res = bt.connect(report.address, report.address_type, &bt_err);
     log_bt_res(res, bt_err, bt.get_curr_bt_state_str(), "Unknown", "On AD Report");
     if (res != BT::Result::Ok) {
         LOG_INFO("Continue connecting or scanning");
@@ -937,17 +934,6 @@ static void on_bt_disconnected(uint8_t reason, BT::Remote* remote)
     ha_mgr.set_led(led_mgr);
     auto res = bt.continue_scan();
     log_bt_res(res, 0, bt.get_curr_bt_state_str(), "Unknown", "Disconnect");
-}
-
-static void continue_connect_or_scan()
-{
-    auto& bt = BT::instance();
-    uint8_t bt_err = ERROR_CODE_SUCCESS;
-    if (runtime_settings.full_set_paired) {
-        bt.connect_with_filter_accept_list(&bt_err);
-    } else {
-        bt.continue_scan();
-    }
 }
 
 extern "C" void bt_main()

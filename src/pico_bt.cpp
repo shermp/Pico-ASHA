@@ -186,21 +186,6 @@ BT::Result BT::connect(bd_addr_t addr,
     return Result::WrongState;
 }
 
-BT::Result BT::connect_with_filter_accept_list(uint8_t* bt_err)
-{
-    if (p_base_state == BaseState::Idle) {
-        p_base_state = BaseState::Connect;
-        uint8_t err = gap_connect_with_whitelist();
-        if (err != ERROR_CODE_SUCCESS) {
-            set_idle_state();
-            *bt_err = err;
-            return Result::BTError;
-        }
-        return Result::Ok;
-    }
-    return Result::WrongState;
-}
-
 void BT::clear_bonding_data()
 {
     int addr_type;
