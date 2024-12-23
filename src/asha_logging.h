@@ -15,8 +15,8 @@
 namespace asha
 {
 
-constexpr size_t log_line_len = 128;
-constexpr size_t log_lines = 256;
+constexpr size_t log_line_len = 160;
+constexpr size_t log_lines = 128;
 
 extern async_context_t *logging_ctx;
 extern async_when_pending_worker_t logging_pending_worker;

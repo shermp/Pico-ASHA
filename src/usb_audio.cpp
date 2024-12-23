@@ -421,18 +421,18 @@ void audio_task(void)
     }
     audio_buff.pcm_streaming = (silence_counter >= silence_timeout) ? false : true;
     audio_buff.encode_1ms_audio(spk_buf);
-    if (bt_async_ctx) {
-      async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
-    }
+    // if (bt_async_ctx) {
+    //   async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
+    // }
     spk_data_size = 0;
   } else {
       absolute_time_t now = get_absolute_time();
       if (absolute_time_diff_us(last_packet_time, now) > 5000) {
         audio_buff.pcm_streaming = false;
         last_packet_time = now;
-        if (bt_async_ctx) {
-          async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
-        }
+        // if (bt_async_ctx) {
+        //   async_context_set_work_pending(bt_async_ctx, &bt_audio_pending_worker);
+        // }
       }
   }
 }
