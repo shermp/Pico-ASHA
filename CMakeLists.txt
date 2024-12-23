@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.13)
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
-set(PICO_BOARD pico_w)
+set(PICO_BOARD pico_w CACHE STRING "Board type")
 include(pico_sdk_import.cmake)
 
 project(pico_asha C CXX)
@@ -51,6 +51,7 @@ FetchContent_MakeAvailable(ArduinoJson)
 
 set(ASHA_SRC
   src/main.cpp
+  src/bt_status_err.cpp
   src/runtime_settings.cpp
   src/asha_audio.cpp
   src/asha_bt.cpp
@@ -59,7 +60,6 @@ set(ASHA_SRC
   src/hearing_aid.cpp
   src/usb_descriptors.cpp
   src/usb_audio.cpp
-  src/btstack_ad_dump.c
   src/util.cpp
   lib/g722/g722_encode.cc
 )
