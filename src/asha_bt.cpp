@@ -1,4 +1,5 @@
 #include <ArduinoJson.h>
+#include <btstack.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdio_uart.h>
 #include <pico/stdio_usb.h>
@@ -53,6 +54,7 @@ static void process_timer_handler(btstack_timer_source_t * timer);
 
 static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker);
 static void delete_paired_devices();
+static void add_bonded_to_fal();
 
 static void delete_paired_devices()
 {
@@ -66,6 +68,22 @@ static void delete_paired_devices()
         if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
             LOG_INFO("Removing: %s", bd_addr_to_str(addr));
             le_device_db_remove(i);
+        }
+    }
+}
+
+static void add_bonded_to_fal()
+{
+    gap_load_resolving_list_from_le_device_db();
+
+    sm_key_t irk;
+    bd_addr_t addr = {};
+    int type = BD_ADDR_TYPE_UNKNOWN;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &type, addr, irk);
+        if (type != BD_ADDR_TYPE_UNKNOWN) {
+            gap_whitelist_add((bd_addr_type_t)type, addr);
         }
     }
 }
@@ -264,6 +282,7 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
         case BTSTACK_EVENT_STATE:
             if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING) {
                 led_mgr.set_led_pattern(none_connected);
+                add_bonded_to_fal();
                 // Set connection parameters including connection interval
                 // by default. Values taken from Android
                 gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
