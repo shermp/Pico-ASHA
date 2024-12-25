@@ -122,67 +122,67 @@ void HearingAid::process()
         switch (ha->process_state)
         {
             case DiscoverServices:
-                LOG_INFO("%s: Discovering services", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovering services", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_discover_primary_services(&HearingAid::handle_service_discovery, ha->conn_handle);
                 break;
             case PairBond:
-                LOG_INFO("%s: Pairing and bonding",  bd_addr_to_str(ha->addr))
+                LOG_INFO("%s: Pairing and bonding",  ha->get_side_str())
                 ha->set_process_busy();
                 sm_request_pairing(ha->conn_handle);
                 break;
             case DataLength:
-                LOG_INFO("%s: Setting data length",  bd_addr_to_str(ha->addr))
+                LOG_INFO("%s: Setting data length",  ha->get_side_str())
                 ha->set_process_busy();
                 ha->set_data_langth();
                 break;
             case DiscoverASHAChar:
-                LOG_INFO("%s: Discovering ASHA characteristics", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovering ASHA characteristics", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.asha.service);
                 break;
             case ReadROP:
-                LOG_INFO("%s: Read ROP characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Read ROP characteristic", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.asha.rop);
                 break;
             case ReadPSM:
-                LOG_INFO("%s: Read PSM", ha->side_str);
+                LOG_INFO("%s: Read PSM", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.asha.psm);
                 break;
             case DiscoverGAPChar:
-                LOG_INFO("%s: Discover GAP characteristics", ha->side_str);
+                LOG_INFO("%s: Discover GAP characteristics", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.gap.service);
                 break;
             case ReadDeviceName:
-                LOG_INFO("%s: Read device name", ha->side_str);
+                LOG_INFO("%s: Read device name", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.gap.device_name);
                 break;
             case DiscoverDISChar:
-                LOG_INFO("%s: Discover DIS characteristics", ha->side_str);
+                LOG_INFO("%s: Discover DIS characteristics", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.dis.service);
                 break;
             case ReadMfgName:
-                LOG_INFO("%s: Read manufacturer name", ha->side_str);
+                LOG_INFO("%s: Read manufacturer name", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.manufacture_name);
                 break;
             case ReadModelNum:
-                LOG_INFO("%s: Read model number", ha->side_str);
+                LOG_INFO("%s: Read model number", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.model_num);
                 break;
             case ReadFWVers:
-                LOG_INFO("%s: Read FW version", ha->side_str);
+                LOG_INFO("%s: Read FW version", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.fw_vers);
                 break;
             case ConnectL2CAP:
-                LOG_INFO("%s: Create L2CAP CoC", ha->side_str);
+                LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
                 ha->set_process_busy();
                 res = l2cap_cbm_create_channel(&HearingAid::handle_l2cap_cbm, 
                                                ha->conn_handle, 
@@ -194,7 +194,7 @@ void HearingAid::process()
                                                &ha->cid);
                 break;
             case EnASPNotification:
-                LOG_INFO("%s: Enable ASP notification", ha->side_str);
+                LOG_INFO("%s: Enable ASP notification", ha->get_side_str());
                 ha->set_process_busy();
                 res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_asp_notification_reg, 
                                                                             ha->conn_handle, 
@@ -202,7 +202,7 @@ void HearingAid::process()
                                                                             GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION);
                 break;
             case Finalize:
-                LOG_INFO("%s: Ready for audio streaming", ha->side_str);
+                LOG_INFO("%s: Ready for audio streaming", ha->get_side_str());
                 ha->set_process_busy();
                 if (full_set_connected()) {
                     runtime_settings.set_full_set_paired(true);
@@ -215,7 +215,7 @@ void HearingAid::process()
                 break;
         }
         if (res != ERROR_CODE_SUCCESS) {
-            LOG_ERROR("%s: BTStack error: %s", ha->rop.side == Side::Unset ? bd_addr_to_str(ha->addr) : ha->side_str, bt_err_str(res));
+            LOG_ERROR("%s: BTStack error: %s", ha->get_side_str(), bt_err_str(res));
             ha->unset_process_busy();
             ha->process_delay_ticks = ha_process_delay_ticks;
         }
@@ -307,10 +307,10 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
 {
     HearingAid* ha = get_by_con_handle(handle);
     if (ha->process_state == ProcessState::Disconnect) {
-        LOG_INFO("%s: Disconnected", ha->rop.side == Side::Unset ? bd_addr_to_str(ha->addr) : ha->side_str);
+        LOG_INFO("%s: Disconnected", ha->get_side_str());
     } else {
         LOG_ERROR("%s: Disconnected with status code: %s and reason: %s", 
-                   ha->rop.side == Side::Unset ? bd_addr_to_str(ha->addr) : ha->side_str, 
+                   ha->get_side_str(), 
                    bt_err_str(status), bt_err_str(reason));
     }
     set_other_side_ptrs();
@@ -326,7 +326,7 @@ void HearingAid::on_data_len_set(hci_con_handle_t handle, uint16_t rx_octets, ui
     if (ha->process_state != (ProcessState::DataLength | ProcessState::ProcessBusy)) { return; }
 
     LOG_INFO("%s: DL set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
-                        ha->rop.side == Side::Unset ? bd_addr_to_str(ha->addr) : ha->side_str,
+                        ha->get_side_str(),
                         rx_octets, rx_time, tx_octets, tx_time);    
     
     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
@@ -345,14 +345,14 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_JUST_WORKS_REQUEST:
             handle = sm_event_just_works_request_get_handle(packet);
             ha = get_by_con_handle(handle);
-            LOG_INFO("%s: Just Works requested", bd_addr_to_str(ha->addr));
+            LOG_INFO("%s: Just Works requested", ha->get_side_str());
             sm_just_works_confirm(handle);
             break;
 
         case SM_EVENT_PAIRING_STARTED:
             handle = sm_event_pairing_started_get_handle(packet);
             ha = get_by_con_handle(handle);
-            LOG_INFO("%s: Pairing started", bd_addr_to_str(ha->addr));
+            LOG_INFO("%s: Pairing started", ha->get_side_str());
             break;
 
         case SM_EVENT_PAIRING_COMPLETE:
@@ -363,36 +363,38 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
 
             switch (att_status) {
                 case ERROR_CODE_SUCCESS:
-                    LOG_INFO("%s: Pairing complete", bd_addr_to_str(ha->addr));
+                    LOG_INFO("%s: Pairing complete", ha->get_side_str());
                     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
                     break;
                 case ERROR_CODE_CONNECTION_TIMEOUT:
-                    LOG_ERROR("%s: Pairing failed - timeout", bd_addr_to_str(ha->addr));
+                    LOG_ERROR("%s: Pairing failed - timeout", ha->get_side_str());
                     ha->disconnect();
                     break;
                 case ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION:
-                    LOG_ERROR("%s: Pairing failed - remote user terminated connection", bd_addr_to_str(ha->addr));
+                    LOG_ERROR("%s: Pairing failed - remote user terminated connection", ha->get_side_str());
                     ha->disconnect();
                     break;
                 case ERROR_CODE_AUTHENTICATION_FAILURE:
                     if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS) {
-                        LOG_ERROR("%s: Auth requirements not met. Attempting downgrade", bd_addr_to_str(ha->addr));
+                        LOG_ERROR("%s: Auth requirements not met. Attempting downgrade", ha->get_side_str());
                         auth_req = SM_AUTHREQ_BONDING;
                         sm_set_authentication_requirements(auth_req);
                         sm_request_pairing(handle);
                     } else {
-                        LOG_ERROR("%s: Pairing failed, auth failure with reason: %s", bd_addr_to_str(ha->addr), sm_reason_str(reason));
+                        LOG_ERROR("%s: Pairing failed, auth failure with reason: %s", ha->get_side_str(), sm_reason_str(reason));
                         ha->disconnect();
                     }
                     break;
                 default:
-                    LOG_ERROR("%s: Unhandled SM_EVENT_PAIRING_COMPLETE error. Reason: %s", bd_addr_to_str(ha->addr), sm_reason_str(reason))
+                    LOG_ERROR("%s: Unhandled SM_EVENT_PAIRING_COMPLETE error. Reason: %s", ha->get_side_str(), sm_reason_str(reason))
                     break;
             }
             break;
 
         case SM_EVENT_REENCRYPTION_STARTED:
-            LOG_INFO("%s: Reencryption started", bd_addr_to_str(ha->addr));
+            handle = sm_event_reencryption_started_get_handle(packet);
+            ha = get_by_con_handle(handle);
+            LOG_INFO("%s: Reencryption started", ha->get_side_str());
             break;
 
         case SM_EVENT_REENCRYPTION_COMPLETE:
@@ -402,16 +404,16 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
 
             switch (att_status) {
                 case ERROR_CODE_SUCCESS:
-                    LOG_INFO("%s: Reencryption succeeded", bd_addr_to_str(ha->addr));
+                    LOG_INFO("%s: Reencryption succeeded", ha->get_side_str());
                     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
                     break;
                 case ERROR_CODE_PIN_OR_KEY_MISSING:
-                    LOG_ERROR("%s: Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING", bd_addr_to_str(ha->addr));
+                    LOG_ERROR("%s: Reencryption failed with ERROR_CODE_PIN_OR_KEY_MISSING", ha->get_side_str());
                     delete_paired_device(ha->addr);
                     ha->disconnect();
                     break;
                 default:
-                    LOG_ERROR("%s: Reencryption error: %s", bd_addr_to_str(ha->addr), bt_err_str(att_status))
+                    LOG_ERROR("%s: Reencryption error: %s", ha->get_side_str(), bt_err_str(att_status))
                     ha->disconnect();
                     break;
             }
@@ -434,13 +436,13 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
             gatt_event_service_query_result_get_service(packet, &s);
             if (uuid_eq(s.uuid128, AshaUUID::service) || s.uuid16 == AshaUUID::service16) {
-                LOG_INFO("%s: Discovered ASHA service", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered ASHA service", ha->get_side_str());
                 ha->services.asha.service = s;
             } else if (s.uuid16 == GapUUID::service16) {
-                LOG_INFO("%s: Discovered GAP service", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered GAP service", ha->get_side_str());
                 ha->services.gap.service = s;
             } else if (s.uuid16 == DisUUID::service16) {
-                LOG_INFO("%s: Discovered DIS service", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered DIS service", ha->get_side_str());
                 ha->services.dis.service = s;
             }
             break;
@@ -449,11 +451,11 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
             if (att_status != ATT_ERROR_SUCCESS) {
-                LOG_ERROR("%s: Error discovering services with status: %s", bd_addr_to_str(ha->addr), att_err_str(att_status));
+                LOG_ERROR("%s: Error discovering services with status: %s", ha->get_side_str(), att_err_str(att_status));
                 ha->disconnect();
                 break;
             } else if (!gatt_service_valid(&ha->services.asha.service)) {
-                LOG_ERROR("%s: ASHA service not discovered", bd_addr_to_str(ha->addr));
+                LOG_ERROR("%s: ASHA service not discovered", ha->get_side_str());
                 ha->disconnect();
                 break;
             }
@@ -480,31 +482,31 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             gatt_event_characteristic_query_result_get_characteristic(packet, &c);
 
             if (uuid_eq(c.uuid128, AshaUUID::readOnlyProps)) {
-                LOG_INFO("%s: Discovered ReadOnlyProperties characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered ReadOnlyProperties characteristic", ha->get_side_str());
                 ha->services.asha.rop = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::audioControlPoint)) {
-                LOG_INFO("%s: Discovered AudioControlPoint characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered AudioControlPoint characteristic", ha->get_side_str());
                 ha->services.asha.acp = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::audioStatus)) {
-                LOG_INFO("%s: Discovered AudioStatusPoint characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered AudioStatusPoint characteristic", ha->get_side_str());
                 ha->services.asha.asp = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::volume)) {
-                LOG_INFO("%s: Discovered Volume characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered Volume characteristic", ha->get_side_str());
                 ha->services.asha.vol = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::psm)) {
-                LOG_INFO("%s: Discovered PSM characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered PSM characteristic", ha->get_side_str());
                 ha->services.asha.psm = c;
             } else if (c.uuid16 == GapUUID::deviceName16) {
-                LOG_INFO("%s: Discovered Device Name characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered Device Name characteristic", ha->get_side_str());
                 ha->services.gap.device_name = c;
             } else if (c.uuid16 == DisUUID::mfgName) {
-                LOG_INFO("%s: Discovered Manufacturer Name characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered Manufacturer Name characteristic", ha->get_side_str());
                 ha->services.dis.manufacture_name = c;
             } else if (c.uuid16 == DisUUID::modelNum) {
-                LOG_INFO("%s: Discovered Model Number characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered Model Number characteristic", ha->get_side_str());
                 ha->services.dis.model_num = c;
             } else if (c.uuid16 == DisUUID::fwVers) {
-                LOG_INFO("%s: Discovered FW Version characteristic", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
                 ha->services.dis.fw_vers = c;
             }
             break;
@@ -516,7 +518,7 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             switch (ha->process_state) {
                 case DiscoverASHAChar | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error discovering ASHA characteristics: %s", bd_addr_to_str(ha->addr), att_err_str(att_status));
+                        LOG_ERROR("%s: Error discovering ASHA characteristics: %s", ha->get_side_str(), att_err_str(att_status));
                         ha->disconnect();
                     } else {
                         ha->process_state = ReadROP;
@@ -524,14 +526,14 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
                     break;
                 case DiscoverGAPChar | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error discovering GAP characteristics: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error discovering GAP characteristics: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = ReadDeviceName;
                     break;
                 case DiscoverDISChar | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error discovering DIS characteristics: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error discovering DIS characteristics: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = ReadMfgName;
@@ -563,26 +565,26 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
 
             if (val_handle == ha->services.asha.rop.value_handle) {
-                LOG_INFO("%s: ROP characteristic read", bd_addr_to_str(ha->addr));
+                LOG_INFO("%s: ROP characteristic read", ha->get_side_str());
                 ha->rop.read(val);
                 ha->side_str = ha->rop.side == Side::Left ? "Left" : "Right";
             } else if (val_handle == ha->services.asha.psm.value_handle) {
                 ha->psm = val[0];
-                LOG_INFO("%s: PSM characteristic read: %d", ha->side_str, ha->psm);
+                LOG_INFO("%s: PSM characteristic read: %d", ha->get_side_str(), ha->psm);
             } else if (val_handle == ha->services.gap.device_name.value_handle) {
-                LOG_INFO("%s: Device name read", ha->side_str);
+                LOG_INFO("%s: Device name read", ha->get_side_str());
                 ha->device_name.clear();
                 ha->device_name.append((const char*)val, val_len);
             } else if (val_handle == ha->services.dis.manufacture_name.value_handle) {
-                LOG_INFO("%s: Manufacterer name read", ha->side_str);
+                LOG_INFO("%s: Manufacterer name read", ha->get_side_str());
                 ha->manufacturer.clear();
                 ha->manufacturer.append((const char*)val, val_len);
             } else if (val_handle == ha->services.dis.model_num.value_handle) {
-                LOG_INFO("%s: Model number read", ha->side_str);
+                LOG_INFO("%s: Model number read", ha->get_side_str());
                 ha->model.clear();
                 ha->model.append((const char*)val, val_len);
             } else if (val_handle == ha->services.dis.fw_vers.value_handle) {
-                LOG_INFO("%s: FW version read", ha->side_str);
+                LOG_INFO("%s: FW version read", ha->get_side_str());
                 ha->fw_vers.clear();
                 ha->fw_vers.append((const char*)val, val_len);
             }
@@ -595,7 +597,7 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
             switch (ha->process_state) {
                 case ReadROP | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading ROP characteristic: %s", bd_addr_to_str(ha->addr), att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading ROP characteristic: %s", ha->get_side_str(), att_err_str(att_status));
                         ha->disconnect();
                     } else {
                         ha->process_state = ReadPSM;
@@ -603,7 +605,7 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                     break;
                 case ReadPSM | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading PSM characteristics %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading PSM characteristics %s", ha->get_side_str(), att_err_str(att_status));
                         ha->disconnect();
                     } else {
                         ha->process_state = ha->cached ? ConnectL2CAP : DiscoverGAPChar;
@@ -611,28 +613,28 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                     break;
                 case ReadDeviceName | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading device name characteristic: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading device name characteristic: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = DiscoverDISChar;
                     break;
                 case ReadMfgName | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading manufacturer name characteristic: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading manufacturer name characteristic: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = ReadModelNum;
                     break;
                 case ReadModelNum | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading model number characteristic: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading model number characteristic: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = ReadFWVers;
                     break;
                 case ReadFWVers | ProcessBusy:
                     if (att_status != ATT_ERROR_SUCCESS) {
-                        LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->side_str, att_err_str(att_status));
+                        LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
                         // Not a fatal error
                     }
                     ha->process_state = ConnectL2CAP;
@@ -657,7 +659,7 @@ void HearingAid::handle_acp_write(PACKET_HANDLER_PARAMS)
         att_status = gatt_event_query_complete_get_att_status(packet);
         ha = get_by_con_handle(handle);
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: ACP write failed with status: %s", ha->side_str, att_err_str(att_status));
+            LOG_ERROR("%s: ACP write failed with status: %s", ha->get_side_str(), att_err_str(att_status));
             ha->audio_state = AudioState::Ready;
         } else {
             // If stopping, don't wait for the notification, some HA's might not send it
@@ -681,12 +683,12 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             att_status = l2cap_event_cbm_channel_opened_get_status(packet);
             ha = get_by_con_handle(handle);
             if (att_status != ATT_ERROR_SUCCESS) {
-                LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->side_str, bt_err_str(att_status));
+                LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
                 // Try again later
                 ha->unset_process_busy();
                 ha->process_delay_ticks = ha_process_delay_ticks;
             } else {
-                LOG_INFO("%s: L2CAP cbm connection created", ha->side_str);
+                LOG_INFO("%s: L2CAP cbm connection created", ha->get_side_str());
                 ha->process_state = ProcessState::EnASPNotification;
             }
             break;
@@ -716,12 +718,12 @@ void HearingAid::handle_asp_notification_reg(PACKET_HANDLER_PARAMS)
         att_status = gatt_event_query_complete_get_att_status(packet);
         ha = get_by_con_handle(handle);
         if (att_status != ATT_ERROR_SUCCESS) {
-            LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->side_str, att_err_str(att_status));
+            LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->get_side_str(), att_err_str(att_status));
             // Try again later
             ha->unset_process_busy();
             ha->process_delay_ticks = ha_process_delay_ticks;
         } else {
-            LOG_INFO("%s: ASP notifications enabled", ha->side_str);
+            LOG_INFO("%s: ASP notifications enabled", ha->get_side_str());
             ha->process_state = ProcessState::Finalize;
         }
     }
@@ -743,18 +745,18 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
             switch (asp_status) {
                 case ASPStatus::ok:
                     if (ha->audio_state == AudioState::Start) {
-                        LOG_INFO("%s: Audio start OK", ha->side_str);
+                        LOG_INFO("%s: Audio start OK", ha->get_side_str());
                         ha->audio_state = AudioState::Streaming;
                     }
                     break;
                 case ASPStatus::unkown_command:
-                    LOG_ERROR("%s: ASP: Unknown command", ha->side_str);
+                    LOG_ERROR("%s: ASP: Unknown command", ha->get_side_str());
                     break;
                 case ASPStatus::illegal_params:
-                    LOG_ERROR("%s: ASP: Illegal parameters", ha->side_str);
+                    LOG_ERROR("%s: ASP: Illegal parameters", ha->get_side_str());
                     break;
                 default:
-                    LOG_ERROR("%s: ASP: Unknown status: %d", ha->side_str, asp_status);
+                    LOG_ERROR("%s: ASP: Unknown status: %d", ha->get_side_str(), asp_status);
                     break;
             }
         }
@@ -874,7 +876,7 @@ void HearingAid::send_acp_start()
                                                             (uint16_t)acp_cmd_packet.size(),
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: ACP Write: Start error %s", side_str, bt_err_str(res));
+        LOG_ERROR("%s: ACP Write: Start error %s", get_side_str(), bt_err_str(res));
         audio_state = AudioState::Ready;
     }
 }
@@ -889,7 +891,7 @@ void HearingAid::send_acp_stop()
                                                             1u,
                                                             acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: ACP Write: Stop error %s", side_str, bt_err_str(res));
+        LOG_ERROR("%s: ACP Write: Stop error %s", get_side_str(), bt_err_str(res));
         disconnect();
     }
 }
@@ -903,13 +905,13 @@ void HearingAid::send_acp_status(uint8_t status)
                                                                           2u,
                                                                           acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
-        LOG_ERROR("%s: Updating status via ACP failed with %s", side_str, bt_err_str(res));
+        LOG_ERROR("%s: Updating status via ACP failed with %s", get_side_str(), bt_err_str(res));
     }
 }
 
 void HearingAid::disconnect()
 {
-    LOG_INFO("%s: Disconnect requested", rop.side == Side::Unset ? bd_addr_to_str(addr) : side_str);
+    LOG_INFO("%s: Disconnect requested", get_side_str());
     process_state = ProcessState::Disconnect;
     gap_disconnect(conn_handle);
 }
@@ -936,6 +938,11 @@ void HearingAid::reset()
         side_str = "Unknown";
         services = {};
     }
+}
+
+const char* HearingAid::get_side_str()
+{
+    return (rop.side == Side::Unset) ? bd_addr_to_str(addr) : side_str;
 }
 
 static void delete_paired_device(const bd_addr_t address)
