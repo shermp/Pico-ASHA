@@ -206,6 +206,8 @@ void HearingAid::process()
                 ha->set_process_busy();
                 if (full_set_connected()) {
                     runtime_settings.set_full_set_paired(true);
+                } else {
+                    start_scan();
                 }
                 ha->cached = true;
                 ha->process_state = Audio;
