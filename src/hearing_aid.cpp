@@ -206,7 +206,9 @@ void HearingAid::process()
                 ha->set_process_busy();
                 if (full_set_connected()) {
                     runtime_settings.set_full_set_paired(true);
+                    led_mgr.set_led(LEDManager::State::On);
                 } else {
+                    led_mgr.set_led_pattern(one_connected);
                     start_scan();
                 }
                 ha->cached = true;
