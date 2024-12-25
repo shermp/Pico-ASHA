@@ -186,6 +186,7 @@ private:
     void send_acp_status(uint8_t status);
     void disconnect();
     void reset();
+    const char* get_side_str();
 };
 
 } // namespace asha
