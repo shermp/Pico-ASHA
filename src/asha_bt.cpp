@@ -96,8 +96,6 @@ extern "C" void bt_main()
 
     runtime_settings.init();
     runtime_settings.get_settings();
-    runtime_settings.set_uart_enabled(true);
-    runtime_settings.set_hci_dump_enabled(false);
 
     stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
 
