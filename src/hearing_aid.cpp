@@ -317,6 +317,12 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     }
     set_other_side_ptrs();
     ha->reset();
+    int num_c = num_connected();
+    if (num_c == 1) {
+        led_mgr.set_led_pattern(one_connected);
+    } else {
+        led_mgr.set_led_pattern(none_connected);
+    }
     start_scan();
 }
 
