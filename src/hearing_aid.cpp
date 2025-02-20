@@ -109,7 +109,7 @@ HearingAid::HearingAid()
     }
 }
 
-void HearingAid::process()
+void __not_in_flash_func(HearingAid::process)()
 {
     using enum ProcessState;
     for (auto ha : hearing_aids) {
@@ -213,6 +213,7 @@ void HearingAid::process()
                 }
                 ha->cached = true;
                 ha->process_state = Audio;
+                ha->audio_state = AudioState::Ready;
             default:
                 break;
         }
@@ -315,6 +316,11 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
                    ha->get_side_str(), 
                    bt_err_str(status), bt_err_str(reason));
     }
+    if (ha->other && ha->other->is_streaming()) {
+        ha->other->send_acp_status(ACPStatus::other_disconnected);
+    }
+    ha->process_state = ProcessState::Disconnect;
+    ha->connected = false;
     set_other_side_ptrs();
     ha->reset();
     int num_c = num_connected();
@@ -672,6 +678,9 @@ void HearingAid::handle_acp_write(PACKET_HANDLER_PARAMS)
         } else {
             // If stopping, don't wait for the notification, some HA's might not send it
             if (ha->audio_state == AudioState::Stop) {
+                if (ha->other && ha->other->is_streaming()) {
+                    ha->other->send_acp_status(ACPStatus::other_disconnected);
+                }
                 ha->audio_state = AudioState::Ready;
             }
         }
@@ -703,12 +712,12 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
         case L2CAP_EVENT_CAN_SEND_NOW:
             cid = l2cap_event_can_send_now_get_local_cid(packet);
             ha = get_by_cid(cid);
-            // @todo send audio
+            l2cap_send(cid, ha->audio_data, sdu_size_bytes);
             break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
             ha = get_by_cid(cid);
-            // @todo handle packet sent
+            ha->unset_audio_busy();
             break;
         default:
             break;
@@ -755,6 +764,10 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                     if (ha->audio_state == AudioState::Start) {
                         LOG_INFO("%s: Audio start OK", ha->get_side_str());
                         ha->audio_state = AudioState::Streaming;
+                        audio_buff.encode_audio = true;
+                        if (ha->other && ha->other->is_streaming()) {
+                            ha->other->send_acp_status(ACPStatus::other_connected);
+                        }
                     }
                     break;
                 case ASPStatus::unkown_command:
@@ -767,6 +780,60 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                     LOG_ERROR("%s: ASP: Unknown status: %d", ha->get_side_str(), asp_status);
                     break;
             }
+        }
+    }
+}
+
+void __not_in_flash_func(HearingAid::process_audio)()
+{
+    uint32_t w_index = audio_buff.get_write_index();
+    AudioBuffer::Volume vol = audio_buff.get_volume();
+    bool pcm_is_streaming = audio_buff.pcm_streaming.Load();
+    for (auto ha : hearing_aids) {
+        if (ha->process_state != ProcessState::Audio) { continue; }
+        ha->credits = l2cap_cbm_available_credits(ha->cid);
+        switch (ha->audio_state) {
+            case AudioState::Ready:
+                //LOG_INFO("pcm_streaming : %d credits %d", (int)pcm_is_streaming, (int)ha->credits);
+                if (pcm_is_streaming && ha->credits >= 8) {
+                    ha->set_audio_busy();
+                    ha->send_acp_start();
+                }
+                break;
+            case AudioState::Streaming:
+                if (!pcm_is_streaming || ha->credits == 0) {
+                    if (!pcm_is_streaming) {
+                        audio_buff.encode_audio = false;
+                    }
+                    LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
+                              ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
+                    ha->send_acp_stop();
+                } else {
+                    // Send volume update if volume has changed
+                    int8_t v = ha->rop.side == Side::Left ? vol.l : vol.r;
+                    if (ha->curr_vol != v) {
+                        ha->curr_vol = v;
+                        ha->send_volume(ha->curr_vol);
+                    }
+                    if (w_index == 0) {
+                        break;
+                    }
+                    if (w_index > ha->curr_write_index) {
+                        ha->set_audio_busy();
+                        ha->curr_write_index = w_index;
+
+                        if ((ha->curr_write_index - ha->curr_read_index) >= 2) {
+                            ha->curr_read_index = ha->curr_write_index - 1;
+                        }
+                        AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(ha->curr_read_index);
+                        ha->audio_data = ha->rop.side == Side::Left ? packet.l.data() : packet.r.data();
+                        ++(ha->curr_read_index);
+                        l2cap_request_can_send_now_event(ha->cid);
+                    }
+                }
+                break;
+            default:
+                break;
         }
     }
 }
@@ -839,6 +906,12 @@ bool HearingAid::is_connected()
     return connected && conn_handle != HCI_CON_HANDLE_INVALID;
 }
 
+bool HearingAid::is_streaming()
+{
+    return  audio_state == AudioState::Streaming || 
+            audio_state == (AudioState::Streaming | AudioState::AudioBusy);
+}
+
 void HearingAid::set_process_busy()
 {
     process_state |= ProcessState::ProcessBusy;
@@ -875,8 +948,8 @@ void HearingAid::send_acp_start()
     acp_cmd_packet[0] = ACPOpCode::start; // Opcode
     acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
     acp_cmd_packet[2] = 0u; // Unkown audio type
-    acp_cmd_packet[3] = (uint8_t)-128; // Volume
-    acp_cmd_packet[4] = (other && other->audio_state != AudioState::AudioUnset) ? 1 : 0; // Otherstate
+    acp_cmd_packet[3] = (uint8_t)curr_vol; // Volume
+    acp_cmd_packet[4] = (other && other->is_streaming()) ? 1 : 0; // Otherstate
 
     uint8_t res = gatt_client_write_value_of_characteristic(&HearingAid::handle_acp_write, 
                                                             conn_handle, 
@@ -914,6 +987,19 @@ void HearingAid::send_acp_status(uint8_t status)
                                                                           acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
         LOG_ERROR("%s: Updating status via ACP failed with %s", get_side_str(), bt_err_str(res));
+    }
+}
+
+void HearingAid::send_volume(int8_t volume)
+{
+    uint8_t res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
+                                                                             services.asha.vol.value_handle,
+                                                                             sizeof(volume),
+                                                                             (uint8_t*)&volume);
+    if (res != ERROR_CODE_SUCCESS) {
+        LOG_ERROR("%s: Sending volume failed with %s", get_side_str(), bt_err_str(res));
+    } else {
+        LOG_INFO("%s: Volume changed to %d", get_side_str(), (int)volume);
     }
 }
 

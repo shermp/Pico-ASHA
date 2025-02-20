@@ -129,6 +129,7 @@ struct HearingAid
     static void handle_l2cap_cbm(PACKET_HANDLER_PARAMS);
     static void handle_asp_notification_reg(PACKET_HANDLER_PARAMS);
     static void handle_gatt_notification(PACKET_HANDLER_PARAMS);
+    static void process_audio();
 
 private:
     /* GATT structures */
@@ -159,6 +160,7 @@ private:
     /* L2CAP credit management */
 
     uint16_t credits = 0;
+    int8_t curr_vol = -128;
 
     // Array to store current AudioControlPoint command packet
     std::array<uint8_t, 5> acp_cmd_packet = {};
@@ -166,6 +168,9 @@ private:
     inline static std::array<HearingAid*, 2> hearing_aids;
 
     int process_delay_ticks = 0;
+    uint32_t curr_write_index = 0U;
+    uint32_t curr_read_index = 0U;
+    uint8_t* audio_data = nullptr;
 
     std::array<uint8_t, sdu_size_bytes> recv_buff = {};
 
@@ -176,6 +181,7 @@ private:
     static HearingAid* get_by_cached_addr(bd_addr_t addr);
     static void set_other_side_ptrs();
     bool is_connected();
+    bool is_streaming();
     void set_process_busy();
     void unset_process_busy();
     void set_audio_busy();
@@ -184,6 +190,7 @@ private:
     void send_acp_start();
     void send_acp_stop();
     void send_acp_status(uint8_t status);
+    void send_volume(int8_t volume);
     void disconnect();
     void reset();
     const char* get_side_str();

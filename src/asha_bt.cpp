@@ -52,6 +52,10 @@ constexpr btstack_time_t ha_process_interval_ms = 2;
 static btstack_timer_source_t process_timer = {};
 static void process_timer_handler(btstack_timer_source_t * timer);
 
+constexpr btstack_time_t ha_audio_interval_ms = 1;
+static btstack_timer_source_t audio_timer = {};
+static void audio_timer_handler(btstack_timer_source_t * timer);
+
 static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker);
 static void delete_paired_devices();
 static void add_bonded_to_fal();
@@ -260,11 +264,19 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context,
     printf("%s\r\n", response_json.c_str());
 }
 
-static void process_timer_handler(btstack_timer_source_t* timer)
+static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* timer)
 {
     HearingAid::process();
 
     btstack_run_loop_set_timer(timer, ha_process_interval_ms);
+    btstack_run_loop_add_timer(timer);
+}
+
+static void __not_in_flash_func(audio_timer_handler)(btstack_timer_source_t* timer)
+{
+    HearingAid::process_audio();
+
+    btstack_run_loop_set_timer(timer, ha_audio_interval_ms);
     btstack_run_loop_add_timer(timer);
 }
 
@@ -293,6 +305,12 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);
                 btstack_run_loop_set_timer(&process_timer, ha_process_interval_ms);
                 btstack_run_loop_add_timer(&process_timer);
+
+                // Set the audio timer handler
+                btstack_run_loop_set_timer_handler(&audio_timer, &audio_timer_handler);
+                btstack_run_loop_set_timer(&audio_timer, ha_audio_interval_ms);
+                btstack_run_loop_add_timer(&audio_timer);
+
                 HearingAid::start_scan();
             }
             break;
