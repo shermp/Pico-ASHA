@@ -427,6 +427,11 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
                     break;
             }
             break;
+        case SM_EVENT_IDENTITY_RESOLVING_STARTED:
+        case SM_EVENT_IDENTITY_RESOLVING_FAILED:
+        case SM_EVENT_IDENTITY_RESOLVING_SUCCEEDED:
+        case SM_EVENT_IDENTITY_CREATED:
+            break;
         default:
             LOG_ERROR("Unhandled SM event: 0x%02x", ev_type);
             break;
