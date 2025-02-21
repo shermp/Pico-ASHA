@@ -766,7 +766,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                         if (ha->other && ha->other->is_streaming()) {
                             ha->other->send_acp_status(ACPStatus::other_connected);
                         }
-                    } else if (ha->audio_state == (AudioState::Stop | AudioState::AudioBusy)) {
+                    } else if (ha->audio_state == AudioState::Stop) {
                         LOG_INFO("%s: Audio stop OK", ha->get_side_str());
                         ha->audio_state = AudioState::Ready;
                     }
@@ -792,16 +792,8 @@ void __not_in_flash_func(HearingAid::process_audio)()
     bool pcm_is_streaming = audio_buff.pcm_streaming.Load();
     for (auto ha : hearing_aids) {
         if (ha->process_state != ProcessState::Audio) { continue; }
-        if (ha->audio_process_delay_ticks > 0) {
-            --(ha->audio_process_delay_ticks);
-            continue;
-        }
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
-            case AudioState::Stop:
-                ha->set_audio_busy();
-                ha->send_acp_stop();
-                break;
             case AudioState::Ready:
                 if (pcm_is_streaming && ha->credits >= 8) {
                     ha->set_audio_busy();
@@ -815,8 +807,7 @@ void __not_in_flash_func(HearingAid::process_audio)()
                     }
                     LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                               ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
-                    ha->audio_process_delay_ticks += 100;
-                    ha->audio_state = AudioState::Stop;
+                    ha->send_acp_stop();
                 } else {
                     // Send volume update if volume has changed
                     int8_t v = ha->rop.side == Side::Left ? vol.l : vol.r;
@@ -973,6 +964,7 @@ void HearingAid::send_acp_start()
 
 void HearingAid::send_acp_stop()
 {
+    audio_state = AudioState::Stop;
     acp_cmd_packet[0] = ACPOpCode::stop;
     uint8_t res = gatt_client_write_value_of_characteristic(&HearingAid::handle_acp_write,
                                                             conn_handle,
