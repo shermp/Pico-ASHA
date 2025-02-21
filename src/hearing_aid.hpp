@@ -168,6 +168,7 @@ private:
     inline static std::array<HearingAid*, 2> hearing_aids;
 
     int process_delay_ticks = 0;
+    int audio_process_delay_ticks = 0;
     uint32_t curr_write_index = 0U;
     uint32_t curr_read_index = 0U;
     uint8_t* audio_data = nullptr;
