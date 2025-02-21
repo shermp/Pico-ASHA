@@ -703,7 +703,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
                 LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
                 // Try again later
                 ha->unset_process_busy();
-                ha->process_delay_ticks = ha_process_delay_ticks;
+                ha->process_delay_ticks = ha_process_delay_ticks * 3;
             } else {
                 LOG_INFO("%s: L2CAP cbm connection created", ha->get_side_str());
                 ha->process_state = ProcessState::EnASPNotification;
