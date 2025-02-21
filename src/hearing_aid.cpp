@@ -35,18 +35,13 @@ namespace ACPStatus
 }
 
 static bool gatt_service_valid(gatt_client_service_t* service);
-//static bool gatt_characteristic_valid(gatt_client_characteristic_t* characteristic);
+
 static void delete_paired_device(const bd_addr_t address);
 
 static bool gatt_service_valid(gatt_client_service_t* service)
 {
     return service->end_group_handle > 0U;
 }
-
-// static bool gatt_characteristic_valid(gatt_client_characteristic_t* characteristic)
-// {
-//     return characteristic->value_handle > 0U;
-// }
 
 /* Get value from (sub) array of bytes */
 template<typename T>
@@ -794,7 +789,6 @@ void __not_in_flash_func(HearingAid::process_audio)()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                //LOG_INFO("pcm_streaming : %d credits %d", (int)pcm_is_streaming, (int)ha->credits);
                 if (pcm_is_streaming && ha->credits >= 8) {
                     ha->set_audio_busy();
                     ha->send_acp_start();

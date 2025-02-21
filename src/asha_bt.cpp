@@ -104,9 +104,6 @@ extern "C" void bt_main()
     stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
 
     async_context_t *ctx = cyw43_arch_async_context();
-    // bt_audio_pending_worker.do_work = handle_bt_audio_pending_worker;
-    // async_context_add_when_pending_worker(ctx, &bt_audio_pending_worker);
-    // bt_async_ctx = ctx;
 
     stdin_pending_worker.do_work = handle_stdin_line_worker;
     async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
@@ -119,11 +116,11 @@ extern "C" void bt_main()
     led_mgr.set_ctx(ctx);
 
     if (runtime_settings.hci_dump_enabled) {
-        // // Allow time for USB serial to connect before proceeding
-        // while (!stdio_usb_connected()) {
-        //     sleep_ms(250);
-        // }
-        // sleep_ms(250);
+        // Allow time for USB serial to connect before proceeding
+        while (!stdio_usb_connected()) {
+            sleep_ms(250);
+        }
+        sleep_ms(250);
     }
 
     if (!runtime_settings) {
@@ -256,9 +253,9 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context,
         }
         resp_doc["success"] = true;
     }
-    // else {
-    //     resp_doc["cmd"] = "unknown";
-    // }
+    else {
+        resp_doc["cmd"] = "unknown";
+    }
     size_t len = serializeJson(resp_doc, response_json.data(), response_json.capacity() - 1);
     response_json.uninitialized_resize(len);
     printf("%s\r\n", response_json.c_str());
