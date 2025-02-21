@@ -76,5 +76,5 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                 name: pico-asha-bin
-                path: pico-asha/build/pico-asha.[ue][fl][2f]
+                path: pico-asha/build/pico_asha.[ue][fl][2f]
 
