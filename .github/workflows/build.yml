@@ -5,12 +5,14 @@ on:
     pull_request:
 
 env:
-    PICO_SDK_COMMIT_HASH: efe2103f9b28458a1615ff096054479743ade236
-    BTSTACK_CREDITS_COMMIT_HASH: 4b82482df9ee5adee540ae826d2efb90e06ba5b7
+    PICO_SDK_COMMIT_HASH: ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c
 
 jobs:
     build_pico_asha:
-        name: Build
+        strategy:
+          matrix:
+            board: ["pico_w", "pico_2w"]
+        name: Build Pico-ASHA for ${{ matrix.board }}
         runs-on: ubuntu-24.04
         steps:
             - name: Checkout repository
@@ -23,7 +25,7 @@ jobs:
               uses: actions/cache@v4
               with:
                 path: pico-sdk
-                key: pico-sdk-${{ env.PICO_SDK_COMMIT_HASH }}
+                key: pico-sdk-${{ env.PICO_SDK_COMMIT_HASH }}-1
 
             - name: Checkout Pico SDK
               if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
@@ -35,22 +37,17 @@ jobs:
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
 
             # Note: still required as of Pico SDK 2.0.0
-            - name: Apply Bluetooth DLE patch
+            - name: Update cyw43-driver for DLE fix
               if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               run: |
-                wget https://github.com/raspberrypi/pico-sdk/files/12750460/0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
-                unzip 0001-Update-firmware-for-Data-Length-Extension-fix.patch.zip
-                cd pico-sdk/lib/cyw43-driver
-                git config --global user.email "gh@localhost"
-                git config --global user.name "GH Actions"
-                git am ../../../0001-Update-firmware-for-Data-Length-Extension-fix.patch
-            
-            - name: Checkout btstack fork with credit patch
-              uses: actions/checkout@v4
-              with:
-                repository: shermp/btstack
-                path: btstack
-                ref: "${{ env.BTSTACK_CREDITS_COMMIT_HASH }}"
+                cd pico-sdk/
+                git submodule update --remote lib/cyw43-driver
+
+            - name: Patch TinyUSB 0.18 with UAC2 fix
+              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
+              run: |
+                cd pico-sdk/lib/tinyusb
+                git apply ../../../pico-asha/patch/tinyusb-v0.18-uac2-fix.patch
 
             - name: Install dependencies
               run: |
@@ -59,22 +56,21 @@ jobs:
             - name: Set env variables
               run: |
                 echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
-                echo "PICO_BTSTACK_PATH=$(realpath ./btstack)" >> "$GITHUB_ENV"
             
             - name: Configure build
               run: |
-                mkdir pico-asha/build
-                cd pico-asha/build
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
+                mkdir pico-asha/build/${{ matrix.board }}
+                cd pico-asha/build/${{ matrix.board }}
+                cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=${{ matrix.board }} ..
 
             - name: Compile
               run: |
-                cd pico-asha/build
+                cd pico-asha/build/${{ matrix.board }}
                 cmake --build .
 
             - name: Upload UF2 and ELF binaries
               uses: actions/upload-artifact@v4
               with:
-                name: pico-asha-bin
-                path: pico-asha/build/pico_asha.[ue][fl][2f]
+                name: pico-asha-bin-${{ matrix.board }}
+                path: pico-asha/build/${{ matrix.board }}/pico_asha.[ue][fl][2f]
 
