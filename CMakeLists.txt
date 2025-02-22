@@ -71,10 +71,6 @@ add_executable(pico_asha ${ASHA_SRC})
 
 target_include_directories(pico_asha PUBLIC src/ lib/)
 
-option(ENABLE_BLE_AD_DUMP "Enable dumping of advertisement packet data" OFF)
-option(ENABLE_UAC2_LOG "Enable USB logging" OFF)
-option(ENABLE_PAIR_DEL "Delete all HA pairings" OFF)
-
 list(APPEND pico_asha_defines "PICO_ASHA_VERS=\"${PICO_ASHA_VERSION}\"")
 
 list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
@@ -82,18 +78,7 @@ pico_enable_stdio_usb(pico_asha 1)
 pico_enable_stdio_uart(pico_asha 1)
 
 list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")
-
-if(ENABLE_BLE_AD_DUMP)
-  list(APPEND pico_asha_defines "ASHA_AD_DUMP")
-endif()
-
-if (ENABLE_UAC2_LOG)
-  list(APPEND pico_asha_defines "CFG_TUSB_DEBUG=1")
-endif()
-
-if(ENABLE_PAIR_DEL)
-  list(APPEND pico_asha_defines "ASHA_DELETE_PAIRINGS")
-endif()
+list(APPEND pico_asha_defines "PICO_USE_FASTEST_SUPPORTED_CLOCK=1")
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wdeprecated-enum-enum-conversion HAVE_DEP_ENNUM_ENUM_CONV)
