@@ -11,7 +11,7 @@ jobs:
     build_pico_asha:
         strategy:
           matrix:
-            board: ["pico_w", "pico_2w"]
+            board: ["pico_w", "pico2_w"]
         name: Build Pico-ASHA for ${{ matrix.board }}
         runs-on: ubuntu-24.04
         steps:
