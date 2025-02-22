@@ -59,7 +59,7 @@ jobs:
             
             - name: Configure build
               run: |
-                mkdir pico-asha/build/${{ matrix.board }}
+                mkdir -p pico-asha/build/${{ matrix.board }}
                 cd pico-asha/build/${{ matrix.board }}
                 cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=${{ matrix.board }} ..
 
