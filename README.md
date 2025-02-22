@@ -21,29 +21,25 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 Any commits pushed to this repository compiles an ELF and UF2 binary that can be loaded onto a Pico W.
 
-Both UART and USB serial binaries are compiled, you can choose whichever is most suitable for you.
-
 Binaries are available for download from the Github Actions tab. You mist be logged into Github to download these binaries.
 
 ### Compile for dev/testing
 
-Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.0.0, using the provided instructions.
+Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.1.1, using the provided instructions.
 
 Create an environment variable called `PICO_SDK_PATH` that points to the downloaded SDK location.
 
-Obtain an updated BT firmware to fix an issue with Data Length Extensions (DLE). Download and apply the patch from [this github comment](https://github.com/raspberrypi/pico-sdk/issues/1465#issuecomment-1739329635). Hopefully the next version of the Pico SDK will include this fix.
+As of SDK 2.1.1, the BT firmware does not properly support Data Length Extensions (DLE). Fortunately the upstream driver has now merged the fixed firmware. Navigate to the Pico SDK directory and run
 
-Download a [modified btstack](https://github.com/shermp/btstack) with outgoing credit support:
+`git submodule update --remote lib/cyw43-driver`
 
-`git clone https://github.com/shermp/btstack.git -b master-credits`.
-
-Create an environment variable called `PICO_BTSTACK_PATH` that points to the downloaded btstack location.
+Unfortunately the version of TinyUSB included in Pico SDK 2.1.1 has a bug that prevents USB audio from working. An open PR has a fix, for convenience this fix is supplied as a patch in `patches/tinyusb-v0.18-uac2-fix.patch`. cd to the `lib/tinyusb` directory and `git apply` the patch.
 
 Build pico-asha
 ```sh
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=MinSizeRel ..
+cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=pico_w ..
 cmake --build .
 ```
 

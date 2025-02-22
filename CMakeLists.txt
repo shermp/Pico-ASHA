@@ -1,23 +1,24 @@
-# == DO NEVER EDIT THE NEXT LINES for Raspberry Pi Pico VS Code Extension to work ==
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(sdkVersion 2.0.0)
-set(toolchainVersion 13_2_Rel1)
-set(picotoolVersion 2.0.0)
+set(sdkVersion 2.1.1)
+set(toolchainVersion 14_2_Rel1)
+set(picotoolVersion 2.1.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
+set(PICO_BOARD pico_w CACHE STRING "Board type")
+
 cmake_minimum_required(VERSION 3.13)
 
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
-set(PICO_BOARD pico_w CACHE STRING "Board type")
 include(pico_sdk_import.cmake)
 
 project(pico_asha C CXX)
@@ -30,8 +31,8 @@ SET(PICO_ASHA_VERSION "0.1.0-dev")
 pico_sdk_init()
 
 message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
-if(PICO_SDK_VERSION_STRING VERSION_LESS "2.0.0")
-  message( FATAL_ERROR "Pico SDK version must be 2.0.0 or greater" )
+if(PICO_SDK_VERSION_STRING VERSION_LESS "2.1.1")
+  message( FATAL_ERROR "Pico SDK version must be 2.1.1 or greater" )
 endif()
 
 Include(FetchContent)
