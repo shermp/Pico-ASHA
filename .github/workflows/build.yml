@@ -19,16 +19,8 @@ jobs:
               uses: actions/checkout@v4
               with:
                 path: pico-asha
-            
-            - name: Cache Pico SDK
-              id: cache-pico-sdk
-              uses: actions/cache@v4
-              with:
-                path: pico-sdk
-                key: pico-sdk-${{ env.PICO_SDK_COMMIT_HASH }}-1
 
             - name: Checkout Pico SDK
-              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               uses: actions/checkout@v4
               with:
                 repository: raspberrypi/pico-sdk
@@ -36,15 +28,12 @@ jobs:
                 submodules: recursive
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
 
-            # Note: still required as of Pico SDK 2.0.0
             - name: Update cyw43-driver for DLE fix
-              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               run: |
                 cd pico-sdk/
                 git submodule update --remote lib/cyw43-driver
 
             - name: Patch TinyUSB 0.18 with UAC2 fix
-              if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
               run: |
                 cd pico-sdk/lib/tinyusb
                 git apply ../../../pico-asha/patch/tinyusb-v0.18-uac2-fix.patch
