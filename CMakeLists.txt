@@ -63,6 +63,7 @@ set(ASHA_SRC
   src/usb_audio.cpp
   src/util.cpp
   lib/g722/g722_encode.cc
+  lib/nanocobs/cobs.c
 )
 
 set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
