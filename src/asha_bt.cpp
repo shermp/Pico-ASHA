@@ -263,18 +263,18 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context,
 
 static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* timer)
 {
-    HearingAid::process();
-
     btstack_run_loop_set_timer(timer, ha_process_interval_ms);
     btstack_run_loop_add_timer(timer);
+
+    HearingAid::process();
 }
 
 static void __not_in_flash_func(audio_timer_handler)(btstack_timer_source_t* timer)
 {
-    HearingAid::process_audio();
-
     btstack_run_loop_set_timer(timer, ha_audio_interval_ms);
     btstack_run_loop_add_timer(timer);
+
+    HearingAid::process_audio();
 }
 
 static void hci_event_handler(PACKET_HANDLER_PARAMS)
