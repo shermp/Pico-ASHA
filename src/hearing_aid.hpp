@@ -7,6 +7,7 @@
 
 #include "asha_audio.hpp"
 #include "asha_bt.hpp"
+#include "asha_comms.hpp"
 
 namespace asha
 {
@@ -32,6 +33,7 @@ struct ROP {
     uint16_t render_delay;
     bool codec_16khz;
     bool codec_24khz;
+    uint8_t raw_rop_data[17];
 
     ROP();
     void read(const uint8_t* data);
