@@ -49,7 +49,7 @@ namespace comm
 
     static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 200> event_buff;
 
-    void add_event_to_buffer(hci_con_handle_t const handle, EventPacket const& event)
+    void add_event_to_buffer(uint16_t const handle, EventPacket const& event)
     {
         struct {
             HeaderPacket head;

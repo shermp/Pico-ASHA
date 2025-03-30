@@ -1,7 +1,5 @@
 #pragma once
 
-#include <btstack.h>
-
 namespace asha
 {
 
@@ -64,7 +62,7 @@ namespace comm
     {
         Type  type;
         uint8_t  len;
-        hci_con_handle_t hci_handle;
+        uint16_t hci_handle;
         uint32_t ts_ms;
     };
 
@@ -77,7 +75,7 @@ namespace comm
         uint8_t reason = {};
         PAError pa_error = {};
         union {
-            bd_addr_t addr;
+            uint8_t addr[6];
             uint8_t psm;
             int8_t asp_not;
             int8_t volume;
@@ -88,13 +86,13 @@ namespace comm
         } data = {};
 
         EventPacket(EventType type) : ev_type(type), 
-                                      status(ERROR_CODE_SUCCESS), 
-                                      reason(ERROR_CODE_SUCCESS),
+                                      status(0), 
+                                      reason(0),
                                       pa_error(PAError::PASuccess) {};
         
         EventPacket(EventType type, uint8_t stat) : ev_type(type),
                                                     status(stat), 
-                                                    reason(ERROR_CODE_SUCCESS),
+                                                    reason(0),
                                                     pa_error(PAError::PASuccess) {};
 
         EventPacket(EventType type, uint8_t stat, uint8_t reas) : ev_type(type),
@@ -103,8 +101,8 @@ namespace comm
                                                                   pa_error(PAError::PASuccess) {};
 
         EventPacket(EventType type, PAError pa) : ev_type(type), 
-                                                  status(ERROR_CODE_SUCCESS), 
-                                                  reason(ERROR_CODE_SUCCESS),
+                                                  status(0), 
+                                                  reason(0),
                                                   pa_error(pa) {};
 
         template<typename ...Fmt>
@@ -116,7 +114,7 @@ namespace comm
 
     static_assert(sizeof(EventPacket) == 36);
 
-    void add_event_to_buffer(hci_con_handle_t const handle, EventPacket const& event);
+    void add_event_to_buffer(uint16_t const handle, EventPacket const& event);
 
     void try_send_events();
 
