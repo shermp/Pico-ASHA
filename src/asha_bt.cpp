@@ -7,6 +7,7 @@
 #include <hardware/watchdog.h>
 
 #include "asha_bt.hpp"
+#include "asha_comms.hpp"
 #include "asha_usb_serial.hpp"
 #include "asha_uuid.hpp"
 #include "hearing_aid.hpp"
@@ -62,7 +63,10 @@ static void add_bonded_to_fal();
 
 static void delete_paired_devices()
 {
-    LOG_INFO("Removing paired devices");
+    using namespace comm;
+    //LOG_INFO("Removing paired devices");
+    EventPacket ev_pkt(EventType::DeletePair);
+
     int addr_type;
     bd_addr_t addr; 
     sm_key_t irk;
@@ -70,8 +74,10 @@ static void delete_paired_devices()
     for (int i = 0; i < max_count; ++i) {
         le_device_db_info(i, &addr_type, addr, irk);
         if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
-            LOG_INFO("Removing: %s", bd_addr_to_str(addr));
+            //LOG_INFO("Removing: %s", bd_addr_to_str(addr));
             le_device_db_remove(i);
+            bd_addr_copy(ev_pkt.data.addr, addr);
+            add_event_to_buffer(HCI_CON_HANDLE_INVALID, ev_pkt);
         }
     }
 }
@@ -94,6 +100,8 @@ static void add_bonded_to_fal()
 
 extern "C" void bt_main()
 {
+    using namespace comm;
+
     if (cyw43_arch_init()) {
         return;
     }
@@ -109,10 +117,6 @@ extern "C" void bt_main()
     async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
     usb_ser_ctx = ctx;
 
-    logging_pending_worker.do_work = handle_logging_pending_worker;
-    async_context_add_when_pending_worker(ctx, &logging_pending_worker);
-    logging_ctx = ctx;
-
     led_mgr.set_ctx(ctx);
 
     if (runtime_settings.hci_dump_enabled) {
@@ -124,22 +128,23 @@ extern "C" void bt_main()
     }
 
     if (!runtime_settings) {
-        LOG_ERROR("Runtime settings not initialised");
+        //LOG_ERROR("Runtime settings not initialised");
+        add_event_to_buffer(HCI_CON_HANDLE_INVALID, EventPacket(EventType::PicoASHAInit, PAError::PARuntimeSettingsErr));
     }
-    LOG_INFO("BT ASHA starting.");
+    //LOG_INFO("BT ASHA starting.");
     
     /* Start init BTStack systems */
-    if (runtime_settings.hci_dump_enabled) {
-        hci_dump_init(hci_dump_embedded_stdout_get_instance());
-    }
+    // if (runtime_settings.hci_dump_enabled) {
+    //     hci_dump_init(hci_dump_embedded_stdout_get_instance());
+    // }
     /* L2CAP init required for basic btstack functionality */
-    LOG_INFO("L2CAP Init.");
+    //LOG_INFO("L2CAP Init.");
     l2cap_init();
 
     /* Init the security manager. This takes care of pairing
        with hearing aids, and also allows reconnecting to already
        paired hearing aids */
-    LOG_INFO("SM Init.");
+    //LOG_INFO("SM Init.");
     sm_init();
     sm_set_secure_connections_only_mode(false);
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
@@ -147,7 +152,7 @@ extern "C" void bt_main()
     sm_allow_ltk_reconstruction_without_le_device_db_entry(0);
 
     /* Init GATT client. Required to read/write GATT characteristics */
-    LOG_INFO("GATT Client Init.");
+    //LOG_INFO("GATT Client Init.");
     gatt_client_init();
     gatt_client_set_required_security_level(LEVEL_0);
 
@@ -167,7 +172,7 @@ extern "C" void bt_main()
     );
 
     /* Start BTStack */
-    LOG_INFO("HCI power on.");
+    //LOG_INFO("HCI power on.");
     hci_power_control(HCI_POWER_ON);
 
     /* Do nothing. Audio streaming is scheduled using async_context */
@@ -185,9 +190,9 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context,
     if (err != DeserializationError::Ok) {
         // Dump the log if the user started monitoring USB serial late
         if (err == DeserializationError::EmptyInput) {
-            if (logging_ctx) {
-                async_context_set_work_pending(logging_ctx, &logging_pending_worker);
-            }
+            // if (logging_ctx) {
+            //     async_context_set_work_pending(logging_ctx, &logging_pending_worker);
+            // }
         } else {
             printf("%s\r\n", R"("{"cmd":"error"}")");
         }
@@ -248,7 +253,7 @@ static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context,
     } else if (cmd_is(SerCmd::HCIDump)) {
         bool hci_dump_enabled = cmd_doc["enabled"];
         if (runtime_settings.set_hci_dump_enabled(hci_dump_enabled)) {
-            LOG_INFO("Enabling Watchdog");
+            //LOG_INFO("Enabling Watchdog");
             watchdog_enable(250, true);
         }
         resp_doc["success"] = true;
@@ -267,6 +272,7 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
     btstack_run_loop_add_timer(timer);
 
     HearingAid::process();
+    comm::try_send_events();
 }
 
 static void __not_in_flash_func(audio_timer_handler)(btstack_timer_source_t* timer)
@@ -294,7 +300,7 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 // by default. Values taken from Android
                 gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
                 gap_local_bd_addr(local_addr);
-                LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
+                //LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
                 if (!runtime_settings.full_set_paired) {
                     delete_paired_devices();
                 }
@@ -313,7 +319,7 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
             break;
         /* Every time a GAP advertising report is received, handle it here */
         case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
-            LOG_SCAN("Got extended advertising report.");
+            //LOG_SCAN("Got extended advertising report.");
             [[fallthrough]];
         case GAP_EVENT_ADVERTISING_REPORT:
             if (hci_ev_type == GAP_EVENT_EXTENDED_ADVERTISING_REPORT) {
@@ -395,7 +401,7 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
         case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
             for (i = 0; i < size; i += sizeof(uint16_t)) {
                 if (little_endian_read_16(adv_data, i) == AshaUUID::service16) {
-                    LOG_SCAN("ASHA 16 bit service discovered");
+                    //LOG_SCAN("ASHA 16 bit service discovered");
                     is_hearing_aid = true;
                 }
             }
@@ -405,10 +411,10 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
             for (i = 0; i < size; i += AshaUUID::service.size()) {
                 reverse_128(adv_data + i, tmp_uuid128);
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
-                    LOG_SCAN("ASHA 128 bit UUID service discovered");
+                    //LOG_SCAN("ASHA 128 bit UUID service discovered");
                     is_hearing_aid = true;
                 } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
-                    LOG_SCAN("MFI UUID discovered");
+                    //LOG_SCAN("MFI UUID discovered");
                     is_hearing_aid = true;
                 }
             }

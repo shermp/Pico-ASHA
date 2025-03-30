@@ -10,7 +10,6 @@
 #include "asha_audio.hpp"
 #include "asha_usb_serial.hpp"
 #include "runtime_settings.hpp"
-#include "asha_logging.h"
 #include "hearing_aid.hpp"
 
 namespace asha
@@ -29,10 +28,6 @@ async_when_pending_worker_t stdin_pending_worker = {};
 char pico_uid[pico_uid_size];
 
 RuntimeSettings runtime_settings = {};
-
-etl::circular_buffer<etl::string<log_line_len>, log_lines> log_buffer = {};
-async_context_t *logging_ctx = nullptr;
-async_when_pending_worker_t logging_pending_worker = {};
 
 HearingAid ha_1 = {};
 HearingAid ha_2 = {};

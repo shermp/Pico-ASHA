@@ -52,11 +52,10 @@ FetchContent_MakeAvailable(ArduinoJson)
 
 set(ASHA_SRC
   src/main.cpp
-  src/bt_status_err.cpp
   src/runtime_settings.cpp
   src/asha_audio.cpp
   src/asha_bt.cpp
-  src/asha_logging.cpp
+  src/asha_comms.cpp
   src/asha_led.cpp
   src/hearing_aid.cpp
   src/usb_descriptors.cpp

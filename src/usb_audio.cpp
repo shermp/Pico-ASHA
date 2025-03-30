@@ -34,7 +34,6 @@
 
 #include "asha_audio.hpp"
 #include "asha_usb_serial.hpp"
-#include "asha_logging.h"
 
 namespace asha
 {
@@ -101,13 +100,9 @@ void audio_task(void);
 void serial_task(void);
 
 void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
-                           bool dtr, 
+                           [[maybe_unused]] bool dtr, 
                            [[maybe_unused]] bool rts)
-{
-  if (dtr) {
-    async_context_set_work_pending(logging_ctx, &logging_pending_worker);
-  }
-}
+{}
 
 void serial_task()
 {
