@@ -69,7 +69,7 @@ set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextr
 
 add_executable(pico_asha ${ASHA_SRC})
 
-target_include_directories(pico_asha PUBLIC src/ lib/)
+target_include_directories(pico_asha PUBLIC src/ lib/ include/)
 
 list(APPEND pico_asha_defines "PICO_ASHA_VERS=\"${PICO_ASHA_VERSION}\"")
 
