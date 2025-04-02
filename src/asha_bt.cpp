@@ -77,7 +77,7 @@ static void delete_paired_devices()
             //LOG_INFO("Removing: %s", bd_addr_to_str(addr));
             le_device_db_remove(i);
             bd_addr_copy(ev_pkt.data.addr, addr);
-            add_event_to_buffer(HCI_CON_HANDLE_INVALID, ev_pkt);
+            add_event_to_buffer(unset_conn_id, ev_pkt);
         }
     }
 }
@@ -129,7 +129,7 @@ extern "C" void bt_main()
 
     if (!runtime_settings) {
         //LOG_ERROR("Runtime settings not initialised");
-        add_event_to_buffer(HCI_CON_HANDLE_INVALID, EventPacket(EventType::PicoASHAInit, PAError::PARuntimeSettingsErr));
+        add_event_to_buffer(unset_conn_id, EventPacket(EventType::PicoASHAInit, StatusType::PAStatus, PAError::PARuntimeSettingsErr));
     }
     //LOG_INFO("BT ASHA starting.");
     
