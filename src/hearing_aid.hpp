@@ -176,12 +176,17 @@ private:
 
     std::array<uint8_t, sdu_size_bytes> recv_buff = {};
 
+    uint16_t conn_id = comm::unset_conn_id;
+
+    inline static uint16_t next_conn_id;
+
     /* Member functions */
 
     static HearingAid* get_by_con_handle(hci_con_handle_t handle);
     static HearingAid* get_by_cid(uint16_t cid);
     static HearingAid* get_by_cached_addr(bd_addr_t addr);
     static void set_other_side_ptrs();
+    void assign_next_conn_id();
     bool is_connected();
     bool is_streaming();
     void set_process_busy();

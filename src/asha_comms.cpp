@@ -49,7 +49,7 @@ namespace comm
 
     static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 200> event_buff;
 
-    void add_event_to_buffer(uint16_t const handle, EventPacket const& event)
+    void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event)
     {
         struct {
             HeaderPacket head;
@@ -58,7 +58,7 @@ namespace comm
             .head = {
                 .type = Type::Event,
                 .len = sizeof(HeaderPacket) + sizeof(EventPacket),
-                .hci_handle = handle,
+                .conn_id = conn_id,
                 .ts_ms = to_ms_since_boot(get_absolute_time())
             },
             .ev = event
