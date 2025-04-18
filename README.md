@@ -31,7 +31,14 @@ Create an environment variable called `PICO_SDK_PATH` that points to the downloa
 
 As of SDK 2.1.1, the BT firmware does not properly support Data Length Extensions (DLE). Fortunately the upstream driver has now merged the fixed firmware. Navigate to the Pico SDK directory and run
 
-`git submodule update --remote lib/cyw43-driver`
+```sh
+cd lib/cyw43-driver
+git fetch
+git checkut 7f422fef4ea5bff7285fb78340d3f28f5461cff2
+cd ../..
+git add lib/cyw43-driver
+git commit -m "Update cyw43-driver for DLE fix"
+```
 
 Unfortunately the version of TinyUSB included in Pico SDK 2.1.1 has a bug that prevents USB audio from working. An open PR has a fix, for convenience this fix is supplied as a patch in `patches/tinyusb-v0.18-uac2-fix.patch`. cd to the `lib/tinyusb` directory and `git apply` the patch.
 
