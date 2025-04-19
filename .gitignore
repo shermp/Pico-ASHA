@@ -3,3 +3,4 @@ build
 logs
 .vscode
 src/old
+CMakeLists.txt.user
