@@ -21,7 +21,7 @@ SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
 include(pico_sdk_import.cmake)
 
-project(pico_asha C CXX)
+project(pico_asha VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -72,6 +72,9 @@ add_executable(pico_asha ${ASHA_SRC})
 target_include_directories(pico_asha PUBLIC src/ lib/ include/)
 
 list(APPEND pico_asha_defines "PICO_ASHA_VERS=\"${PICO_ASHA_VERSION}\"")
+list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}")
+list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_MINOR}")
+list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_PATCH=${CMAKE_PROJECT_VERSION_PATCH}")
 
 list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
 pico_enable_stdio_usb(pico_asha 1)

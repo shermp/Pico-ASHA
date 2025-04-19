@@ -107,6 +107,7 @@ struct HearingAid
     /* SM vars */
 
     inline static uint8_t auth_req;
+    bool paired_and_bonded = false;
 
     /* Member functions */
     
@@ -117,6 +118,7 @@ struct HearingAid
     static bool full_set_connected();
     static std::array<HearingAid*,2> connected_has();
 
+    static void on_serial_host_connected();
     static bool is_addr_connected(const bd_addr_t addr);
     static void start_scan();
     static void on_ad_report(const AdvertisingReport& report);

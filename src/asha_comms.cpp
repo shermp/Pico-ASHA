@@ -6,6 +6,7 @@
 
 #include "asha_audio.hpp"
 #include "asha_comms.hpp"
+#include "asha_vers.h"
 
 namespace asha
 {
@@ -47,27 +48,50 @@ namespace comm
     
     static_assert(cobs_hci_buff_size <= COBS_TINYFRAME_SAFE_BUFFER_SIZE);
 
+    static uint8_t cobs_enc_buff[COBS_TINYFRAME_SAFE_BUFFER_SIZE];
+
     static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 200> event_buff;
 
-    void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event)
+    template<typename T>
+    static auto construct_packet(Type header_type, uint16_t conn_id, T const& packet)
     {
         struct {
             HeaderPacket head;
-            EventPacket ev;
-        } pkt = {
+            T pkt;
+        } p {
             .head = {
-                .type = Type::Event,
-                .len = sizeof(HeaderPacket) + sizeof(EventPacket),
+                .type = header_type,
+                .len = sizeof(HeaderPacket) + sizeof(T),
                 .conn_id = conn_id,
                 .ts_ms = to_ms_since_boot(get_absolute_time())
             },
-            .ev = event
+            .pkt = packet
         };
-        
+
+        static_assert(sizeof(p) == sizeof(HeaderPacket) + sizeof(T));
+        static_assert((zero_prefix + COBS_ENCODE_MAX(sizeof(p))) <= COBS_TINYFRAME_SAFE_BUFFER_SIZE);
+
+        return p;
+    }
+
+    template<typename T>
+    static void construct_and_send_packet(Type header_type, uint16_t conn_id, T const& packet)
+    {
+        auto pkt = construct_packet(header_type, conn_id, packet);
+
+        size_t enc_len = 0;
+        cobs_encode(&pkt, sizeof(pkt), cobs_enc_buff + zero_prefix, sizeof(cobs_enc_buff) - zero_prefix, &enc_len);
+        stdio_put_string((const char*)cobs_enc_buff, enc_len + zero_prefix, false, false);
+        stdio_flush();
+    }
+
+    void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event)
+    {        
+        auto pkt = construct_packet(Type::Event, conn_id, event);
         event_buff.push({0});
         auto& buff = event_buff.back();
         size_t enc_len = 0;
-        cobs_encode(&pkt, sizeof(pkt), buff.data() + 1, buff.size() - 1, &enc_len);
+        cobs_encode(&pkt, sizeof(pkt), buff.data() + zero_prefix, buff.size() - zero_prefix, &enc_len);
     }
 
     void try_send_events()
@@ -82,6 +106,21 @@ namespace comm
         if (flush_req) {
             stdio_flush();
         }
+    }
+
+    void send_intro_packet(int8_t num_connections)
+    {
+        construct_and_send_packet(Type::Intro, unset_conn_id, IntroPacket{.pa_version = {
+            .major = PICO_ASHA_FW_VERS_MAJOR,
+            .minor = PICO_ASHA_FW_VERS_MINOR,
+            .patch = PICO_ASHA_FW_VERS_PATCH
+        },
+        .num_connected = num_connections});
+    }
+
+    void send_remote_info_packet(RemoteInfo const& remote_info)
+    {
+        construct_and_send_packet(Type::RemInfo, unset_conn_id, remote_info);
     }
 
 } // namespace comm

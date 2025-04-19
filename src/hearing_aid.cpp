@@ -269,6 +269,36 @@ std::array<HearingAid*,2> HearingAid::connected_has()
     return has;
 }
 
+void HearingAid::on_serial_host_connected()
+{
+    using namespace comm;
+    RemoteInfo info;
+    send_intro_packet((int8_t)num_connected());
+    for (auto ha : hearing_aids) {
+        info.conn_id = ha->conn_id;
+        info.hci_handle = ha->conn_handle;
+        bd_addr_copy(info.addr, ha->addr);
+        info.connected = true;
+        info.paired = ha->paired_and_bonded;
+        info.psm = ha->psm;
+        info.l2cap_id = ha->cid;
+        memcpy(info.dev_name, ha->device_name.data(), sizeof(info.dev_name));
+        memcpy(info.mfg_name, ha->manufacturer.data(), sizeof(info.mfg_name));
+        memcpy(info.model_name, ha->model.data(), sizeof(info.model_name));
+        memcpy(info.fw_vers, ha->fw_vers.data(), sizeof(info.fw_vers));
+        info.side = (ha->rop.side == Side::Left)  ? CSide::Left : 
+                    (ha->rop.side == Side::Right) ? CSide::Right
+                                                  : CSide::Unset;
+        info.mode = (ha->rop.mode == Mode::Binaural) ? CMode::Binaural :
+                    (ha->rop.mode == Mode::Mono)     ? CMode::Mono
+                                                     : CMode::Unset;
+        info.audio_streaming = ha->is_streaming();
+        info.curr_vol = ha->curr_vol;
+
+        send_remote_info_packet(info);
+    }
+}
+
 bool HearingAid::is_addr_connected(const bd_addr_t addr)
 {
     for (auto ha : hearing_aids) {
@@ -312,7 +342,8 @@ void HearingAid::on_connected(bd_addr_t addr, hci_con_handle_t handle)
         ha_cached->assign_next_conn_id();
 
         EventPacket ev_pkt(EventType::RemoteConnected);
-        bd_addr_copy(ev_pkt.data.addr, ha_cached->addr);
+        ev_pkt.data.conn_info.hci_handle = handle;
+        bd_addr_copy(ev_pkt.data.conn_info.addr, ha_cached->addr);
         add_event_to_buffer(ha_cached->conn_id, ev_pkt);
 
         ha_cached->process_state = ProcessState::PairBond;
@@ -329,7 +360,8 @@ void HearingAid::on_connected(bd_addr_t addr, hci_con_handle_t handle)
         ha->assign_next_conn_id();
 
         EventPacket ev_pkt(EventType::RemoteConnected);
-        bd_addr_copy(ev_pkt.data.addr, ha->addr);
+        ev_pkt.data.conn_info.hci_handle = handle;
+        bd_addr_copy(ev_pkt.data.conn_info.addr, ha->addr);
         add_event_to_buffer(ha->conn_id, ev_pkt);
 
         ha->process_state = ProcessState::DiscoverServices;
@@ -428,7 +460,8 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
             EventPacket ev_pkt(EventType::PairAndBond, StatusType::SMStatus, att_status, reason);
             switch (att_status) {
                 case ERROR_CODE_SUCCESS:
-                    //LOG_INFO("%s: Pairing complete", ha->get_side_str());
+                    //LOG_INFO("%s: Pairing complete", ha->get_side_str());;
+                    ha->paired_and_bonded = true;
                     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
                     add_event_to_buffer(ha->conn_id, EventPacket(EventType::PairAndBond));
                     break;
@@ -478,6 +511,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
             switch (att_status) {
                 case ERROR_CODE_SUCCESS:
                     //LOG_INFO("%s: Reencryption succeeded", ha->get_side_str());
+                    ha->paired_and_bonded = true;
                     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
                     comm::add_event_to_buffer(ha->conn_id, EventPacket(EventType::PairAndBond));
                     break;
@@ -835,7 +869,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
             if (bt_status != ATT_ERROR_SUCCESS) {
                 //LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
-                add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::BtstackStatus, bt_status));
+                add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::L2CapStatus, bt_status));
                 // Try again later
                 ha->unset_process_busy();
                 ha->process_delay_ticks = ha_process_delay_ticks * 3;
@@ -1201,6 +1235,7 @@ void HearingAid::reset()
     other = nullptr;
     psm = 0;
     credits = 0;
+    paired_and_bonded = false;
     process_delay_ticks = 0;
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
@@ -1234,7 +1269,7 @@ static void delete_paired_device(const bd_addr_t address)
         if (addr_type != BD_ADDR_TYPE_UNKNOWN && bd_addr_cmp(addr, address) == 0) {
             //LOG_INFO("Found. Removing");
             le_device_db_remove(i);
-            bd_addr_copy(ev_pkt.data.addr, address);
+            bd_addr_copy(ev_pkt.data.conn_info.addr, address);
             add_event_to_buffer(unset_conn_id, ev_pkt);
         }
     }
