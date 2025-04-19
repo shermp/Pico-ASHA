@@ -9,9 +9,14 @@ namespace comm
 {
     constexpr uint16_t unset_conn_id = 0;
 
+    enum class CSide : uint8_t {Left = 0, Right = 1, Unset = 2};
+    enum class CMode : uint8_t {Mono = 0, Binaural = 1, Unset = 2};
+
     enum class Type : uint8_t
     {
-        Event = 0,
+        Intro = 0,
+        RemInfo,
+        Event,
         HCI,
     };
 
@@ -21,6 +26,7 @@ namespace comm
         PAStatus,
         BtstackStatus,
         ATTStatus,
+        L2CapStatus,
         SMStatus,
     };
 
@@ -81,6 +87,40 @@ namespace comm
 
     static_assert(sizeof(HeaderPacket) == 8);
 
+
+    struct IntroPacket
+    {
+        struct {
+            uint8_t major;
+            uint8_t minor;
+            uint8_t patch;
+        } pa_version;
+        int8_t num_connected = 0;
+    };
+
+    static_assert(sizeof(IntroPacket) == 4);
+
+    struct RemoteInfo
+    {
+        uint16_t conn_id;
+        uint16_t hci_handle;
+        uint8_t  addr[6];
+        bool connected;
+        bool paired;
+        uint16_t psm;
+        uint16_t l2cap_id;
+        char dev_name[32];
+        char mfg_name[32];
+        char model_name[32];
+        char fw_vers[32];
+        CSide side;
+        CMode mode;
+        bool audio_streaming;
+        int8_t curr_vol;
+    };
+
+    static_assert(sizeof(RemoteInfo) == 148);
+
     struct EventPacket
     {
         EventType ev_type = {};
@@ -88,7 +128,10 @@ namespace comm
         uint8_t status = {};
         uint8_t reason = {};
         union {
-            uint8_t addr[6];
+            struct {
+                uint8_t addr[6];
+                uint16_t hci_handle;
+            } conn_info;
             uint8_t psm;
             int8_t asp_not;
             int8_t volume;
@@ -127,6 +170,9 @@ namespace comm
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event);
 
     void try_send_events();
+
+    void send_intro_packet(int8_t num_connections);
+    void send_remote_info_packet(RemoteInfo const& remote_info);
 
 } // namespace comm
 

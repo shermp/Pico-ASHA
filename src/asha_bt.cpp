@@ -21,6 +21,8 @@ constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 
 constexpr uint16_t asha_conn_latency  = 10;
 
+static bool first_comm_packet = true;
+
 LEDManager led_mgr = {};
 
 LEDManager::Pattern none_connected = {
@@ -76,7 +78,7 @@ static void delete_paired_devices()
         if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
             //LOG_INFO("Removing: %s", bd_addr_to_str(addr));
             le_device_db_remove(i);
-            bd_addr_copy(ev_pkt.data.addr, addr);
+            bd_addr_copy(ev_pkt.data.conn_info.addr, addr);
             add_event_to_buffer(unset_conn_id, ev_pkt);
         }
     }
@@ -271,8 +273,17 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
     btstack_run_loop_set_timer(timer, ha_process_interval_ms);
     btstack_run_loop_add_timer(timer);
 
-    HearingAid::process();
+    if (stdio_usb_connected()) {
+        if (first_comm_packet) {
+            first_comm_packet = false;
+            HearingAid::on_serial_host_connected();
+        }
+    } else {
+        first_comm_packet = true;
+        return;
+    }
     comm::try_send_events();
+    HearingAid::process();
 }
 
 static void __not_in_flash_func(audio_timer_handler)(btstack_timer_source_t* timer)
