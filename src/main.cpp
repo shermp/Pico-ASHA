@@ -29,8 +29,8 @@ char pico_uid[pico_uid_size];
 
 RuntimeSettings runtime_settings = {};
 
-HearingAid ha_1 = {};
-HearingAid ha_2 = {};
+HearingAid ha_1 = HearingAid();
+HearingAid ha_2 = HearingAid();
 
 // extern "C" required by multicore_launch_core1
 extern "C" void bt_main();
