@@ -275,6 +275,9 @@ void HearingAid::on_serial_host_connected()
     RemoteInfo info;
     send_intro_packet((int8_t)num_connected());
     for (auto ha : hearing_aids) {
+        if (!ha->is_connected()) {
+            continue;
+        }
         info.conn_id = ha->conn_id;
         info.hci_handle = ha->conn_handle;
         bd_addr_copy(info.addr, ha->addr);
