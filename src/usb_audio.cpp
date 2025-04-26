@@ -63,7 +63,7 @@ namespace USBVol
  * which gives a range of -12192 to 0 and a resolution of 96.
  */
 
-  constexpr int16_t max =      0; // 0dB
+  constexpr int16_t max =  -3072; // -12dB
   constexpr int16_t min = -12192; // -47.625dB
   constexpr int16_t res =     96; // 96/256 is the step between ASHA volume levels
   constexpr int16_t mute = 0x8000;
