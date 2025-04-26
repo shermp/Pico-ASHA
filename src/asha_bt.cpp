@@ -280,7 +280,6 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
         }
     } else {
         first_comm_packet = true;
-        return;
     }
     comm::try_send_events();
     HearingAid::process();
