@@ -19,7 +19,7 @@ jobs:
                 host: 'windows'
                 target: 'desktop'
                 arch: 'win64_msvc2022_64'
-                archives: 'qtbase qtquickcontrols2 qtserialport'
+                archives: 'qtbase qtdeclarative qtquickcontrols2 qtserialport'
                 cache: 'true'
                 cache-key-prefix: 'install-qt-action'
                 setup-python: 'true'
