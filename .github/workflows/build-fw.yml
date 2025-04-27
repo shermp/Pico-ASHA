@@ -1,4 +1,4 @@
-name: Build Pico-ASHA
+name: Build Pico-ASHA Firmware
 
 on:
     push:
