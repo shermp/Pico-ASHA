@@ -375,6 +375,9 @@ bool PicoAshaComm::checkError(const asha::comm::HeaderPacket header, const asha:
     case StatusType::L2CapStatus:
         status = asha::l2cap_err_str(pkt.status);
         reason = asha::bt_err_str(pkt.reason);
+        if (status == "unknown") {
+            status = asha::bt_err_str(pkt.status);
+        }
         break;
     case StatusType::PAStatus:
         switch(pkt.status) {
