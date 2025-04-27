@@ -1,0 +1,33 @@
+name: Build Pico-ASHA GUI
+
+on:
+    push:
+    pull_request:
+
+jobs:
+    build_windows:
+        name: Build GUI for Windows
+        runs-on: windows-2022
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Install Qt
+              uses: jurplel/install-qt-action@v4
+              with:
+                version: '6.8.3'
+                host: 'windows'
+                target: 'desktop'
+                arch: 'win64_msvc2022_64'
+                cache: 'true'
+                cache-key-prefix: 'install-qt-action'
+                setup-python: 'true'
+                set-env: 'true'
+            
+            - name: Compile GUI
+              run: |
+                cd gui
+                md build
+                cd build
+                cmake ..
+                cmake --build .
