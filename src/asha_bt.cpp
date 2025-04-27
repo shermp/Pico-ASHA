@@ -1,4 +1,3 @@
-#include <ArduinoJson.h>
 #include <btstack.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdio_uart.h>
@@ -8,7 +7,6 @@
 
 #include "asha_bt.hpp"
 #include "asha_comms.hpp"
-#include "asha_usb_serial.hpp"
 #include "asha_uuid.hpp"
 #include "hearing_aid.hpp"
 #include "util.hpp"
@@ -44,11 +42,6 @@ static btstack_packet_callback_registration_t sm_event_cb_reg;
 
 static gatt_client_notification_t notification_listener = {};
 
-
-static constexpr size_t json_resp_str_size = 4096;
-
-static etl::string<json_resp_str_size> response_json = {};
-
 static void hci_event_handler(PACKET_HANDLER_PARAMS);
 
 constexpr btstack_time_t ha_process_interval_ms = 2;
@@ -57,32 +50,16 @@ static void process_timer_handler(btstack_timer_source_t * timer);
 
 constexpr btstack_time_t ha_audio_interval_ms = 1;
 static btstack_timer_source_t audio_timer = {};
+
+static hci_dump_t pa_hci_dump_impl = {
+    .reset = &comm::send_hci_reset,
+    .log_packet = &comm::send_hci_packet,
+    .log_message = &comm::send_hci_message
+};
+
 static void audio_timer_handler(btstack_timer_source_t * timer);
 
-static void handle_stdin_line_worker(async_context_t *context, async_when_pending_worker_t *worker);
-static void delete_paired_devices();
 static void add_bonded_to_fal();
-
-static void delete_paired_devices()
-{
-    using namespace comm;
-    //LOG_INFO("Removing paired devices");
-    EventPacket ev_pkt(EventType::DeletePair);
-
-    int addr_type;
-    bd_addr_t addr; 
-    sm_key_t irk;
-    int max_count = le_device_db_max_count();
-    for (int i = 0; i < max_count; ++i) {
-        le_device_db_info(i, &addr_type, addr, irk);
-        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
-            //LOG_INFO("Removing: %s", bd_addr_to_str(addr));
-            le_device_db_remove(i);
-            bd_addr_copy(ev_pkt.data.conn_info.addr, addr);
-            add_event_to_buffer(unset_conn_id, ev_pkt);
-        }
-    }
-}
 
 static void add_bonded_to_fal()
 {
@@ -115,18 +92,16 @@ extern "C" void bt_main()
 
     async_context_t *ctx = cyw43_arch_async_context();
 
-    stdin_pending_worker.do_work = handle_stdin_line_worker;
-    async_context_add_when_pending_worker(ctx, &stdin_pending_worker);
-    usb_ser_ctx = ctx;
-
     led_mgr.set_ctx(ctx);
 
     if (runtime_settings.hci_dump_enabled) {
         // Allow time for USB serial to connect before proceeding
+        hci_dump_init(&pa_hci_dump_impl);
         while (!stdio_usb_connected()) {
             sleep_ms(250);
         }
         sleep_ms(250);
+
     }
 
     if (!runtime_settings) {
@@ -183,89 +158,36 @@ extern "C" void bt_main()
     }
 }
 
-static void handle_stdin_line_worker([[maybe_unused]] async_context_t *context, 
-                                     [[maybe_unused]] async_when_pending_worker_t *worker)
+static void process_serial_cmds()
 {
-    JsonDocument cmd_doc;
-    JsonDocument resp_doc;
-    auto err = deserializeJson(cmd_doc, complete_std_line);
-    if (err != DeserializationError::Ok) {
-        // Dump the log if the user started monitoring USB serial late
-        if (err == DeserializationError::EmptyInput) {
-            // if (logging_ctx) {
-            //     async_context_set_work_pending(logging_ctx, &logging_pending_worker);
-            // }
-        } else {
-            printf("%s\r\n", R"("{"cmd":"error"}")");
+    using namespace comm;
+    HeaderPacket header = {};
+    CmdPacket cmd_pkt = {};
+    if (get_cmd_packet(header, cmd_pkt)) {
+        switch (cmd_pkt.cmd) {
+            case Command::HCIDump:
+                if (runtime_settings.set_hci_dump_enabled(cmd_pkt.data.enable_hci)) {
+                    //LOG_INFO("Enabling Watchdog");
+                    watchdog_enable(250, true);
+                }
+                cmd_pkt.cmd_status = CmdStatus::CmdOk;
+                send_cmd_resp(header.conn_id, cmd_pkt);
+                break;
+            case Command::DeletePair:
+                if (header.conn_id != unset_conn_id) {
+                    HearingAid::delete_pair(header.conn_id);
+                } else {
+                    HearingAid::delete_pair();
+                }
+                cmd_pkt.cmd_status = CmdStatus::CmdOk;
+                send_cmd_resp(header.conn_id, cmd_pkt);
+                break;
+            default:
+                cmd_pkt.cmd_status = CmdStatus::CmdError;
+                send_cmd_resp(header.conn_id, cmd_pkt);
+                break;
         }
-        return;
     }
-    const char* cmd = cmd_doc["cmd"];
-    resp_doc["cmd"] = cmd;
-
-    auto cmd_is = [&](const char* command) {return str_eq(cmd, command);};
-
-    if (cmd_is(SerCmd::AshaFWVers)) {
-        resp_doc[SerCmd::AshaFWVers] = PICO_ASHA_VERS;
-
-    } else if (cmd_is(SerCmd::Status)) {
-        resp_doc["num_conn"] = HearingAid::num_connected();
-        resp_doc["full_set"] = HearingAid::full_set_connected();
-        JsonObject settings = resp_doc["settings"].to<JsonObject>();
-        settings["log_level"] = log_level_to_str(runtime_settings.log_level);
-        settings["hci_dump_enabled"] = runtime_settings.hci_dump_enabled;
-        settings["uart_enabled"] = runtime_settings.serial_uart_enabled;
-        settings["full_set_paired"] = runtime_settings.full_set_paired;
-
-    } else if (cmd_is(SerCmd::ConnDevices)) {
-        JsonArray devices = resp_doc["devices"].to<JsonArray>();
-        for (auto ha : HearingAid::connected_has()) {
-            if (!ha) { continue; }
-            JsonObject dev = devices.add<JsonObject>();
-            dev["addr"] = bd_addr_to_str(ha->addr);
-            dev["name"] = ha->device_name;
-            dev["side"] = ha->side_str;
-            dev["mono"] = ha->rop.mode == Mode::Mono;
-            dev["streaming"] = ha->audio_state != HearingAid::AudioState::AudioUnset && ha->audio_state != HearingAid::AudioState::Stop;
-            dev["paused"] = false;
-        }
-
-    } else if (cmd_is(SerCmd::ClearDevDb)) {
-        delete_paired_devices();
-        runtime_settings.set_full_set_paired(false);
-        resp_doc["success"] = true;
-
-    } else if (cmd_is(SerCmd::UartSerial)) {
-        bool uart_enabled = cmd_doc["enabled"];
-        if (runtime_settings.set_uart_enabled(uart_enabled)) {
-            stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
-        }
-        resp_doc["success"] = true;
-
-    } else if (cmd_is(SerCmd::LogLevel)) {
-        const char* log_level = cmd_doc["level"];
-        enum LogLevel ll = str_to_log_level(log_level);
-        if (ll != LogLevel::None) {
-            runtime_settings.log_level = ll;
-            resp_doc["success"] = true;
-        } else {
-            resp_doc["success"] = false;
-        }
-    
-    } else if (cmd_is(SerCmd::HCIDump)) {
-        bool hci_dump_enabled = cmd_doc["enabled"];
-        if (runtime_settings.set_hci_dump_enabled(hci_dump_enabled)) {
-            //LOG_INFO("Enabling Watchdog");
-            watchdog_enable(250, true);
-        }
-        resp_doc["success"] = true;
-    }
-    else {
-        resp_doc["cmd"] = "unknown";
-    }
-    size_t len = serializeJson(resp_doc, response_json.data(), response_json.capacity() - 1);
-    response_json.uninitialized_resize(len);
-    printf("%s\r\n", response_json.c_str());
 }
 
 static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* timer)
@@ -281,6 +203,7 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
     } else {
         first_comm_packet = true;
     }
+    process_serial_cmds();
     comm::try_send_events();
     HearingAid::process();
 }
@@ -312,7 +235,7 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 gap_local_bd_addr(local_addr);
                 //LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
                 if (!runtime_settings.full_set_paired) {
-                    delete_paired_devices();
+                    HearingAid::delete_pair();
                 }
                 // Set the process timer handler
                 btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);

@@ -44,12 +44,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(etl)
 
-FetchContent_Declare(ArduinoJson
-    GIT_REPOSITORY https://github.com/bblanchon/ArduinoJson.git
-    GIT_TAG        v7.1.0
-)
-FetchContent_MakeAvailable(ArduinoJson)
-
 set(ASHA_SRC
   src/main.cpp
   src/runtime_settings.cpp
@@ -103,7 +97,6 @@ target_link_libraries(pico_asha
   tinyusb_device
   tinyusb_board
   etl::etl
-  ArduinoJson
 )
 
 target_link_options(pico_asha PUBLIC -Wl,--print-memory-usage)

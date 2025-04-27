@@ -33,7 +33,6 @@
 #include "usb_descriptors.h"
 
 #include "asha_audio.hpp"
-#include "asha_usb_serial.hpp"
 
 namespace asha
 {
@@ -104,24 +103,24 @@ void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf,
                            [[maybe_unused]] bool rts)
 {}
 
-void serial_task()
-{
-    int ch;
-    while ((ch = stdio_getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-      char c = (char)ch;
-      if (c == '\r') {
-        complete_std_line = curr_stdin_buff;
-        curr_stdin_buff.clear();
-        if (usb_ser_ctx) {
-            async_context_set_work_pending(usb_ser_ctx, &stdin_pending_worker);
-        }
-        return;
-      } else if (c == '\n') {
-        return;
-      }
-      curr_stdin_buff.append(1, c);
-    }
-}
+// void serial_task()
+// {
+//     int ch;
+//     while ((ch = stdio_getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+//       char c = (char)ch;
+//       if (c == '\r') {
+//         complete_std_line = curr_stdin_buff;
+//         curr_stdin_buff.clear();
+//         if (usb_ser_ctx) {
+//             async_context_set_work_pending(usb_ser_ctx, &stdin_pending_worker);
+//         }
+//         return;
+//       } else if (c == '\n') {
+//         return;
+//       }
+//       curr_stdin_buff.append(1, c);
+//     }
+// }
 
 /*------------- MAIN -------------*/
 void usb_main(void)
@@ -131,7 +130,7 @@ void usb_main(void)
   {
     tud_task(); // TinyUSB device task
     audio_task();
-    serial_task();
+    //serial_task();
   }
 }
 

@@ -125,6 +125,8 @@ struct HearingAid
     static void on_connected(bd_addr_t addr, hci_con_handle_t handle);
     static void on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_t reason);
     static void on_data_len_set(hci_con_handle_t handle, uint16_t rx_octets, uint16_t rx_time, uint16_t tx_octets, uint16_t tx_time);
+    static void delete_pair();
+    static void delete_pair(uint16_t conn_id);
     static void handle_sm(PACKET_HANDLER_PARAMS);
     static void handle_service_discovery(PACKET_HANDLER_PARAMS);
     static void handle_char_discovery(PACKET_HANDLER_PARAMS);
@@ -186,6 +188,7 @@ private:
 
     static HearingAid* get_by_con_handle(hci_con_handle_t handle);
     static HearingAid* get_by_cid(uint16_t cid);
+    static HearingAid* get_by_conn_id(uint16_t conn_id);
     static HearingAid* get_by_cached_addr(bd_addr_t addr);
     static void set_other_side_ptrs();
     void assign_next_conn_id();
