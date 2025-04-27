@@ -5,10 +5,12 @@
 
 #include <QObject>
 #include <QByteArray>
+#include <QFile>
 #include <QSerialPort>
 #include <QString>
 #include <QStringListModel>
 #include <QTimer>
+#include <QUrl>
 
 #include <asha_comms.hpp>
 
@@ -21,6 +23,9 @@ class PicoAshaComm : public QObject
     Q_PROPERTY(bool serialConnected READ serialConnected WRITE setSerialConnected NOTIFY serialConnectedChanged FINAL)
     Q_PROPERTY(QString paFirmwareVers READ paFirmwareVers WRITE setPaFirmwareVers NOTIFY paFirmwareVersChanged FINAL)
     Q_PROPERTY(QString remoteError READ remoteError WRITE setRemoteError NOTIFY remoteErrorChanged FINAL)
+    Q_PROPERTY(bool hciLoggingEnabled READ hciLoggingEnabled WRITE setHciLoggingEnabled NOTIFY hciLoggingEnabledChanged FINAL)
+    Q_PROPERTY(QUrl hciLoggingPath READ hciLoggingPath WRITE setHciLoggingPath NOTIFY hciLoggingPathChanged FINAL)
+    Q_PROPERTY(QString errMsg READ errMsg WRITE setErrMsg NOTIFY errMsgChanged FINAL)
 
     QML_ELEMENT
     QML_SINGLETON
@@ -42,6 +47,15 @@ public:
     QString remoteError() const;
     void setRemoteError(const QString &newRemoteError);
 
+    QUrl hciLoggingPath() const;
+    void setHciLoggingPath(const QUrl &newHciLoggingPath);
+
+    bool hciLoggingEnabled() const;
+    void setHciLoggingEnabled(bool newHciLoggingEnabled);
+
+    QString errMsg() const;
+    void setErrMsg(const QString &newErrMsg);
+
 private:
     void handleDecodedData(QByteArray const& decoded);
     void handleEventPacket(asha::comm::HeaderPacket const header, asha::comm::EventPacket const& pkt);
@@ -52,10 +66,16 @@ private:
 
     void closeSerial();
 
+    void handleHciLogChanged();
+    void sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt);
+    void writeHciPacket(const char* data, size_t len);
+
     QSerialPort m_serial;
     QByteArray m_currPacket;
 
     QTimer connect_timer;
+
+    QFile m_hciLogFile;
 
     bool m_serialConnected;
 
@@ -66,6 +86,12 @@ private:
 
     QString m_remoteError;
 
+    QUrl m_hciLoggingPath;
+
+    bool m_hciLoggingEnabled;
+
+    QString m_errMsg;
+
 signals:
     void serialConnectedChanged();
 
@@ -74,6 +100,12 @@ signals:
     void remoteModelListChanged();
 
     void remoteErrorChanged();
+
+    void hciLoggingPathChanged();
+
+    void hciLoggingEnabledChanged();
+
+    void errMsgChanged();
 
 public slots:
     void onConnectTimer();

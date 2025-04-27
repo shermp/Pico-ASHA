@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QMap>
 #include <QSerialPortInfo>
+#include <QUrl>
+#include <QtEndian>
 
 #include <nanocobs/cobs.h>
 
@@ -15,7 +17,7 @@ constexpr int timer_interval = 1000;
 QMap<QByteArray, RemoteDevice::CachedProps> cached_remote_props;
 
 PicoAshaComm::PicoAshaComm(QObject *parent)
-    : QObject{parent}, m_serial(this), connect_timer(this)
+    : QObject{parent}, m_serial(this), connect_timer(this), m_hciLoggingEnabled(false)
 {
     m_serial.setBaudRate(QSerialPort::Baud115200);
     m_serial.setDataBits(QSerialPort::Data8);
@@ -26,6 +28,8 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(&connect_timer, &QTimer::timeout, this, &PicoAshaComm::onConnectTimer);
     QObject::connect(&m_serial, &QSerialPort::errorOccurred, this, &PicoAshaComm::onSerialError);
     QObject::connect(&m_serial, &QSerialPort::readyRead, this, &PicoAshaComm::onSerialReadyRead);
+
+    QObject::connect(this, &PicoAshaComm::hciLoggingEnabledChanged, this, &PicoAshaComm::handleHciLogChanged);
 
     connect_timer.start(timer_interval);
 }
@@ -139,6 +143,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         break;
     }
     case Type::HCI:
+        writeHciPacket(decoded.constData() + sizeof header, decoded.size() - sizeof header);
         break;
     case Type::RemInfo:
         RemoteInfo info;
@@ -432,6 +437,100 @@ void PicoAshaComm::closeSerial()
     }
 }
 
+void PicoAshaComm::sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt)
+{
+    using namespace asha::comm;
+    struct {
+        HeaderPacket head;
+        CmdPacket cmd;
+    } pkt;
+
+    pkt.head.type = Type::Cmd;
+    pkt.head.conn_id = unset_conn_id;
+    pkt.head.len = sizeof(pkt);
+    pkt.head.ts_ms = 0;
+    pkt.cmd = cmd_pkt;
+
+
+    static_assert(sizeof(pkt) == sizeof(HeaderPacket) + sizeof(CmdPacket));
+
+    uint8_t enc[1 + COBS_ENCODE_MAX(sizeof(pkt))] = {};
+    enc[0] = 0;
+    size_t enc_len = 0;
+    cobs_encode(&pkt, sizeof(pkt), enc + 1, sizeof(enc) - 1, &enc_len);
+    ++enc_len;
+    if (m_serialConnected) {
+        if (m_serial.write((const char*)enc, enc_len) < 0) {
+            setHciLoggingEnabled(false);
+            setErrMsg(m_serial.errorString());
+            return;
+        }
+    }
+}
+
+void PicoAshaComm::writeHciPacket(const char *data, size_t len)
+{
+    if (m_hciLoggingEnabled && m_hciLogFile.isOpen()) {
+        m_hciLogFile.write(data, len);
+    }
+}
+
+void PicoAshaComm::handleHciLogChanged()
+{
+    using namespace asha::comm;
+    if (!m_hciLoggingEnabled) {
+        qDebug() << "hciLoggingEnabled false";
+        if (m_hciLogFile.isOpen()) {
+            m_hciLogFile.close();
+            sendCommandPacket(
+                {
+                    .cmd = Command::HCIDump,
+                    .cmd_status = CmdStatus::CmdOk,
+                    .data = {.enable_hci = false}
+                }
+            );
+        }
+        return;
+    }
+    if (m_hciLoggingPath.isEmpty()) {
+        setHciLoggingEnabled(false);
+        setErrMsg("Log path not set");
+        return;
+    }
+    if (!m_hciLogFile.isOpen()) {
+        m_hciLogFile.setFileName(m_hciLoggingPath.toLocalFile());
+        if (!m_hciLogFile.open(QIODevice::WriteOnly)) {
+            //QString theBig = QVariant::fromValue(ModelApple::Big).toString();
+            setHciLoggingEnabled(false);
+            setErrMsg(m_hciLogFile.errorString());
+            return;
+        }
+
+        struct {
+            char id_pattern[8] = "btsnoop";
+            uint32_t version = 1;
+            uint32_t data_type = 1002; // H4
+        } btsnoop_file_header;
+
+        btsnoop_file_header.version = qToBigEndian(btsnoop_file_header.version);
+        btsnoop_file_header.data_type = qToBigEndian(btsnoop_file_header.data_type);
+
+        if (m_hciLogFile.write((const char*)&btsnoop_file_header, sizeof(btsnoop_file_header)) < 0) {
+            setHciLoggingEnabled(false);
+            setErrMsg(m_hciLogFile.errorString());
+            return;
+        }
+
+        sendCommandPacket(
+            {
+             .cmd = Command::HCIDump,
+             .cmd_status = CmdStatus::CmdOk,
+             .data = {.enable_hci = true}
+            }
+        );
+    }
+}
+
 bool PicoAshaComm::serialConnected() const
 {
     return m_serialConnected;
@@ -479,4 +578,44 @@ void PicoAshaComm::setRemoteError(const QString &newRemoteError)
         return;
     m_remoteError = newRemoteError;
     emit remoteErrorChanged();
+}
+
+QUrl PicoAshaComm::hciLoggingPath() const
+{
+    return m_hciLoggingPath;
+}
+
+void PicoAshaComm::setHciLoggingPath(const QUrl &newHciLoggingPath)
+{
+    if (m_hciLoggingPath == newHciLoggingPath)
+        return;
+    m_hciLoggingPath = newHciLoggingPath;
+    emit hciLoggingPathChanged();
+}
+
+bool PicoAshaComm::hciLoggingEnabled() const
+{
+    return m_hciLoggingEnabled;
+}
+
+void PicoAshaComm::setHciLoggingEnabled(bool newHciLoggingEnabled)
+{
+    qDebug() << "setHciLoggingEnabled";
+    if (m_hciLoggingEnabled == newHciLoggingEnabled)
+        return;
+    m_hciLoggingEnabled = newHciLoggingEnabled;
+    emit hciLoggingEnabledChanged();
+}
+
+QString PicoAshaComm::errMsg() const
+{
+    return m_errMsg;
+}
+
+void PicoAshaComm::setErrMsg(const QString &newErrMsg)
+{
+    if (m_errMsg == newErrMsg)
+        return;
+    m_errMsg = newErrMsg;
+    emit errMsgChanged();
 }

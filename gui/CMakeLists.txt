@@ -36,6 +36,7 @@ qt_add_qml_module(appPicoASHAGui
             ../include/asha_comms.hpp
             ../include/bt_status_err.hpp
             ../lib/nanocobs/cobs.c
+            RESOURCES
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
