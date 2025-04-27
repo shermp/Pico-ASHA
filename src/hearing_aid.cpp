@@ -38,6 +38,7 @@ namespace ACPStatus
 
 static bool gatt_service_valid(gatt_client_service_t* service);
 
+static void delete_paired_devices();
 static void delete_paired_device(const bd_addr_t address);
 
 static bool gatt_service_valid(gatt_client_service_t* service)
@@ -421,6 +422,21 @@ void HearingAid::on_data_len_set(hci_con_handle_t handle,
     //                     rx_octets, rx_time, tx_octets, tx_time);    
     
     ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
+}
+
+void HearingAid::delete_pair()
+{
+    delete_paired_devices();
+}
+
+void HearingAid::delete_pair(uint16_t conn_id)
+{
+    if (conn_id != comm::unset_conn_id) {
+        auto ha = get_by_conn_id(conn_id);
+        if (ha) {
+            delete_paired_device(ha->addr);
+        }
+    }
 }
 
 void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
@@ -1056,6 +1072,16 @@ HearingAid* HearingAid::get_by_cid(uint16_t cid)
     return nullptr;
 }
 
+HearingAid* HearingAid::get_by_conn_id(uint16_t conn_id)
+{
+    for (auto ha : hearing_aids) {
+        if (ha->conn_id == conn_id) {
+            return ha;
+        }
+    }
+    return nullptr;
+}
+
 HearingAid* HearingAid::get_by_cached_addr(bd_addr_t addr)
 {
     for (auto ha : hearing_aids) {
@@ -1256,6 +1282,27 @@ void HearingAid::reset()
 const char* HearingAid::get_side_str()
 {
     return (rop.side == Side::Unset) ? bd_addr_to_str(addr) : side_str;
+}
+
+static void delete_paired_devices()
+{
+    using namespace comm;
+    //LOG_INFO("Removing paired devices");
+    EventPacket ev_pkt(EventType::DeletePair);
+
+    int addr_type;
+    bd_addr_t addr; 
+    sm_key_t irk;
+    int max_count = le_device_db_max_count();
+    for (int i = 0; i < max_count; ++i) {
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type != BD_ADDR_TYPE_UNKNOWN) {
+            //LOG_INFO("Removing: %s", bd_addr_to_str(addr));
+            le_device_db_remove(i);
+            bd_addr_copy(ev_pkt.data.conn_info.addr, addr);
+            add_event_to_buffer(unset_conn_id, ev_pkt);
+        }
+    }
 }
 
 static void delete_paired_device(const bd_addr_t address)

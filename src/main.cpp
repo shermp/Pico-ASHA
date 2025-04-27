@@ -8,7 +8,7 @@
 
 #include "asha_unique_id.hpp"
 #include "asha_audio.hpp"
-#include "asha_usb_serial.hpp"
+
 #include "runtime_settings.hpp"
 #include "hearing_aid.hpp"
 
@@ -18,12 +18,6 @@ namespace asha
 AudioBuffer audio_buff;
 async_context_t *bt_async_ctx = nullptr;
 async_when_pending_worker_t bt_audio_pending_worker = {};
-
-etl::string<stdin_str_size> curr_stdin_buff = {};
-etl::string<stdin_str_size> complete_std_line = {};
-
-async_context_t *usb_ser_ctx = nullptr;
-async_when_pending_worker_t stdin_pending_worker = {};
 
 char pico_uid[pico_uid_size];
 

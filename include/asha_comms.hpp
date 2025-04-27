@@ -18,6 +18,7 @@ namespace comm
         RemInfo,
         Event,
         HCI,
+        Cmd,
     };
 
     enum class StatusType : uint8_t
@@ -75,6 +76,22 @@ namespace comm
         StreamReady,
         StreamPause,
         AudioVolume,
+    };
+
+    enum class CmdType : uint8_t {
+        Request,
+        Response,
+    };
+
+    enum class Command : uint8_t {
+        HCIDump,
+        DeletePair,
+    };
+
+    enum class CmdStatus : uint8_t
+    {
+        CmdOk,
+        CmdError,
     };
 
     struct HeaderPacket
@@ -167,12 +184,31 @@ namespace comm
 
     static_assert(sizeof(EventPacket) == 36);
 
+    struct CmdPacket
+    {
+        Command cmd;
+        CmdStatus cmd_status;
+        union {
+            uint16_t  conn_id;
+            bool      enable_hci;
+        } data;
+    };
+
+    static_assert(sizeof(CmdPacket) == 4);
+
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event);
 
     void try_send_events();
 
     void send_intro_packet(int8_t num_connections);
     void send_remote_info_packet(RemoteInfo const& remote_info);
+
+    bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet);
+    void send_cmd_resp(uint16_t const conn_id, CmdPacket const& resp);
+
+    void send_hci_reset();
+    void send_hci_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len);
+    void send_hci_message(int log_level, const char * format, va_list argptr);
 
 } // namespace comm
 
