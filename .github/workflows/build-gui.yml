@@ -33,7 +33,7 @@ jobs:
                 cd gui
                 md build
                 cd build
-                cmake -G "Ninja" ..
+                cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" ..
             
             - name: Compile GUI
               run: |
@@ -48,4 +48,5 @@ jobs:
             - name: Upload package
               uses: actions/upload-artifact@v4
               with:
+                name: PicoASHAGui-Windows-x64
                 path: gui/build/PicoASHAGui-Installed/PicoASHAGui

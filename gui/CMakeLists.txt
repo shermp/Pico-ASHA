@@ -65,7 +65,7 @@ qt_generate_deploy_qml_app_script(
     TARGET PicoASHAGui
     OUTPUT_SCRIPT deploy_script
     NO_TRANSLATIONS
-    DEPLOY_TOOL_OPTIONS "--no-system-d3d-compiler" "--no-opengl-sw" "--release" 
+    DEPLOY_TOOL_OPTIONS "--no-system-d3d-compiler" "--no-opengl-sw"
 )
 install(SCRIPT ${deploy_script})
 
