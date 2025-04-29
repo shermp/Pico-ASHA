@@ -15,6 +15,8 @@ static constexpr uint16_t max_tx_time = 1064;
 
 static constexpr size_t ev_packet_str_size = sizeof comm::EventPacket::data.str;
 
+static constexpr int max_error_count = 10;
+
 namespace ASPStatus
 {
     constexpr int8_t unkown_command = -1;
@@ -120,6 +122,11 @@ void __not_in_flash_func(HearingAid::process)()
         if (!ha->is_connected()) { continue; }
         if (ha->process_delay_ticks > 0) {
             --ha->process_delay_ticks;
+            continue;
+        }
+        // Just disconnect the hearing aid if we get too many errors
+        if (ha->error_count >= max_error_count) {
+            ha->disconnect();
             continue;
         }
         EventType ev_type;
@@ -240,6 +247,7 @@ void __not_in_flash_func(HearingAid::process)()
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::BtstackStatus, res));
             //LOG_ERROR("%s: BTStack error: %s", ha->get_side_str(), bt_err_str(res));
             ha->unset_process_busy();
+            ++ha->error_count;
             ha->process_delay_ticks = ha_process_delay_ticks;
         }
     }
@@ -891,6 +899,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::L2CapStatus, bt_status));
                 // Try again later
                 ha->unset_process_busy();
+                ++ha->error_count;
                 ha->process_delay_ticks = ha_process_delay_ticks * 3;
             } else {
                 //LOG_INFO("%s: L2CAP cbm connection created", ha->get_side_str());
@@ -931,6 +940,7 @@ void HearingAid::handle_asp_notification_reg(PACKET_HANDLER_PARAMS)
             //LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->get_side_str(), att_err_str(att_status));
             // Try again later
             ha->unset_process_busy();
+            ++ha->error_count;
             ha->process_delay_ticks = ha_process_delay_ticks;
             add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable, StatusType::ATTStatus, att_status));
         } else {
@@ -1266,6 +1276,7 @@ void HearingAid::reset()
     credits = 0;
     paired_and_bonded = false;
     process_delay_ticks = 0;
+    error_count = 0;
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
         device_name.clear();
