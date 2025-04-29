@@ -9,7 +9,7 @@ env:
     CYW43_DRIVER_COMMIT_HASH: 7f422fef4ea5bff7285fb78340d3f28f5461cff2
 
 jobs:
-    build_pico_asha:
+    build_firmware:
         strategy:
           matrix:
             board: ["pico_w", "pico2_w"]
@@ -63,6 +63,51 @@ jobs:
             - name: Upload UF2 and ELF binaries
               uses: actions/upload-artifact@v4
               with:
-                name: pico-asha-bin-${{ matrix.board }}
+                name: pico-asha-firmware-${{ matrix.board }}
                 path: pico-asha/build/${{ matrix.board }}/pico_asha.[ue][fl][2f]
 
+    build_gui_windows:
+        name: Build GUI for Windows
+        runs-on: windows-2022
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Install Qt
+              uses: jurplel/install-qt-action@v4.2.1
+              with:
+                version: '6.8.3'
+                host: 'windows'
+                target: 'desktop'
+                arch: 'win64_msvc2022_64'
+                modules: 'qtserialport'
+                cache: 'true'
+                cache-key-prefix: 'install-qt-action'
+                setup-python: 'true'
+                set-env: 'true'
+            
+            - name: Setup VS dev cmd
+              uses: ilammy/msvc-dev-cmd@v1.13.0
+
+            - name: Configure cmake (using Ninja)
+              run: |
+                cd gui
+                md build
+                cd build
+                cmake -DCMAKE_BUILD_TYPE=Release -G "Ninja" ..
+            
+            - name: Compile GUI
+              run: |
+                cd gui\build
+                cmake --build .
+
+            - name: Install GUI to staging directory
+              run: |
+                cd gui\build
+                cmake --install . --prefix "$pwd\PicoASHAGui-Installed\PicoASHAGui"
+
+            - name: Upload package
+              uses: actions/upload-artifact@v4
+              with:
+                name: pico-asha-gui-win64
+                path: gui/build/PicoASHAGui-Installed/PicoASHAGui
