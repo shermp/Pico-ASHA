@@ -25,10 +25,17 @@ jobs:
                 setup-python: 'true'
                 set-env: 'true'
             
-            - name: Compile GUI
+            - name: Setup VS dev cmd
+              uses: ilammy/msvc-dev-cmd@v1.13.0
+
+            - name: Configure cmake (using Ninja)
               run: |
                 cd gui
                 md build
                 cd build
-                cmake ..
+                cmake -G "Ninja" ..
+            
+            - name: Compile GUI
+              run: |
+                cd gui\build
                 cmake --build .
