@@ -15,15 +15,15 @@ cmake_path(NATIVE_PATH ASHA_COMM_INCLUDE_PATH_REL NORMALIZE ASHA_COMM_INCLUDE_PA
 set(ASHA_COMM_LIB_PATH_REL "${PROJECT_SOURCE_DIR}/../lib")
 cmake_path(NATIVE_PATH ASHA_COMM_LIB_PATH_REL NORMALIZE ASHA_COMM_LIB_PATH)
 
-qt_add_executable(appPicoASHAGui
+qt_add_executable(PicoASHAGui
     main.cpp
     remotedevicemodel.h
     remotedevicemodel.cpp
 )
 
-target_include_directories(appPicoASHAGui PUBLIC "${ASHA_COMM_INCLUDE_PATH}" "${ASHA_COMM_LIB_PATH}")
+target_include_directories(PicoASHAGui PUBLIC "${ASHA_COMM_INCLUDE_PATH}" "${ASHA_COMM_LIB_PATH}")
 
-qt_add_qml_module(appPicoASHAGui
+qt_add_qml_module(PicoASHAGui
     URI PicoASHAGui
     VERSION 1.0
     QML_FILES
@@ -42,7 +42,7 @@ qt_add_qml_module(appPicoASHAGui
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
-set_target_properties(appPicoASHAGui PROPERTIES
+set_target_properties(PicoASHAGui PROPERTIES
 #    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appPicoASHAGui
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -50,13 +50,28 @@ set_target_properties(appPicoASHAGui PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
-target_link_libraries(appPicoASHAGui
+target_link_libraries(PicoASHAGui
     PRIVATE Qt6::Quick Qt6::SerialPort
 )
 
 include(GNUInstallDirs)
-install(TARGETS appPicoASHAGui
+install(TARGETS PicoASHAGui
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+qt_generate_deploy_qml_app_script(
+    TARGET PicoASHAGui
+    OUTPUT_SCRIPT deploy_script
+    NO_TRANSLATIONS
+    DEPLOY_TOOL_OPTIONS "--no-system-d3d-compiler" "--no-opengl-sw" "--release" 
+)
+install(SCRIPT ${deploy_script})
+
+set(CPACK_VERBATIM_VARIABLES TRUE)
+set(CPACK_STRIP_FILES TRUE)
+set(CPACK_PACKAGE_VENDOR "shermp")
+set(CPACK_PACKAGE_DESCRIPTION "Simple GUI application for Pico-ASHA")
+set(CPACK_GENERATOR ZIP)
+include(CPack)
