@@ -43,7 +43,7 @@ jobs:
             - name: Install GUI to staging directory
               run: |
                 cd gui\build
-                cmake --install . --prefix %cd%\PicoASHAGui-Installed\PicoASHAGui
+                cmake --install . --prefix $PWD.Path\PicoASHAGui-Installed\PicoASHAGui
 
             - name: Upload package
               uses: actions/upload-artifact@v4
