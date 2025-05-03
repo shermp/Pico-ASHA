@@ -32,11 +32,14 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(this, &PicoAshaComm::hciLoggingEnabledChanged, this, &PicoAshaComm::handleHciLogChanged);
 
     connect_timer.start(timer_interval);
+
+    m_ui = new PicoAshaMainWindow;
 }
 
 PicoAshaComm::~PicoAshaComm()
 {
     closeSerial();
+    delete m_ui;
 }
 
 void PicoAshaComm::onConnectTimer()
@@ -49,8 +52,7 @@ void PicoAshaComm::onConnectTimer()
                 connect_timer.stop();
                 qDebug() << "Serial port opened to " << p.description();
                 m_serial.setDataTerminalReady(true);
-                //m_serial.write("\r\n");
-                setSerialConnected(true);
+                m_ui->setSerialConnectedStatus("Connected");
             }
         }
     }
@@ -64,9 +66,9 @@ void PicoAshaComm::onSerialError(QSerialPort::SerialPortError error)
         break;
     case ResourceError:
         m_serial.close();
-        setSerialConnected(false);
+        m_ui->setSerialConnectedStatus("Not Connected");
+        m_ui->removeRemotes();
         qDebug() << "Serial port disconnected";
-        m_remoteModelList.reset();
         connect_timer.start(timer_interval);
         break;
     default:
@@ -129,7 +131,12 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
             return;
         }
         memcpy(&intro, decoded.constData() + sizeof header, sizeof intro);
-        setPaFirmwareVers(QString("%1.%2.%3").arg(intro.pa_version.major).arg(intro.pa_version.minor).arg(intro.pa_version.patch));
+        setPaFirmwareVers(QString("%1.%2.%3").arg(
+                                                  QString::number(intro.pa_version.major),
+                                                  QString::number(intro.pa_version.minor),
+                                                  QString::number(intro.pa_version.patch))
+                          );
+        m_ui->setSerialConnectedStatus(QString("Connected - %1").arg(m_paFirmwareVers));
         qDebug() << "Num connected devices: " << intro.num_connected;
         break;
     }
@@ -152,10 +159,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         }
         qDebug() << "\nGot RemoteInfo packet";
         memcpy(&info, decoded.constData() + sizeof header, sizeof info);
-        RemoteDevice* dev = new RemoteDevice(info);
-        if (!remoteModelList()->insert(dev)) {
-            delete dev;
-        }
+        m_ui->addRemote(info);
         break;
     }
 }
@@ -163,7 +167,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
 void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha::comm::EventPacket const& pkt)
 {
     using namespace asha::comm;
-    auto rem = remoteModelList()->getByConnID(header.conn_id);
+    auto rem = m_ui->getRemote(header.conn_id);
 
     switch (pkt.ev_type) {
 
@@ -184,19 +188,20 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         if (checkError(header, pkt, "RemoteConnected")) {
             return;
         }
-        qDebug() << "Remote Connected";
-        RemoteDevice* dev = new RemoteDevice();
-        QByteArray addr((const char*)pkt.data.conn_info.addr, sizeof(pkt.data.conn_info.addr));
-        dev->setConnID(header.conn_id);
-        dev->setConnected(true);
-        dev->setHciConnHandle(pkt.data.conn_info.hci_handle);
-        dev->setAddr(addr);
-        if (cached_remote_props.contains(addr)) {
-            RemoteDevice::CachedProps const& props = cached_remote_props.value(addr);
-            dev->setCachedProps(props);
+        if (rem) {
+            qDebug() << "Remote with this ID already exists";
+            return;
         }
-        if (!remoteModelList()->insert(dev)) {
-            delete dev;
+        qDebug() << "Remote Connected";
+        auto r = m_ui->addRemote(header.conn_id);
+        if (r) {
+            QByteArray addr((const char*)pkt.data.conn_info.addr, sizeof(pkt.data.conn_info.addr));
+            r->setHCIHandle(pkt.data.conn_info.hci_handle);
+            r->setAddr(pkt.data.conn_info.addr);
+            if (cached_remote_props.contains(addr)) {
+                auto const& props = cached_remote_props.value(addr);
+                r->setCachedProps(props);
+            }
         }
         break;
     }
@@ -204,11 +209,10 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         checkError(header, pkt, "RemoteDisonnected");
         qDebug() << "Removing Conn ID: " << header.conn_id;
         if (rem) {
-            RemoteDevice::CachedProps props = rem->cachedProps();
-            QByteArray addr = rem->addr();
-            cached_remote_props.insert(addr, props);
+            auto props = rem->cachedProps();
+            cached_remote_props.insert(props.addr, props);
         }
-        remoteModelList()->remove(header.conn_id);
+        m_ui->removeRemote(header.conn_id);
         break;
     case EventType::DiscServices:
         if (checkError(header, pkt, "DiscoverServices")) {
@@ -219,7 +223,7 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         if (checkError(header, pkt, "PairAndBond")) {
             return;
         }
-        if (rem) rem->setPairedAndBonded(true);
+        if (rem) rem->setPairedBonded(true);
         break;
     case EventType::DLE:
         if (checkError(header, pkt, "DataLenExtension")) {
@@ -281,13 +285,13 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         if (checkError(header, pkt, "L2CAPConnected")) {
             return;
         }
-        if (rem) rem->setL2capCID(pkt.data.cid);
+        if (rem) rem->setL2CID(pkt.data.cid);
         break;
     case EventType::L2CAPDiscon:
         if (checkError(header, pkt, "L2CAPDisconnected")) {
             return;
         }
-        if (rem) rem->setL2capCID(0);
+        if (rem) rem->setL2CID(0);
         break;
     case EventType::ASPNotEnable:
         if (checkError(header, pkt, "ASPNotificationEnable")) {
@@ -425,11 +429,8 @@ QString PicoAshaComm::logHeader(const asha::comm::HeaderPacket header)
 
 bool PicoAshaComm::appendLog(const QString &logLine)
 {
-    if (m_logModelList.insertRow(m_logModelList.rowCount())) {
-        QModelIndex index = m_logModelList.index(m_logModelList.rowCount() - 1, 0);
-        return m_logModelList.setData(index, logLine);
-    }
-    return false;
+    m_ui->appendLog(logLine);
+    return true;
 }
 
 void PicoAshaComm::closeSerial()
@@ -534,17 +535,9 @@ void PicoAshaComm::handleHciLogChanged()
     }
 }
 
-bool PicoAshaComm::serialConnected() const
+void PicoAshaComm::showUI() const
 {
-    return m_serialConnected;
-}
-
-void PicoAshaComm::setSerialConnected(bool newSerialConnected)
-{
-    if (m_serialConnected == newSerialConnected)
-        return;
-    m_serialConnected = newSerialConnected;
-    emit serialConnectedChanged();
+    m_ui->show();
 }
 
 QString PicoAshaComm::paFirmwareVers() const
@@ -558,16 +551,6 @@ void PicoAshaComm::setPaFirmwareVers(const QString &newPaFirmwareVers)
         return;
     m_paFirmwareVers = newPaFirmwareVers;
     emit paFirmwareVersChanged();
-}
-
-RemoteDeviceModel* PicoAshaComm::remoteModelList()
-{
-    return &m_remoteModelList;
-}
-
-QStringListModel *PicoAshaComm::logModelList()
-{
-    return &m_logModelList;
 }
 
 QString PicoAshaComm::remoteError() const

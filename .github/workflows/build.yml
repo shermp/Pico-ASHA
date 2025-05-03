@@ -106,6 +106,12 @@ jobs:
                 cd gui\build
                 cmake --install . --prefix "$pwd\PicoASHAGui-Installed\PicoASHAGui"
 
+            - name: Remove uneeded libraries from package
+              run: |
+                cd gui\build\PicoASHAGui-Installed\PicoASHAGui\bin
+                del dxcompiler.dll
+                del dxil.dll
+
             - name: Upload package
               uses: actions/upload-artifact@v4
               with:
