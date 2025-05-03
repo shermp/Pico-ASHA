@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick SerialPort)
+find_package(Qt6 REQUIRED COMPONENTS Widgets SerialPort)
 
 set(ASHA_COMM_INCLUDE_PATH_REL "${PROJECT_SOURCE_DIR}/../include")
 cmake_path(NATIVE_PATH ASHA_COMM_INCLUDE_PATH_REL NORMALIZE ASHA_COMM_INCLUDE_PATH)
@@ -17,27 +17,17 @@ cmake_path(NATIVE_PATH ASHA_COMM_LIB_PATH_REL NORMALIZE ASHA_COMM_LIB_PATH)
 
 qt_add_executable(PicoASHAGui
     main.cpp
-    remotedevicemodel.h
-    remotedevicemodel.cpp
+    picoashacomm.h
+    picoashacomm.cpp
+    remotedevice.h
+    remotedevice.cpp
+    ../include/asha_comms.hpp
+    ../include/bt_status_err.hpp
+    ../lib/nanocobs/cobs.c
+    picoashamainwindow.h picoashamainwindow.cpp
 )
 
 target_include_directories(PicoASHAGui PUBLIC "${ASHA_COMM_INCLUDE_PATH}" "${ASHA_COMM_LIB_PATH}")
-
-qt_add_qml_module(PicoASHAGui
-    URI PicoASHAGui
-    VERSION 1.0
-    QML_FILES
-        Main.qml
-        SOURCES
-            picoashacomm.h
-            picoashacomm.cpp
-            remotedevice.h
-            remotedevice.cpp
-            ../include/asha_comms.hpp
-            ../include/bt_status_err.hpp
-            ../lib/nanocobs/cobs.c
-            RESOURCES
-)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
@@ -51,7 +41,7 @@ set_target_properties(PicoASHAGui PROPERTIES
 )
 
 target_link_libraries(PicoASHAGui
-    PRIVATE Qt6::Quick Qt6::SerialPort
+    PRIVATE Qt6::Widgets Qt6::SerialPort
 )
 
 include(GNUInstallDirs)
@@ -61,11 +51,17 @@ install(TARGETS PicoASHAGui
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-qt_generate_deploy_qml_app_script(
+qt_generate_deploy_app_script(
     TARGET PicoASHAGui
     OUTPUT_SCRIPT deploy_script
-    NO_TRANSLATIONS
-    DEPLOY_TOOL_OPTIONS "--no-system-d3d-compiler" "--no-opengl-sw"
+    NO_COMPILER_RUNTIME
+    NO_UNSUPPORTED_PLATFORM_ERROR
+    DEPLOY_TOOL_OPTIONS
+        "--no-system-d3d-compiler"
+        "--no-opengl-sw"
+        "--no-opengl"
+        "--no-svg"
+        "--no-network"
 )
 install(SCRIPT ${deploy_script})
 

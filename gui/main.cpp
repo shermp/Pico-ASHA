@@ -1,26 +1,15 @@
-#include <QQmlContext>
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
+#include <QApplication>
 #include <QtSerialPort/QSerialPortInfo>
 #include <QStringList>
 
+#include "picoashacomm.h"
+
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
 
-    QQmlApplicationEngine engine;
+    PicoAshaComm picoASHA;
 
-    const QUrl url(QStringLiteral("qrc:/PicoASHAGui/Main.qml"));
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreated,
-        &app,
-        [url](QObject *obj, const QUrl &objUrl) {
-            if (!obj && url == objUrl)
-                QCoreApplication::exit(-1);
-        },
-        Qt::QueuedConnection);
-    engine.load(url);
-
+    picoASHA.showUI();
     return app.exec();
 }
