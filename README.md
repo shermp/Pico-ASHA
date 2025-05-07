@@ -21,9 +21,11 @@ Pico-ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids 
 
 Any commits pushed to this repository compiles an ELF and UF2 binary that can be loaded onto a Pico W.
 
-Binaries are available for download from the Github Actions tab. You mist be logged into Github to download these binaries.
+Binaries are available for download from the Github Actions tab. You mist be logged into Github to download these binaries. Firmware is build for both the Pico W and Pico 2W, ensure you flash the correct firmware image for your device.
 
-### Compile for dev/testing
+A GUI is also available, it is pre-compiled for Windows, and can be downloaded alongside the firmware images.
+
+### Compile firmware for dev/testing
 
 Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.1.1, using the provided instructions.
 
@@ -50,6 +52,18 @@ cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=pico_w ..
 cmake --build .
 ```
 
+### Compile GUI for dev/testing
+
+A basic Qt GUI has been developed. You will need Qt6 development libraries available so that cmake can find it.
+
+```sh
+cd gui
+mkdir build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build .
+```
+
 ### Installing
 
 To load the program onto your Pico W, press the `BOOTSEL` button while plugging it into the PC over USB. Then copy the `pico-asha.uf2` onto the mass storage device.
@@ -58,19 +72,15 @@ Developers with a suitable debug (SWD) connection to the Pico may alternatively 
 
 Instructions for doing so are outside the scope of this readme.
 
-### Serial
+### GUI
 
-#### USB
+Pico-ASHA now comes with a basic GUI to see information about connected hearing aids, and provide some diagnostic information. Once you start the GUI, it will automatically attempt to find and connect to Pico-ASHA. There is a "connected" status in the bottom right corner of the window.
 
-By default, Pico-ASHA logs output via USB serial. The USB serial settings are as follows:
+The top section has some basic information about each connected hearing aid, as well as the current volume and audio streaming status.
 
-- **Baud Rate:** 115200
-- **Data Bits:** 8
-- **Stop Bits:"** 1
-- **Parity:** None
-- **DTR** and **RTS** enabled
+Below that is the ability to dump HCI logs. These logs are only needed if you have issues connecting and streaming. Once saved, the log files can be opened in Wireshark.
 
-You can also reset the Pico into `BOOTSEL` mode (to upload new firmware) by changing the baud rate to 1200 baud.
+The bottom area is a basic text log that can show some status and error codes.
 
 ### Testing
 
