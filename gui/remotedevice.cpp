@@ -3,17 +3,15 @@
 #include "remotedevice.h"
 
 RemoteDevice::RemoteDevice(QWidget *parent)
-    : QGroupBox{parent}
+    : QGroupBox(parent)
 {
     setupUI();
+    setDefaultValues();
+    setGreyedOut(true);
 }
 
-RemoteDevice::RemoteDevice(asha::comm::RemoteInfo const& remote, QWidget *parent)
-    : QGroupBox{parent}
+void RemoteDevice::setRemoteInfo(const asha::comm::RemoteInfo &remote)
 {
-    using namespace asha::comm;
-    setupUI();
-
     setConnID(remote.conn_id);
     setHCIHandle(remote.hci_handle);
     setAddr(remote.addr);
@@ -28,36 +26,6 @@ RemoteDevice::RemoteDevice(asha::comm::RemoteInfo const& remote, QWidget *parent
     setMode(remote.mode);
     setAudioStreaming(remote.audio_streaming);
     setCurrVolume(remote.curr_vol);
-}
-
-void RemoteDevice::setupUI()
-{
-    auto addRowToLayout = [this] (const char* header, const char* defaultVal, QLabel* val) {
-        val->setText(defaultVal);
-        val->setStyleSheet("font-weight: normal");
-        this->m_formLayout.addRow(header, val);
-    };
-
-    setStyleSheet("font-weight: bold");
-    setAlignment(Qt::AlignHCenter);
-    setTitle("Side Unknown");
-
-    addRowToLayout("Connection ID", "0", &m_connIDLabel);
-    addRowToLayout("HCI Conn Handle", "0x00", &m_hciConnHandleLabel);
-    addRowToLayout("Address", "00:00:00:00:00:00", &m_addrLabel);
-    addRowToLayout("Paired and Bonded", "No", &m_pairedAndBondedLabel);
-    addRowToLayout("Device Name", "", &m_deviceNameLabel);
-    addRowToLayout("Make", "", &m_mfgNameLabel);
-    addRowToLayout("Model", "", &m_modelNameLabel);
-    addRowToLayout("FW Version", "", &m_fwVersionLabel);
-    addRowToLayout("Mode", "Unknown", &m_modeLabel);
-    addRowToLayout("24 kHz Support", "No", &m_g72224Label);
-    addRowToLayout("PSM", "0", &m_psmLabel);
-    addRowToLayout("L2CAP CID", "0", &m_l2CIDLabel);
-    addRowToLayout("Audio Streaming", "No", &m_audioStreamingLabel);
-    addRowToLayout("Current Volume", "-128", &m_currVolumeLabel);
-
-    setLayout(&m_formLayout);
 }
 
 void RemoteDevice::setROPInfo(const char* rop)
@@ -93,7 +61,7 @@ void RemoteDevice::setConnID(uint16_t connID)
 
 void RemoteDevice::setHCIHandle(uint16_t hciHandle)
 {
-    m_hciConnHandleLabel.setText(QString::number(hciHandle));
+    m_hciConnHandleLabel.setText(QString("0x%1").arg((int)hciHandle, 2, 16));
 }
 
 void RemoteDevice::setAddr(const uint8_t *addr)
@@ -110,12 +78,12 @@ void RemoteDevice::setPairedBonded(bool paired)
 
 void RemoteDevice::setPsm(uint16_t psm)
 {
-    m_psmLabel.setText(QString::number(psm));
+    m_psmLabel.setText(QString("0x%1").arg((int)psm, 2, 16));
 }
 
 void RemoteDevice::setL2CID(uint16_t cid)
 {
-    m_l2CIDLabel.setText(QString::number(cid));
+    m_l2CIDLabel.setText(QString("0x%1").arg((int)cid, 2, 16));
 }
 
 void RemoteDevice::setDeviceName(QString const& deviceName)
@@ -188,4 +156,67 @@ void RemoteDevice::setG24KHz(bool enabled)
 {
     m_g72224Label.setText(enabled ? "Supported" : "Unsupported");
     m_cachedProps.g24kHZ = enabled;
+}
+
+void RemoteDevice::setDefaultValues()
+{
+    setTitle("Side Unknown");
+
+    m_connIDLabel.setText("0");
+    m_hciConnHandleLabel.setText("0x00");
+    m_addrLabel.setText("00:00:00:00:00:00");
+    m_pairedAndBondedLabel.setText("No");
+    m_deviceNameLabel.setText("");
+    m_mfgNameLabel.setText("");
+    m_modelNameLabel.setText("");
+    m_fwVersionLabel.setText("");
+    m_modeLabel.setText("Unknown");
+    m_g72224Label.setText("No");
+    m_psmLabel.setText("0x00");
+    m_l2CIDLabel.setText("0x00");
+    m_audioStreamingLabel.setText("No");
+    m_currVolumeLabel.setText("-128");
+}
+
+bool RemoteDevice::isDefaultValues()
+{
+    return m_connIDLabel.text() == "0";
+}
+
+void RemoteDevice::setGreyedOut(bool enabled)
+{
+    greyedOut = enabled;
+    if (greyedOut) {
+        setStyleSheet("color: grey");
+    } else {
+        setStyleSheet("");
+    }
+}
+
+void RemoteDevice::setupUI()
+{
+    auto addRowToLayout = [this] (const char* header, QLabel* val) {
+        val->setStyleSheet("font-weight: normal");
+        this->m_formLayout.addRow(header, val);
+    };
+
+    setStyleSheet("font-weight: bold");
+    setAlignment(Qt::AlignHCenter);
+
+    addRowToLayout("Connection ID", &m_connIDLabel);
+    addRowToLayout("HCI Conn Handle", &m_hciConnHandleLabel);
+    addRowToLayout("Address", &m_addrLabel);
+    addRowToLayout("Paired and Bonded", &m_pairedAndBondedLabel);
+    addRowToLayout("Device Name", &m_deviceNameLabel);
+    addRowToLayout("Make", &m_mfgNameLabel);
+    addRowToLayout("Model", &m_modelNameLabel);
+    addRowToLayout("FW Version", &m_fwVersionLabel);
+    addRowToLayout("Mode", &m_modeLabel);
+    addRowToLayout("24 kHz Support", &m_g72224Label);
+    addRowToLayout("PSM", &m_psmLabel);
+    addRowToLayout("L2CAP CID", &m_l2CIDLabel);
+    addRowToLayout("Audio Streaming", &m_audioStreamingLabel);
+    addRowToLayout("Current Volume", &m_currVolumeLabel);
+
+    setLayout(&m_formLayout);
 }

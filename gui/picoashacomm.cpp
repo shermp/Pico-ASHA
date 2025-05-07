@@ -19,6 +19,9 @@ QMap<QByteArray, RemoteDevice::CachedProps> cached_remote_props;
 PicoAshaComm::PicoAshaComm(QObject *parent)
     : QObject{parent}, m_serial(this), connect_timer(this), m_hciLoggingEnabled(false)
 {
+    m_ui = new PicoAshaMainWindow;
+    m_ui->setHciActionBtnStart(false);
+
     m_serial.setBaudRate(QSerialPort::Baud115200);
     m_serial.setDataBits(QSerialPort::Data8);
     m_serial.setStopBits(QSerialPort::OneStop);
@@ -29,11 +32,11 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(&m_serial, &QSerialPort::errorOccurred, this, &PicoAshaComm::onSerialError);
     QObject::connect(&m_serial, &QSerialPort::readyRead, this, &PicoAshaComm::onSerialReadyRead);
 
-    QObject::connect(this, &PicoAshaComm::hciLoggingEnabledChanged, this, &PicoAshaComm::handleHciLogChanged);
+    QObject::connect(m_ui, &PicoAshaMainWindow::hciLogPathChanged, this, &PicoAshaComm::onHciLogPathChanged);
+    QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
 
     connect_timer.start(timer_interval);
 
-    m_ui = new PicoAshaMainWindow;
 }
 
 PicoAshaComm::~PicoAshaComm()
@@ -92,6 +95,70 @@ void PicoAshaComm::onSerialReadyRead()
             m_currPacket.clear();
         } else {
             m_currPacket.append(b);
+        }
+    }
+}
+
+void PicoAshaComm::onHciLogPathChanged(const QString &path)
+{
+    m_hciLoggingPath = path;
+    if (!m_hciLoggingEnabled) {
+        m_ui->setHciActionBtnStart(true);
+    }
+}
+
+void PicoAshaComm::onHciLogActionBtnClicked()
+{
+    using namespace asha::comm;
+    if (m_hciLoggingEnabled) {
+        if (m_hciLogFile.isOpen()) {
+            m_hciLogFile.close();
+        }
+        m_ui->setHciActionBtnStart(!m_hciLoggingPath.isEmpty());
+        sendCommandPacket(
+            {
+                .cmd = Command::HCIDump,
+                .cmd_status = CmdStatus::CmdOk,
+                .data = {.enable_hci = false}
+            }
+        );
+    } else {
+        if (m_hciLoggingPath.isEmpty()) {
+            setErrMsg("Log path not set");
+            return;
+        }
+        if (m_hciLogFile.isOpen()) {
+            m_hciLogFile.close();
+        }
+        m_hciLogFile.setFileName(m_hciLoggingPath);
+        if (!m_hciLogFile.open(QIODevice::WriteOnly)) {
+            setErrMsg(m_hciLogFile.errorString());
+            return;
+        }
+
+        struct {
+            char id_pattern[8] = "btsnoop";
+            uint32_t version = 1;
+            uint32_t data_type = 1002; // H4
+        } btsnoop_file_header;
+
+        btsnoop_file_header.version = qToBigEndian(btsnoop_file_header.version);
+        btsnoop_file_header.data_type = qToBigEndian(btsnoop_file_header.data_type);
+
+        if (m_hciLogFile.write((const char*)&btsnoop_file_header, sizeof(btsnoop_file_header)) < 0) {
+            setErrMsg(m_hciLogFile.errorString());
+            return;
+        }
+        bool res = sendCommandPacket(
+            {
+                .cmd = Command::HCIDump,
+                .cmd_status = CmdStatus::CmdOk,
+                .data = {.enable_hci = true}
+            }
+        );
+        if (res) {
+            m_hciLoggingEnabled = true;
+            m_ui->setHciActionBtnStop(true);
         }
     }
 }
@@ -239,7 +306,10 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         if (checkError(header, pkt, "ROPRead")) {
             return;
         }
-        if (rem) rem->setROPInfo((const char*)pkt.data.rop);
+        if (rem) {
+            rem->setROPInfo((const char*)pkt.data.rop);
+            m_ui->setRemoteOrder();
+        }
         break;
     case EventType::PSMRead:
         if (checkError(header, pkt, "PSMRead")) {
@@ -441,7 +511,7 @@ void PicoAshaComm::closeSerial()
     }
 }
 
-void PicoAshaComm::sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt)
+bool PicoAshaComm::sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt)
 {
     using namespace asha::comm;
     struct {
@@ -465,73 +535,20 @@ void PicoAshaComm::sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt)
     ++enc_len;
     if (m_serialConnected) {
         if (m_serial.write((const char*)enc, enc_len) < 0) {
-            setHciLoggingEnabled(false);
             setErrMsg(m_serial.errorString());
-            return;
+            return false;
         }
     }
+    return true;
 }
 
 void PicoAshaComm::writeHciPacket(const char *data, size_t len)
 {
-    if (m_hciLoggingEnabled && m_hciLogFile.isOpen()) {
-        m_hciLogFile.write(data, len);
-    }
-}
-
-void PicoAshaComm::handleHciLogChanged()
-{
-    using namespace asha::comm;
     if (!m_hciLoggingEnabled) {
-        qDebug() << "hciLoggingEnabled false";
-        if (m_hciLogFile.isOpen()) {
-            m_hciLogFile.close();
-            sendCommandPacket(
-                {
-                    .cmd = Command::HCIDump,
-                    .cmd_status = CmdStatus::CmdOk,
-                    .data = {.enable_hci = false}
-                }
-            );
-        }
-        return;
-    }
-    if (m_hciLoggingPath.isEmpty()) {
-        setHciLoggingEnabled(false);
-        setErrMsg("Log path not set");
-        return;
-    }
-    if (!m_hciLogFile.isOpen()) {
-        m_hciLogFile.setFileName(m_hciLoggingPath.toLocalFile());
-        if (!m_hciLogFile.open(QIODevice::WriteOnly)) {
-            //QString theBig = QVariant::fromValue(ModelApple::Big).toString();
-            setHciLoggingEnabled(false);
-            setErrMsg(m_hciLogFile.errorString());
-            return;
-        }
-
-        struct {
-            char id_pattern[8] = "btsnoop";
-            uint32_t version = 1;
-            uint32_t data_type = 1002; // H4
-        } btsnoop_file_header;
-
-        btsnoop_file_header.version = qToBigEndian(btsnoop_file_header.version);
-        btsnoop_file_header.data_type = qToBigEndian(btsnoop_file_header.data_type);
-
-        if (m_hciLogFile.write((const char*)&btsnoop_file_header, sizeof(btsnoop_file_header)) < 0) {
-            setHciLoggingEnabled(false);
-            setErrMsg(m_hciLogFile.errorString());
-            return;
-        }
-
-        sendCommandPacket(
-            {
-             .cmd = Command::HCIDump,
-             .cmd_status = CmdStatus::CmdOk,
-             .data = {.enable_hci = true}
-            }
-        );
+        m_hciLoggingEnabled = true;
+        m_ui->setHciActionBtnStop(true);
+    } else if (m_hciLoggingEnabled && m_hciLogFile.isOpen()) {
+        m_hciLogFile.write(data, len);
     }
 }
 
@@ -564,33 +581,6 @@ void PicoAshaComm::setRemoteError(const QString &newRemoteError)
         return;
     m_remoteError = newRemoteError;
     emit remoteErrorChanged();
-}
-
-QUrl PicoAshaComm::hciLoggingPath() const
-{
-    return m_hciLoggingPath;
-}
-
-void PicoAshaComm::setHciLoggingPath(const QUrl &newHciLoggingPath)
-{
-    if (m_hciLoggingPath == newHciLoggingPath)
-        return;
-    m_hciLoggingPath = newHciLoggingPath;
-    emit hciLoggingPathChanged();
-}
-
-bool PicoAshaComm::hciLoggingEnabled() const
-{
-    return m_hciLoggingEnabled;
-}
-
-void PicoAshaComm::setHciLoggingEnabled(bool newHciLoggingEnabled)
-{
-    qDebug() << "setHciLoggingEnabled";
-    if (m_hciLoggingEnabled == newHciLoggingEnabled)
-        return;
-    m_hciLoggingEnabled = newHciLoggingEnabled;
-    emit hciLoggingEnabledChanged();
 }
 
 QString PicoAshaComm::errMsg() const
