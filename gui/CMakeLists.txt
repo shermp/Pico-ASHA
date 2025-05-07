@@ -51,19 +51,21 @@ install(TARGETS PicoASHAGui
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-qt_generate_deploy_app_script(
-    TARGET PicoASHAGui
-    OUTPUT_SCRIPT deploy_script
-    NO_COMPILER_RUNTIME
-    NO_UNSUPPORTED_PLATFORM_ERROR
-    DEPLOY_TOOL_OPTIONS
-        "--no-system-d3d-compiler"
-        "--no-opengl-sw"
-        "--no-opengl"
-        "--no-svg"
-        "--no-network"
-)
-install(SCRIPT ${deploy_script})
+if(WIN32)
+    qt_generate_deploy_app_script(
+        TARGET PicoASHAGui
+        OUTPUT_SCRIPT deploy_script
+        NO_COMPILER_RUNTIME
+        NO_UNSUPPORTED_PLATFORM_ERROR
+        DEPLOY_TOOL_OPTIONS
+            "--no-system-d3d-compiler"
+            "--no-opengl-sw"
+            "--no-opengl"
+            "--no-svg"
+            "--no-network"
+    )
+    install(SCRIPT ${deploy_script})
+endif()
 
 set(CPACK_VERBATIM_VARIABLES TRUE)
 set(CPACK_STRIP_FILES TRUE)
