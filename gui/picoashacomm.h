@@ -29,12 +29,6 @@ public:
     QString remoteError() const;
     void setRemoteError(const QString &newRemoteError);
 
-    QUrl hciLoggingPath() const;
-    void setHciLoggingPath(const QUrl &newHciLoggingPath);
-
-    bool hciLoggingEnabled() const;
-    void setHciLoggingEnabled(bool newHciLoggingEnabled);
-
     QString errMsg() const;
     void setErrMsg(const QString &newErrMsg);
 
@@ -48,8 +42,8 @@ private:
 
     void closeSerial();
 
-    void handleHciLogChanged();
-    void sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt);
+    bool sendCommandPacket(asha::comm::CmdPacket const& cmd_pkt);
+
     void writeHciPacket(const char* data, size_t len);
 
     QSerialPort m_serial;
@@ -67,7 +61,7 @@ private:
 
     QString m_remoteError;
 
-    QUrl m_hciLoggingPath;
+    QString m_hciLoggingPath;
 
     bool m_hciLoggingEnabled;
 
@@ -89,6 +83,8 @@ public slots:
     void onConnectTimer();
     void onSerialError(QSerialPort::SerialPortError error);
     void onSerialReadyRead();
+    void onHciLogPathChanged(QString const& path);
+    void onHciLogActionBtnClicked();
 };
 
 #endif // PICOASHACOMM_H

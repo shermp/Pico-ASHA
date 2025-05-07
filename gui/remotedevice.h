@@ -37,10 +37,8 @@ public:
     };
 
     explicit RemoteDevice(QWidget *parent = nullptr);
-    explicit RemoteDevice(asha::comm::RemoteInfo const& remote, QWidget *parent = nullptr);
 
-    void setupUI();
-
+    void setRemoteInfo(asha::comm::RemoteInfo const& remote);
 
     void setROPInfo(const char* rop);
 
@@ -65,9 +63,15 @@ public:
     void setCurrVolume(int8_t currVol);
     void setG24KHz(bool enabled);
 
+    void setDefaultValues();
+    bool isDefaultValues();
+    void setGreyedOut(bool enabled);
+
 signals:
 
 private:
+    void setupUI();
+
     CachedProps m_cachedProps;
     QFormLayout m_formLayout;
 
@@ -85,6 +89,8 @@ private:
     QLabel m_l2CIDLabel;
     QLabel m_audioStreamingLabel;
     QLabel m_currVolumeLabel;
+
+    bool greyedOut;
 };
 
 #endif // REMOTEDEVICE_H
