@@ -6,7 +6,6 @@
 
 #include <btstack.h>
 
-#include "asha_audio.hpp"
 #include "asha_comms.hpp"
 #include "asha_vers.h"
 

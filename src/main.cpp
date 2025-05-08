@@ -7,18 +7,13 @@
 #include <tusb.h>
 
 #include "asha_unique_id.hpp"
-#include "asha_audio.hpp"
+#include "asha_audio.h"
 
 #include "runtime_settings.hpp"
 #include "hearing_aid.hpp"
 
 namespace asha
 {
-    
-AudioBuffer audio_buff;
-async_context_t *bt_async_ctx = nullptr;
-async_when_pending_worker_t bt_audio_pending_worker = {};
-
 char pico_uid[pico_uid_size];
 
 RuntimeSettings runtime_settings = {};
@@ -39,8 +34,7 @@ extern "C" int main()
     // (core 0) should make it work.
     flash_safe_execute_core_init();
     // Init global shared variables
-    patom::PseudoAtomicInit();
-    audio_buff.init();
+    asha_audio_init();
 
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);

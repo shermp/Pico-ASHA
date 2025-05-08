@@ -24,6 +24,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,7 +33,7 @@
 
 #include "usb_descriptors.h"
 
-#include "asha_audio.hpp"
+#include "asha_audio.h"
 
 namespace asha
 {
@@ -51,22 +52,6 @@ namespace asha
 static uint32_t current_sample_rate  = 16000;
 
 #define N_SAMPLE_RATES  TU_ARRAY_SIZE(sample_rates)
-
-namespace USBVol 
-{
-/* ASHA volume range is -48dB to 0dB, and is set as an int8_t
- * with a range of -128 to 0. This gives steps of 0.375 dB.
-
- * USB volume control is an int16_t, from -128dB to +128dB, in
- * steps of 1/256 dB. The ASHA resolution is 96/256dB per step 
- * which gives a range of -12192 to 0 and a resolution of 96.
- */
-
-  constexpr int16_t max =  -3072; // -12dB
-  constexpr int16_t min = -12192; // -47.625dB
-  constexpr int16_t res =     96; // 96/256 is the step between ASHA volume levels
-  constexpr int16_t mute = 0x8000;
-}
 
 // Audio controls
 // Current states
@@ -246,9 +231,9 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
     {
       audio_control_range_2_n_t(1) range_vol = {
         .wNumSubRanges = tu_htole16(1),
-        .subrange = { { .bMin = tu_htole16(USBVol::min), 
-                        .bMax = tu_htole16(USBVol::max),
-                        .bRes = tu_htole16(USBVol::res) } }
+        .subrange = { { .bMin = tu_htole16(ASHA_USB_VOL_MIN), 
+                        .bMax = tu_htole16(ASHA_USB_VOL_MAX),
+                        .bRes = tu_htole16(ASHA_USB_VOL_RES) } }
       };
       TU_LOG1("Get channel %u volume range (%d, %d, %u) dB\n", request->bChannelNumber,
               range_vol.subrange[0].bMin / 256, range_vol.subrange[0].bMax / 256, range_vol.subrange[0].bRes / 256);
@@ -396,30 +381,23 @@ extern "C" bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8
 
 void audio_task(void)
 {
+  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[1] ? ASHA_USB_VOL_MUTE : volume[1]);
+  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
 
-  // Dividing the USB volume by USBVol::res gives a volume that
-  // matches the ASHA volume
-  AudioBuffer::Volume v = {
-    .l = mute[1] ? volume_mute : (int8_t)(volume[1] / USBVol::res), 
-    .r = mute[2] ? volume_mute : (int8_t)(volume[2] / USBVol::res)
-  };
-    
-  audio_buff.set_volume(v);
-
-  if (spk_data_size == pcm_stereo_packet_size * 2) {
+  if (spk_data_size == ASHA_PCM_STEREO_PACKET_SIZE * 2) {
     last_packet_time = get_absolute_time();
     if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
       ++silence_counter;
     } else {
       silence_counter = 0;
     }
-    audio_buff.pcm_streaming = (silence_counter >= silence_timeout) ? false : true;
-    audio_buff.encode_1ms_audio(spk_buf);
+    asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
+    asha_audio_encode_1ms_pcm(spk_buf);
     spk_data_size = 0;
   } else {
       absolute_time_t now = get_absolute_time();
       if (absolute_time_diff_us(last_packet_time, now) > 5000) {
-        audio_buff.pcm_streaming = false;
+        asha_audio_set_pcm_streaming_enabled(false);
         last_packet_time = now;
       }
   }

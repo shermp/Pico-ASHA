@@ -5,7 +5,7 @@
 
 #include <etl/string.h>
 
-#include "asha_audio.hpp"
+#include "asha_audio.h"
 #include "asha_bt.hpp"
 #include "asha_comms.hpp"
 
@@ -180,7 +180,7 @@ private:
     uint32_t curr_read_index = 0U;
     uint8_t* audio_data = nullptr;
 
-    std::array<uint8_t, sdu_size_bytes> recv_buff = {};
+    std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};
 
     uint16_t conn_id = comm::unset_conn_id;
 
