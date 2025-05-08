@@ -17,6 +17,8 @@ static constexpr size_t ev_packet_str_size = sizeof comm::EventPacket::data.str;
 
 static constexpr int max_error_count = 10;
 
+static int8_t volume_mute = -128;
+
 namespace ASPStatus
 {
     constexpr int8_t unkown_command = -1;
@@ -912,7 +914,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
         case L2CAP_EVENT_CAN_SEND_NOW:
             cid = l2cap_event_can_send_now_get_local_cid(packet);
             ha = get_by_cid(cid);
-            l2cap_send(cid, ha->audio_data, sdu_size_bytes);
+            l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
             break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
@@ -975,7 +977,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                         //LOG_INFO("%s: Audio start OK", ha->get_side_str());
                         add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStart));
                         ha->audio_state = AudioState::Streaming;
-                        audio_buff.encode_audio = true;
+                        asha_audio_set_encoding_enabled(true);
                         if (ha->other && ha->other->is_streaming()) {
                             ha->other->send_acp_status(ACPStatus::other_connected);
                         }
@@ -1004,9 +1006,15 @@ void __not_in_flash_func(HearingAid::process_audio)()
 {
     using namespace comm;
 
-    uint32_t w_index = audio_buff.get_write_index();
-    AudioBuffer::Volume vol = audio_buff.get_volume();
-    bool pcm_is_streaming = audio_buff.pcm_streaming.Load();
+    uint32_t w_index = asha_audio_get_write_index();
+    int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioLeft);
+    int16_t usb_vol_r = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioRight);
+
+    // Dividing the USB volume by ASHA_USB_VOL_RES gives a volume that
+    // matches the ASHA volume
+    int8_t vol_l = usb_vol_l == ASHA_USB_VOL_MUTE ? volume_mute : (int8_t)(usb_vol_l / ASHA_USB_VOL_RES);
+    int8_t vol_r = usb_vol_r == ASHA_USB_VOL_MUTE ? volume_mute : (int8_t)(usb_vol_r / ASHA_USB_VOL_RES);
+    bool pcm_is_streaming = asha_audio_get_pcm_streaming_enabled();
 
     EventPacket short_log_pkt(EventType::ShortLog);
 
@@ -1023,7 +1031,7 @@ void __not_in_flash_func(HearingAid::process_audio)()
             case AudioState::Streaming:
                 if (!pcm_is_streaming || ha->credits == 0) {
                     if (!pcm_is_streaming) {
-                        audio_buff.encode_audio = false;
+                        asha_audio_set_encoding_enabled(false);
                     }
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
@@ -1032,9 +1040,11 @@ void __not_in_flash_func(HearingAid::process_audio)()
                     ha->send_acp_stop();
                 } else {
                     // Send volume update if volume has changed
-                    int8_t v = ha->rop.side == Side::Left ? vol.l : vol.r;
+                    int8_t v = ha->rop.side == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
                         ha->curr_vol = v;
+                        short_log_pkt.set_data_str("USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
+                        add_event_to_buffer(ha->conn_id, short_log_pkt);
                         ha->send_volume(ha->curr_vol);
                     }
                     if (w_index == 0) {
@@ -1047,8 +1057,10 @@ void __not_in_flash_func(HearingAid::process_audio)()
                         if ((ha->curr_write_index - ha->curr_read_index) >= 2) {
                             ha->curr_read_index = ha->curr_write_index - 1;
                         }
-                        AudioBuffer::G722Buff& packet = audio_buff.get_g_buff(ha->curr_read_index);
-                        ha->audio_data = ha->rop.side == Side::Left ? packet.l.data() : packet.r.data();
+
+                        enum AshaAudioSide audio_side = ha->rop.side == Side::Left ? AshaAudioSide::AudioLeft
+                                                                                   : AshaAudioSide::AudioRight;
+                        ha->audio_data = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
                         ++(ha->curr_read_index);
                         l2cap_request_can_send_now_event(ha->cid);
                     }
