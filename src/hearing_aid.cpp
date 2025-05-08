@@ -1018,6 +1018,8 @@ void __not_in_flash_func(HearingAid::process_audio)()
 
     EventPacket short_log_pkt(EventType::ShortLog);
 
+    asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
+
     for (auto ha : hearing_aids) {
         if (ha->process_state != ProcessState::Audio) { continue; }
         ha->credits = l2cap_cbm_available_credits(ha->cid);
