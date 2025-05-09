@@ -176,8 +176,8 @@ private:
     int process_delay_ticks = 0;
     int error_count = 0;
 
-    uint32_t curr_write_index = 0U;
     uint32_t curr_read_index = 0U;
+    bool first_audio_send = false;
     uint8_t* audio_data = nullptr;
 
     std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};

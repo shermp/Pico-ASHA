@@ -981,6 +981,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                         if (ha->other && ha->other->is_streaming()) {
                             ha->other->send_acp_status(ACPStatus::other_connected);
                         }
+                        ha->first_audio_send = true;
                     } else if (ha->audio_state == AudioState::Stop) {
                         //LOG_INFO("%s: Audio stop OK", ha->get_side_str());
                         add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStop));
@@ -1052,13 +1053,19 @@ void __not_in_flash_func(HearingAid::process_audio)()
                     if (w_index == 0) {
                         break;
                     }
-                    if (w_index > ha->curr_write_index) {
-                        ha->set_audio_busy();
-                        ha->curr_write_index = w_index;
-
-                        if ((ha->curr_write_index - ha->curr_read_index) >= 2) {
-                            ha->curr_read_index = ha->curr_write_index - 1;
+                    if (ha->first_audio_send) {
+                        ha->curr_read_index = w_index - 1;
+                        ha->first_audio_send = false;
+                    }
+                    if (ha->curr_read_index < w_index) {
+                        // Restart stream if starting to fall behind
+                        if (w_index - ha->curr_read_index >= 3) {
+                            short_log_pkt.set_data_str("%s", "Stream falled behind: restarting");
+                            add_event_to_buffer(ha->conn_id, short_log_pkt);
+                            ha->send_acp_stop();
                         }
+
+                        ha->set_audio_busy();
 
                         enum AshaAudioSide audio_side = ha->rop.side == Side::Left ? AshaAudioSide::AudioLeft
                                                                                    : AshaAudioSide::AudioRight;
