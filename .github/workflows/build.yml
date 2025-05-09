@@ -4,6 +4,10 @@ on:
     push:
     pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
     PICO_SDK_COMMIT_HASH: ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c
     CYW43_DRIVER_COMMIT_HASH: 7f422fef4ea5bff7285fb78340d3f28f5461cff2
