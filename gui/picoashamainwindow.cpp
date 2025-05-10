@@ -40,10 +40,19 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     auto cmdLayout = new QHBoxLayout;
     cmdLayout->addStretch();
     m_cmdRestartBtn = new QPushButton("Restart");
+    m_cmdRestartBtn->setToolTip("Restarts Pico-ASHA.\n"
+                                "It can be useful if your previously connected "
+                                "hearing aids stop connecting.");
     cmdLayout->addWidget(m_cmdRestartBtn);
     m_cmdConnAllowedBtn = new QPushButton;
+    m_cmdConnAllowedBtn->setToolTip("Allow or deny hearing aids from connecting to Pico-ASHA.\n"
+                                    "This can be useful if you want to stream from another "
+                                    "device such as a mobile phone.");
     cmdLayout->addWidget(m_cmdConnAllowedBtn);
     m_cmdStreamingEnabledBtn = new QPushButton;
+    m_cmdStreamingEnabledBtn->setToolTip("Stop or start ASHA streaming.\n"
+                                         "This can be useful to restart audio streaming if you "
+                                         "encounter stereo sync issues.");
     cmdLayout->addWidget(m_cmdStreamingEnabledBtn);
     cmdLayout->addStretch();
     cmdGroup->setLayout(cmdLayout);
@@ -63,6 +72,10 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     auto hciGroup = new QGroupBox("HCI Logging");
     auto hciLayout = new QHBoxLayout;
     m_hciActionBtn = new QPushButton;
+    m_hciActionBtn->setToolTip("Start or stop HCI logging.\n"
+                               "This can be useful to help diagnose pairing and connection issues,\n"
+                               "especially for hearing aids which have not previously been tested.\n"
+                               "Not required for general use.");
     setHciActionBtnStart(false);
     m_hciPathBtn = new QPushButton("Browse...");
     m_hciPathLbl = new QLabel("Set HCI logging path");
