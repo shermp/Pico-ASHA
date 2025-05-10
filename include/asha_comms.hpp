@@ -9,6 +9,11 @@ namespace comm
 {
     constexpr uint16_t unset_conn_id = 0;
 
+    namespace IntroFlags {
+        constexpr uint16_t conn_allowed = 1 << 0u;
+        constexpr uint16_t streaming_enabled = 1 << 1u;
+    }
+
     enum class CSide : uint8_t {Left = 0, Right = 1, Unset = 2};
     enum class CMode : uint8_t {Mono = 0, Binaural = 1, Unset = 2};
 
@@ -87,6 +92,8 @@ namespace comm
         HCIDump,
         DeletePair,
         Restart,
+        AllowConnect,
+        AudioStreaming,
     };
 
     enum class CmdStatus : uint8_t
@@ -114,9 +121,20 @@ namespace comm
             uint8_t patch;
         } pa_version;
         int8_t num_connected = 0;
+        uint16_t flags = 0x00;
+        uint16_t reserved = 0;
+
+        void set_flag(uint16_t flag)
+        {
+            flags |= flag;
+        }
+        bool test_flag(uint16_t flag)
+        {
+            return (flags & flag) == flag;
+        }
     };
 
-    static_assert(sizeof(IntroPacket) == 4);
+    static_assert(sizeof(IntroPacket) == 8);
 
     struct RemoteInfo
     {
@@ -192,6 +210,8 @@ namespace comm
         union {
             uint16_t  conn_id;
             bool      enable_hci;
+            bool      allow_connect;
+            bool      audio_streaming_enabled;
         } data;
     };
 
@@ -201,7 +221,7 @@ namespace comm
 
     void try_send_events();
 
-    void send_intro_packet(int8_t num_connections);
+    void send_intro_packet(int8_t num_connections, uint16_t flags = 0x00);
     void send_remote_info_packet(RemoteInfo const& remote_info);
 
     bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet);

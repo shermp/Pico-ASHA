@@ -31,16 +31,22 @@ public:
 
     RemoteDevice* getRemote(uint16_t connID);
 
+    void onSerialConnected(bool connected);
+
+    void setCmdBtnsEnabled(bool enabled);
+
+    void setPicoAshaVerStr(QString const& version);
+    void setConnectionsAllowed(bool allowed);
+    //void setAudioStreamingEnabled(bool enabled);
+
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
-
-public slots:
-    void onSerialConnected(bool connected, const QString &statusStr = "");
 
 signals:
     void hciLogPathChanged(QString const& path);
     void hciLogActionBtnClicked();
     void cmdRestartBtnClicked();
+    void cmdConnAllowedBtnClicked(bool allowed);
 
 private:
     QWidget* m_mainWidget;
@@ -50,10 +56,14 @@ private:
     QList<RemoteDevice*> m_remotes;
 
     QPushButton* m_cmdRestartBtn;
+    QPushButton* m_cmdConnAllowedBtn;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;
     QLabel* m_hciPathLbl;
+
+    bool m_serialConnected;
+    bool m_connectionsAllowed;
 };
 
 #endif // PICOASHAMAINWINDOW_H

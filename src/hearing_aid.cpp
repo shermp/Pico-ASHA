@@ -112,6 +112,8 @@ HearingAid::HearingAid()
         hard_assert(false);
     }
     next_conn_id = comm::unset_conn_id;
+    connections_allowed = true;
+    audio_streaming_enabled = true;
 }
 
 void __not_in_flash_func(HearingAid::process)()
@@ -284,7 +286,11 @@ void HearingAid::on_serial_host_connected()
 {
     using namespace comm;
     RemoteInfo info;
-    send_intro_packet((int8_t)num_connected());
+    uint16_t intro_flags = 0x00;
+    if (connections_allowed) {
+        intro_flags |= IntroFlags::conn_allowed;
+    }
+    send_intro_packet((int8_t)num_connected(), intro_flags);
     for (auto ha : hearing_aids) {
         if (!ha->is_connected()) {
             continue;
@@ -323,10 +329,31 @@ bool HearingAid::is_addr_connected(const bd_addr_t addr)
     return false;
 }
 
+void HearingAid::set_connections_allowed(bool allowed)
+{
+    if (connections_allowed == allowed) {
+        return;
+    }
+    if (connections_allowed && !allowed) {
+        connections_allowed = false;
+        gap_stop_scan();
+        for (auto ha : hearing_aids) {
+            if (ha->is_connected()) {
+                ha->disconnect();
+            }
+        }
+    } else if (!connections_allowed && allowed) {
+        connections_allowed = true;
+        start_scan();
+    }
+}
+
 void HearingAid::start_scan()
 {
-    gap_set_scan_params(1, 0x0030, 0x0030, runtime_settings.full_set_paired ? 1 : 0);
-    gap_start_scan();
+    if (connections_allowed) {
+        gap_set_scan_params(1, 0x0030, 0x0030, runtime_settings.full_set_paired ? 1 : 0);
+        gap_start_scan();
+    }
 }
 
 void HearingAid::on_ad_report(const AdvertisingReport& report)

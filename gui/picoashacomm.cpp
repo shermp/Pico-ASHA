@@ -35,6 +35,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogPathChanged, this, &PicoAshaComm::onHciLogPathChanged);
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
 
     connect_timer.start(timer_interval);
 
@@ -56,7 +57,7 @@ void PicoAshaComm::onConnectTimer()
                 connect_timer.stop();
                 qDebug() << "Serial port opened to " << p.description();
                 m_serial.setDataTerminalReady(true);
-                m_ui->onSerialConnected(true, "Connected");
+                m_ui->onSerialConnected(true);
             }
         }
     }
@@ -179,14 +180,34 @@ void PicoAshaComm::onCmdRestartBtnClicked()
     }
 }
 
+void PicoAshaComm::onCmdConnAllowedBtnClicked(bool allowed)
+{
+    using namespace asha::comm;
+    bool res = sendCommandPacket(
+        {
+            .cmd = Command::AllowConnect,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {.allow_connect = allowed}
+        }
+        );
+    if (res) {
+        m_ui->setConnectionsAllowed(allowed);
+    }
+}
+
 template<typename T>
 bool assert_packet_size(size_t dec_size, const char* pkt_type, T const& pkt)
 {
-    if (dec_size - sizeof(asha::comm::HeaderPacket) != sizeof pkt) {
+    size_t dec_pkt_size = dec_size - sizeof(asha::comm::HeaderPacket);
+    if (dec_pkt_size < sizeof pkt) {
         qDebug() << pkt_type << ": Size mismatch! Decoded size is "
-                 << dec_size << ", expected: " << sizeof(pkt)
-                 << ", got: " << dec_size - sizeof(asha::comm::HeaderPacket);
+                 << dec_size << ", which is too small for the expected: " << sizeof(pkt)
+                 << ", got: " << dec_pkt_size;
         return false;
+    } else if (dec_pkt_size > sizeof pkt) {
+        qDebug() << pkt_type << ": Warning: decoded size of: "
+                 << dec_pkt_size << " is larger than the expected size of: "
+                 << sizeof(pkt);
     }
     return true;
 }
@@ -219,8 +240,11 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
                                                   QString::number(intro.pa_version.minor),
                                                   QString::number(intro.pa_version.patch))
                           );
-        m_ui->onSerialConnected(true, QString("Connected - %1").arg(m_paFirmwareVers));
+
         qDebug() << "Num connected devices: " << intro.num_connected;
+        m_ui->setPicoAshaVerStr(paFirmwareVers());
+        m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
+        m_ui->setCmdBtnsEnabled(true);
         break;
     }
     case Type::Event: {

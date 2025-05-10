@@ -112,14 +112,15 @@ namespace comm
         }
     }
 
-    void send_intro_packet(int8_t num_connections)
+    void send_intro_packet(int8_t num_connections, uint16_t flags)
     {
         construct_and_send_packet(Type::Intro, unset_conn_id, IntroPacket{.pa_version = {
             .major = PICO_ASHA_FW_VERS_MAJOR,
             .minor = PICO_ASHA_FW_VERS_MINOR,
             .patch = PICO_ASHA_FW_VERS_PATCH
         },
-        .num_connected = num_connections});
+        .num_connected = num_connections,
+        .flags = flags});
     }
 
     void send_remote_info_packet(RemoteInfo const& remote_info)

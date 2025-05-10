@@ -39,13 +39,20 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     auto cmdGroup = new QGroupBox("Send Commands");
     auto cmdLayout = new QHBoxLayout;
     cmdLayout->addStretch();
-    m_cmdRestartBtn = new QPushButton("Restart Pico-ASHA");
+    m_cmdRestartBtn = new QPushButton("Restart");
     cmdLayout->addWidget(m_cmdRestartBtn);
+    m_cmdConnAllowedBtn = new QPushButton;
+    cmdLayout->addWidget(m_cmdConnAllowedBtn);
     cmdLayout->addStretch();
     cmdGroup->setLayout(cmdLayout);
     mainVBox->addWidget(cmdGroup);
 
     QObject::connect(m_cmdRestartBtn, &QPushButton::clicked, this, &PicoAshaMainWindow::cmdRestartBtnClicked);
+    QObject::connect(m_cmdConnAllowedBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
+        emit cmdConnAllowedBtnClicked(!m_connectionsAllowed);
+    });
+    setConnectionsAllowed(false);
+    setCmdBtnsEnabled(false);
 
     auto hciGroup = new QGroupBox("HCI Logging");
     auto hciLayout = new QHBoxLayout;
@@ -196,6 +203,16 @@ RemoteDevice *PicoAshaMainWindow::getRemote(uint16_t connID)
     return nullptr;
 }
 
+void PicoAshaMainWindow::setConnectionsAllowed(bool allowed)
+{
+    m_connectionsAllowed = allowed;
+    if (m_connectionsAllowed) {
+        m_cmdConnAllowedBtn->setText("Disable Connections");
+    } else {
+        m_cmdConnAllowedBtn->setText("Enable Connections");
+    }
+}
+
 void PicoAshaMainWindow::setHciActionBtnStart(bool enabled)
 {
     m_hciActionBtn->setText("HCI Start");
@@ -208,15 +225,26 @@ void PicoAshaMainWindow::setHciActionBtnStop(bool enabled)
     m_hciActionBtn->setEnabled(enabled);
 }
 
-void PicoAshaMainWindow::onSerialConnected(bool connected, const QString &statusStr)
+void PicoAshaMainWindow::onSerialConnected(bool connected)
 {
-    if (connected) {
-        m_serialConnectedStatus->setText(statusStr);
+    m_serialConnected = connected;
+    if (m_serialConnected) {
+        m_serialConnectedStatus->setText("Connected");
         m_serialConnectedStatus->setStyleSheet("QLabel { color : green; }");
-        m_cmdRestartBtn->setEnabled(true);
     } else {
         m_serialConnectedStatus->setText("Not Connected");
         m_serialConnectedStatus->setStyleSheet("QLabel { color : red; }");
-        m_cmdRestartBtn->setEnabled(false);
     }
 }
+
+void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
+{
+    m_cmdRestartBtn->setEnabled(enabled);
+    m_cmdConnAllowedBtn->setEnabled(enabled);
+}
+
+void PicoAshaMainWindow::setPicoAshaVerStr(const QString &version)
+{
+    m_serialConnectedStatus->setText(QString("Connected :: %1").arg(version));
+}
+
