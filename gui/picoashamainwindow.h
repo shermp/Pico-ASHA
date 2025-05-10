@@ -48,6 +48,7 @@ signals:
     void cmdRestartBtnClicked();
     void cmdConnAllowedBtnClicked(bool allowed);
     void cmdStreamingEnabledBtnClicked(bool enabled);
+    void cmdRemoveBondBtnClicked();
 
 private:
     QWidget* m_mainWidget;
@@ -59,6 +60,7 @@ private:
     QPushButton* m_cmdRestartBtn;
     QPushButton* m_cmdConnAllowedBtn;
     QPushButton* m_cmdStreamingEnabledBtn;
+    QPushButton* m_cmdRemoveBondBtn;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;

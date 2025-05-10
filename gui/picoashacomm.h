@@ -88,6 +88,7 @@ public slots:
     void onCmdRestartBtnClicked();
     void onCmdConnAllowedBtnClicked(bool allowed);
     void onCmdStreamingEnabledBtnClicked(bool enabled);
+    void onCmdRemoveBondBtnClicked();
 };
 
 #endif // PICOASHACOMM_H

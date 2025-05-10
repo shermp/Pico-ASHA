@@ -37,6 +37,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdRemoveBondBtnClicked, this, &PicoAshaComm::onCmdRemoveBondBtnClicked);
 
     connect_timer.start(timer_interval);
 
@@ -209,6 +210,18 @@ void PicoAshaComm::onCmdStreamingEnabledBtnClicked(bool enabled)
     if (res) {
         m_ui->setAudioStreamingEnabled(enabled);
     }
+}
+
+void PicoAshaComm::onCmdRemoveBondBtnClicked()
+{
+    using namespace asha::comm;
+    sendCommandPacket(
+        {
+            .cmd = Command::DeletePair,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {}
+        }
+    );
 }
 
 template<typename T>

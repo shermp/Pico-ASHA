@@ -2,6 +2,7 @@
 #include <QHBoxLayout>
 #include <QFileDialog>
 #include <QFrame>
+#include <QMessageBox>
 #include <QStatusBar>
 
 #include "picoashamainwindow.h"
@@ -39,21 +40,31 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     auto cmdGroup = new QGroupBox("Send Commands");
     auto cmdLayout = new QHBoxLayout;
     cmdLayout->addStretch();
+
     m_cmdRestartBtn = new QPushButton("Restart");
     m_cmdRestartBtn->setToolTip("Restarts Pico-ASHA.\n"
                                 "It can be useful if your previously connected "
                                 "hearing aids stop connecting.");
     cmdLayout->addWidget(m_cmdRestartBtn);
+
     m_cmdConnAllowedBtn = new QPushButton;
     m_cmdConnAllowedBtn->setToolTip("Allow or deny hearing aids from connecting to Pico-ASHA.\n"
                                     "This can be useful if you want to stream from another "
                                     "device such as a mobile phone.");
     cmdLayout->addWidget(m_cmdConnAllowedBtn);
+
     m_cmdStreamingEnabledBtn = new QPushButton;
     m_cmdStreamingEnabledBtn->setToolTip("Stop or start ASHA streaming.\n"
                                          "This can be useful to restart audio streaming if you "
                                          "encounter stereo sync issues.");
     cmdLayout->addWidget(m_cmdStreamingEnabledBtn);
+
+    m_cmdRemoveBondBtn = new QPushButton("Unpair");
+    m_cmdRemoveBondBtn->setToolTip("Unpair connected hearing aids.\n"
+                                   "As Pico-ASHA only supports one set of hearing aids at a time,\n"
+                                   "this allows pairing a different set of hearing aids.");
+    cmdLayout->addWidget(m_cmdRemoveBondBtn);
+
     cmdLayout->addStretch();
     cmdGroup->setLayout(cmdLayout);
     mainVBox->addWidget(cmdGroup);
@@ -64,6 +75,12 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     });
     QObject::connect(m_cmdStreamingEnabledBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
         emit cmdStreamingEnabledBtnClicked(!m_streamingEnabled);
+    });
+    QObject::connect(m_cmdRemoveBondBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
+        auto ans = QMessageBox::question(this, this->windowTitle(), "Are you sure you want to unpair connected hearing aids?");
+        if (ans == QMessageBox::Yes) {
+            emit cmdRemoveBondBtnClicked();
+        }
     });
     setConnectionsAllowed(false);
     setAudioStreamingEnabled(false);
@@ -271,6 +288,7 @@ void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
     m_cmdRestartBtn->setEnabled(enabled);
     m_cmdConnAllowedBtn->setEnabled(enabled);
     m_cmdStreamingEnabledBtn->setEnabled(enabled);
+    m_cmdRemoveBondBtn->setEnabled(enabled);
 }
 
 void PicoAshaMainWindow::setPicoAshaVerStr(const QString &version)
