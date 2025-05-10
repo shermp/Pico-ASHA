@@ -94,6 +94,11 @@ extern "C" void bt_main()
 
     led_mgr.set_ctx(ctx);
 
+    if (!runtime_settings) {
+        //LOG_ERROR("Runtime settings not initialised");
+        add_event_to_buffer(unset_conn_id, EventPacket(EventType::PicoASHAInit, StatusType::PAStatus, PAError::PARuntimeSettingsErr));
+    }
+
     if (runtime_settings.hci_dump_enabled) {
         // Allow time for USB serial to connect before proceeding
         hci_dump_init(&pa_hci_dump_impl);
@@ -104,10 +109,6 @@ extern "C" void bt_main()
 
     }
 
-    if (!runtime_settings) {
-        //LOG_ERROR("Runtime settings not initialised");
-        add_event_to_buffer(unset_conn_id, EventPacket(EventType::PicoASHAInit, StatusType::PAStatus, PAError::PARuntimeSettingsErr));
-    }
     //LOG_INFO("BT ASHA starting.");
     
     /* Start init BTStack systems */

@@ -33,7 +33,7 @@ void RemoteDevice::setROPInfo(const char* rop)
     QBitArray device_cap = QBitArray::fromBits(rop + 1, 8);
     QBitArray codecs = QBitArray::fromBits(rop + 15, 16);
 
-    setSide(device_cap.testBit(0) ? Side::Left : Side::Right);
+    setSide(device_cap.testBit(0) ? Side::Right : Side::Left);
     setMode(device_cap.testBit(1) ? Mode::Binaural : Mode::Mono);
     setG24KHz(codecs.testBit(2));
 }
