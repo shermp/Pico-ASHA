@@ -182,6 +182,11 @@ static void process_serial_cmds()
                 cmd_pkt.cmd_status = CmdStatus::CmdOk;
                 send_cmd_resp(header.conn_id, cmd_pkt);
                 break;
+            case Command::Restart:
+                watchdog_enable(250, true);
+                cmd_pkt.cmd_status = CmdStatus::CmdOk;
+                send_cmd_resp(header.conn_id, cmd_pkt);
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 send_cmd_resp(header.conn_id, cmd_pkt);

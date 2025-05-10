@@ -34,6 +34,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
 
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogPathChanged, this, &PicoAshaComm::onHciLogPathChanged);
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
 
     connect_timer.start(timer_interval);
 
@@ -55,7 +56,7 @@ void PicoAshaComm::onConnectTimer()
                 connect_timer.stop();
                 qDebug() << "Serial port opened to " << p.description();
                 m_serial.setDataTerminalReady(true);
-                m_ui->setSerialConnectedStatus("Connected");
+                m_ui->onSerialConnected(true, "Connected");
             }
         }
     }
@@ -69,7 +70,7 @@ void PicoAshaComm::onSerialError(QSerialPort::SerialPortError error)
         break;
     case ResourceError:
         m_serial.close();
-        m_ui->setSerialConnectedStatus("Not Connected");
+        m_ui->onSerialConnected(false);
         m_ui->removeRemotes();
         qDebug() << "Serial port disconnected";
         connect_timer.start(timer_interval);
@@ -163,6 +164,21 @@ void PicoAshaComm::onHciLogActionBtnClicked()
     }
 }
 
+void PicoAshaComm::onCmdRestartBtnClicked()
+{
+    using namespace asha::comm;
+    bool res = sendCommandPacket(
+        {
+            .cmd = Command::Restart,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {}
+        }
+        );
+    if (res) {
+        m_ui->onSerialConnected(false);
+    }
+}
+
 template<typename T>
 bool assert_packet_size(size_t dec_size, const char* pkt_type, T const& pkt)
 {
@@ -203,7 +219,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
                                                   QString::number(intro.pa_version.minor),
                                                   QString::number(intro.pa_version.patch))
                           );
-        m_ui->setSerialConnectedStatus(QString("Connected - %1").arg(m_paFirmwareVers));
+        m_ui->onSerialConnected(true, QString("Connected - %1").arg(m_paFirmwareVers));
         qDebug() << "Num connected devices: " << intro.num_connected;
         break;
     }
