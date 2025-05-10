@@ -54,7 +54,7 @@ cmake --build .
 
 ### Compile GUI for dev/testing
 
-A basic Qt GUI has been developed. You will need Qt6 development libraries available so that cmake can find it.
+A basic Qt GUI has been developed. You will need Qt6 development libraries (including qtserialport) available so that cmake can find it.
 
 ```sh
 cd gui
@@ -63,6 +63,8 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
+
+Note that Linux users will most likely need to belong to the `dialout` group to gain serial port permissions.
 
 ### Installing
 
@@ -77,6 +79,13 @@ Instructions for doing so are outside the scope of this readme.
 Pico-ASHA now comes with a basic GUI to see information about connected hearing aids, and provide some diagnostic information. Once you start the GUI, it will automatically attempt to find and connect to Pico-ASHA. There is a "connected" status in the bottom right corner of the window.
 
 The top section has some basic information about each connected hearing aid, as well as the current volume and audio streaming status.
+
+Next there are a series of buttons to do the following:
+
+* Stop/start ASHA streaming
+* Allow or deny hearing aid connections
+* Restart Pico-ASHA
+* Unpair hearing aids
 
 Below that is the ability to dump HCI logs. These logs are only needed if you have issues connecting and streaming. Once saved, the log files can be opened in Wireshark.
 
