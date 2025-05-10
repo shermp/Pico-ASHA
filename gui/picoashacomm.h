@@ -86,6 +86,7 @@ public slots:
     void onHciLogPathChanged(QString const& path);
     void onHciLogActionBtnClicked();
     void onCmdRestartBtnClicked();
+    void onCmdConnAllowedBtnClicked(bool allowed);
 };
 
 #endif // PICOASHACOMM_H

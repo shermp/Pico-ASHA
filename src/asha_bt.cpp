@@ -164,14 +164,13 @@ static void process_serial_cmds()
     HeaderPacket header = {};
     CmdPacket cmd_pkt = {};
     if (get_cmd_packet(header, cmd_pkt)) {
+        cmd_pkt.cmd_status = CmdStatus::CmdOk;
         switch (cmd_pkt.cmd) {
             case Command::HCIDump:
                 if (runtime_settings.set_hci_dump_enabled(cmd_pkt.data.enable_hci)) {
                     //LOG_INFO("Enabling Watchdog");
                     watchdog_enable(250, true);
                 }
-                cmd_pkt.cmd_status = CmdStatus::CmdOk;
-                send_cmd_resp(header.conn_id, cmd_pkt);
                 break;
             case Command::DeletePair:
                 if (header.conn_id != unset_conn_id) {
@@ -179,19 +178,18 @@ static void process_serial_cmds()
                 } else {
                     HearingAid::delete_pair();
                 }
-                cmd_pkt.cmd_status = CmdStatus::CmdOk;
-                send_cmd_resp(header.conn_id, cmd_pkt);
                 break;
             case Command::Restart:
                 watchdog_enable(250, true);
-                cmd_pkt.cmd_status = CmdStatus::CmdOk;
-                send_cmd_resp(header.conn_id, cmd_pkt);
+                break;
+            case Command::AllowConnect:
+                HearingAid::set_connections_allowed(cmd_pkt.data.allow_connect);
                 break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
-                send_cmd_resp(header.conn_id, cmd_pkt);
                 break;
         }
+        send_cmd_resp(header.conn_id, cmd_pkt);
     }
 }
 

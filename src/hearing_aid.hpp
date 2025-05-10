@@ -120,6 +120,8 @@ struct HearingAid
 
     static void on_serial_host_connected();
     static bool is_addr_connected(const bd_addr_t addr);
+    static void set_connections_allowed(bool allowed);
+    static void set_audio_streaming_enabled(bool enabled);
     static void start_scan();
     static void on_ad_report(const AdvertisingReport& report);
     static void on_connected(bd_addr_t addr, hci_con_handle_t handle);
@@ -185,6 +187,9 @@ private:
     uint16_t conn_id = comm::unset_conn_id;
 
     inline static uint16_t next_conn_id;
+
+    inline static bool connections_allowed;
+    inline static bool audio_streaming_enabled;
 
     /* Member functions */
 
