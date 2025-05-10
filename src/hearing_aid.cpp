@@ -472,6 +472,12 @@ void HearingAid::on_data_len_set(hci_con_handle_t handle,
 void HearingAid::delete_pair()
 {
     delete_paired_devices();
+    runtime_settings.set_full_set_paired(false);
+    for (auto ha : hearing_aids) {
+        if (ha->is_connected()) {
+            ha->disconnect();
+        }
+    }
 }
 
 void HearingAid::delete_pair(uint16_t conn_id)
@@ -480,6 +486,8 @@ void HearingAid::delete_pair(uint16_t conn_id)
         auto ha = get_by_conn_id(conn_id);
         if (ha) {
             delete_paired_device(ha->addr);
+            runtime_settings.set_full_set_paired(false);
+            ha->disconnect();
         }
     }
 }
@@ -1370,6 +1378,7 @@ static void delete_paired_devices()
             add_event_to_buffer(unset_conn_id, ev_pkt);
         }
     }
+    gap_whitelist_clear();
 }
 
 static void delete_paired_device(const bd_addr_t address)
