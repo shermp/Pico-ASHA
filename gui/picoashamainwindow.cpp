@@ -41,11 +41,11 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     auto cmdLayout = new QHBoxLayout;
     cmdLayout->addStretch();
 
-    m_cmdRestartBtn = new QPushButton("Restart");
-    m_cmdRestartBtn->setToolTip("Restarts Pico-ASHA.\n"
-                                "It can be useful if your previously connected "
-                                "hearing aids stop connecting.");
-    cmdLayout->addWidget(m_cmdRestartBtn);
+    m_cmdStreamingEnabledBtn = new QPushButton;
+    m_cmdStreamingEnabledBtn->setToolTip("Stop or start ASHA streaming.\n"
+                                         "This can be useful to restart audio streaming if you "
+                                         "encounter stereo sync issues.");
+    cmdLayout->addWidget(m_cmdStreamingEnabledBtn);
 
     m_cmdConnAllowedBtn = new QPushButton;
     m_cmdConnAllowedBtn->setToolTip("Allow or deny hearing aids from connecting to Pico-ASHA.\n"
@@ -53,11 +53,11 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
                                     "device such as a mobile phone.");
     cmdLayout->addWidget(m_cmdConnAllowedBtn);
 
-    m_cmdStreamingEnabledBtn = new QPushButton;
-    m_cmdStreamingEnabledBtn->setToolTip("Stop or start ASHA streaming.\n"
-                                         "This can be useful to restart audio streaming if you "
-                                         "encounter stereo sync issues.");
-    cmdLayout->addWidget(m_cmdStreamingEnabledBtn);
+    m_cmdRestartBtn = new QPushButton("Restart");
+    m_cmdRestartBtn->setToolTip("Restarts Pico-ASHA.\n"
+                                "It can be useful if your previously connected "
+                                "hearing aids stop connecting.");
+    cmdLayout->addWidget(m_cmdRestartBtn);
 
     m_cmdRemoveBondBtn = new QPushButton("Unpair");
     m_cmdRemoveBondBtn->setToolTip("Unpair connected hearing aids.\n"
