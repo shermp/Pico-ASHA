@@ -36,6 +36,17 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     m_remoteFrame->setLayout(remoteHBox);
     mainVBox->addWidget(m_remoteFrame);
 
+    auto cmdGroup = new QGroupBox("Send Commands");
+    auto cmdLayout = new QHBoxLayout;
+    cmdLayout->addStretch();
+    m_cmdRestartBtn = new QPushButton("Restart Pico-ASHA");
+    cmdLayout->addWidget(m_cmdRestartBtn);
+    cmdLayout->addStretch();
+    cmdGroup->setLayout(cmdLayout);
+    mainVBox->addWidget(cmdGroup);
+
+    QObject::connect(m_cmdRestartBtn, &QPushButton::clicked, this, &PicoAshaMainWindow::cmdRestartBtnClicked);
+
     auto hciGroup = new QGroupBox("HCI Logging");
     auto hciLayout = new QHBoxLayout;
     m_hciActionBtn = new QPushButton;
@@ -70,7 +81,7 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     setCentralWidget(m_mainWidget);
 
     m_serialConnectedStatus = new QLabel();
-    setSerialConnectedStatus("Not Connected");
+    onSerialConnected(false);
 
     QStatusBar* mainStatusBar = new QStatusBar;
     mainStatusBar->addPermanentWidget(m_serialConnectedStatus);
@@ -174,16 +185,6 @@ void PicoAshaMainWindow::setRemoteOrder()
     }
 }
 
-void PicoAshaMainWindow::setSerialConnectedStatus(const QString &statusStr)
-{
-    m_serialConnectedStatus->setText(statusStr);
-    if (m_serialConnectedStatus->text() == "Not Connected") {
-        m_serialConnectedStatus->setStyleSheet("QLabel { color : red; }");
-    } else {
-        m_serialConnectedStatus->setStyleSheet("QLabel { color : green; }");
-    }
-}
-
 RemoteDevice *PicoAshaMainWindow::getRemote(uint16_t connID)
 {
     auto name = widgetNameFromConnID(connID);
@@ -205,4 +206,17 @@ void PicoAshaMainWindow::setHciActionBtnStop(bool enabled)
 {
     m_hciActionBtn->setText("HCI Stop");
     m_hciActionBtn->setEnabled(enabled);
+}
+
+void PicoAshaMainWindow::onSerialConnected(bool connected, const QString &statusStr)
+{
+    if (connected) {
+        m_serialConnectedStatus->setText(statusStr);
+        m_serialConnectedStatus->setStyleSheet("QLabel { color : green; }");
+        m_cmdRestartBtn->setEnabled(true);
+    } else {
+        m_serialConnectedStatus->setText("Not Connected");
+        m_serialConnectedStatus->setStyleSheet("QLabel { color : red; }");
+        m_cmdRestartBtn->setEnabled(false);
+    }
 }

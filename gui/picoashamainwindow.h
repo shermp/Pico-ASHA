@@ -29,16 +29,18 @@ public:
 
     void setRemoteOrder();
 
-    void setSerialConnectedStatus(QString const& statusStr);
-
     RemoteDevice* getRemote(uint16_t connID);
 
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
 
+public slots:
+    void onSerialConnected(bool connected, const QString &statusStr = "");
+
 signals:
     void hciLogPathChanged(QString const& path);
     void hciLogActionBtnClicked();
+    void cmdRestartBtnClicked();
 
 private:
     QWidget* m_mainWidget;
@@ -46,6 +48,8 @@ private:
     QPlainTextEdit* m_logWidget;
     QLabel* m_serialConnectedStatus;
     QList<RemoteDevice*> m_remotes;
+
+    QPushButton* m_cmdRestartBtn;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;

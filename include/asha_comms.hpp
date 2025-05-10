@@ -86,6 +86,7 @@ namespace comm
     enum class Command : uint8_t {
         HCIDump,
         DeletePair,
+        Restart,
     };
 
     enum class CmdStatus : uint8_t

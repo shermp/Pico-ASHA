@@ -85,6 +85,7 @@ public slots:
     void onSerialReadyRead();
     void onHciLogPathChanged(QString const& path);
     void onHciLogActionBtnClicked();
+    void onCmdRestartBtnClicked();
 };
 
 #endif // PICOASHACOMM_H
