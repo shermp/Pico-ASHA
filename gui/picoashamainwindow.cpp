@@ -43,6 +43,8 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     cmdLayout->addWidget(m_cmdRestartBtn);
     m_cmdConnAllowedBtn = new QPushButton;
     cmdLayout->addWidget(m_cmdConnAllowedBtn);
+    m_cmdStreamingEnabledBtn = new QPushButton;
+    cmdLayout->addWidget(m_cmdStreamingEnabledBtn);
     cmdLayout->addStretch();
     cmdGroup->setLayout(cmdLayout);
     mainVBox->addWidget(cmdGroup);
@@ -51,7 +53,11 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     QObject::connect(m_cmdConnAllowedBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
         emit cmdConnAllowedBtnClicked(!m_connectionsAllowed);
     });
+    QObject::connect(m_cmdStreamingEnabledBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
+        emit cmdStreamingEnabledBtnClicked(!m_streamingEnabled);
+    });
     setConnectionsAllowed(false);
+    setAudioStreamingEnabled(false);
     setCmdBtnsEnabled(false);
 
     auto hciGroup = new QGroupBox("HCI Logging");
@@ -213,6 +219,16 @@ void PicoAshaMainWindow::setConnectionsAllowed(bool allowed)
     }
 }
 
+void PicoAshaMainWindow::setAudioStreamingEnabled(bool enabled)
+{
+    m_streamingEnabled = enabled;
+    if (m_streamingEnabled) {
+        m_cmdStreamingEnabledBtn->setText("Stop Audio");
+    } else {
+        m_cmdStreamingEnabledBtn->setText("Start Audio");
+    }
+}
+
 void PicoAshaMainWindow::setHciActionBtnStart(bool enabled)
 {
     m_hciActionBtn->setText("HCI Start");
@@ -241,6 +257,7 @@ void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
 {
     m_cmdRestartBtn->setEnabled(enabled);
     m_cmdConnAllowedBtn->setEnabled(enabled);
+    m_cmdStreamingEnabledBtn->setEnabled(enabled);
 }
 
 void PicoAshaMainWindow::setPicoAshaVerStr(const QString &version)

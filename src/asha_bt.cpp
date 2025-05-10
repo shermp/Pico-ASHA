@@ -185,6 +185,9 @@ static void process_serial_cmds()
             case Command::AllowConnect:
                 HearingAid::set_connections_allowed(cmd_pkt.data.allow_connect);
                 break;
+            case Command::AudioStreaming:
+                HearingAid::set_audio_streaming_enabled(cmd_pkt.data.audio_streaming_enabled);
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;

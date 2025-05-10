@@ -290,6 +290,9 @@ void HearingAid::on_serial_host_connected()
     if (connections_allowed) {
         intro_flags |= IntroFlags::conn_allowed;
     }
+    if (audio_streaming_enabled) {
+        intro_flags |= IntroFlags::streaming_enabled;
+    }
     send_intro_packet((int8_t)num_connected(), intro_flags);
     for (auto ha : hearing_aids) {
         if (!ha->is_connected()) {
@@ -346,6 +349,11 @@ void HearingAid::set_connections_allowed(bool allowed)
         connections_allowed = true;
         start_scan();
     }
+}
+
+void HearingAid::set_audio_streaming_enabled(bool enabled)
+{
+    audio_streaming_enabled = enabled;
 }
 
 void HearingAid::start_scan()
@@ -1053,14 +1061,14 @@ void __not_in_flash_func(HearingAid::process_audio)()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                if (pcm_is_streaming && ha->credits >= 8) {
+                if (audio_streaming_enabled && pcm_is_streaming && ha->credits >= 8) {
                     ha->set_audio_busy();
                     ha->send_acp_start();
                 }
                 break;
             case AudioState::Streaming:
-                if (!pcm_is_streaming || ha->credits == 0) {
-                    if (!pcm_is_streaming) {
+                if (!audio_streaming_enabled || !pcm_is_streaming || ha->credits == 0) {
+                    if (!audio_streaming_enabled || !pcm_is_streaming) {
                         asha_audio_set_encoding_enabled(false);
                     }
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 

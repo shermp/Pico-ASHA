@@ -36,6 +36,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
 
     connect_timer.start(timer_interval);
 
@@ -195,6 +196,21 @@ void PicoAshaComm::onCmdConnAllowedBtnClicked(bool allowed)
     }
 }
 
+void PicoAshaComm::onCmdStreamingEnabledBtnClicked(bool enabled)
+{
+    using namespace asha::comm;
+    bool res = sendCommandPacket(
+        {
+            .cmd = Command::AudioStreaming,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {.audio_streaming_enabled = enabled}
+        }
+        );
+    if (res) {
+        m_ui->setAudioStreamingEnabled(enabled);
+    }
+}
+
 template<typename T>
 bool assert_packet_size(size_t dec_size, const char* pkt_type, T const& pkt)
 {
@@ -244,6 +260,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         qDebug() << "Num connected devices: " << intro.num_connected;
         m_ui->setPicoAshaVerStr(paFirmwareVers());
         m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
+        m_ui->setAudioStreamingEnabled(intro.test_flag(IntroFlags::streaming_enabled));
         m_ui->setCmdBtnsEnabled(true);
         break;
     }
