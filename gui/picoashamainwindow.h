@@ -37,7 +37,7 @@ public:
 
     void setPicoAshaVerStr(QString const& version);
     void setConnectionsAllowed(bool allowed);
-    //void setAudioStreamingEnabled(bool enabled);
+    void setAudioStreamingEnabled(bool enabled);
 
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
@@ -47,6 +47,7 @@ signals:
     void hciLogActionBtnClicked();
     void cmdRestartBtnClicked();
     void cmdConnAllowedBtnClicked(bool allowed);
+    void cmdStreamingEnabledBtnClicked(bool enabled);
 
 private:
     QWidget* m_mainWidget;
@@ -57,6 +58,7 @@ private:
 
     QPushButton* m_cmdRestartBtn;
     QPushButton* m_cmdConnAllowedBtn;
+    QPushButton* m_cmdStreamingEnabledBtn;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;
@@ -64,6 +66,7 @@ private:
 
     bool m_serialConnected;
     bool m_connectionsAllowed;
+    bool m_streamingEnabled;
 };
 
 #endif // PICOASHAMAINWINDOW_H

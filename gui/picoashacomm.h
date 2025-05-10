@@ -87,6 +87,7 @@ public slots:
     void onHciLogActionBtnClicked();
     void onCmdRestartBtnClicked();
     void onCmdConnAllowedBtnClicked(bool allowed);
+    void onCmdStreamingEnabledBtnClicked(bool enabled);
 };
 
 #endif // PICOASHACOMM_H
