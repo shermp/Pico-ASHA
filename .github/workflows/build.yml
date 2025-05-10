@@ -14,10 +14,7 @@ env:
 
 jobs:
     build_firmware:
-        strategy:
-          matrix:
-            board: ["pico_w", "pico2_w"]
-        name: Build Pico-ASHA for ${{ matrix.board }}
+        name: Build Pico-ASHA firmware
         runs-on: ubuntu-24.04
         steps:
             - name: Checkout repository
@@ -47,28 +44,48 @@ jobs:
 
             - name: Install dependencies
               run: |
-                sudo apt-get update && sudo apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+                sudo apt-get update && sudo apt-get -y install \
+                  cmake \
+                  ninja-build \
+                  gcc-arm-none-eabi \
+                  libnewlib-arm-none-eabi \
+                  libstdc++-arm-none-eabi-newlib
             
             - name: Set env variables
               run: |
                 echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
             
-            - name: Configure build
+            - name: Configure build (Pico W)
               run: |
-                mkdir -p pico-asha/build/${{ matrix.board }}
-                cd pico-asha/build/${{ matrix.board }}
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=${{ matrix.board }} ../..
+                mkdir -p pico-asha/build/pico_w
+                cd pico-asha/build/pico_w
+                cmake -G "Ninja" -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=pico_w ../..
+            
+            - name: Configure build (Pico 2W)
+              run: |
+                mkdir -p pico-asha/build/pico2_w
+                cd pico-asha/build/pico2_w
+                cmake -G "Ninja" -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=pico2_w ../..
 
-            - name: Compile
+            - name: Compile (Pico W)
               run: |
-                cd pico-asha/build/${{ matrix.board }}
+                cd pico-asha/build/pico_w
                 cmake --build .
+
+            - name: Compile (Pico 2W)
+              run: |
+                cd pico-asha/build/pico2_w
+                cmake --build .
+
+            - name: Concatenate Pico W and Pico 2W uf2 binaries
+              run: |
+                cat pico-asha/build/pico_w/pico_asha.uf2 pico-asha/build/pico2_w/pico_asha.uf2 > pico-asha/build/pico_asha_fw.uf2
 
             - name: Upload UF2 and ELF binaries
               uses: actions/upload-artifact@v4
               with:
-                name: pico-asha-firmware-${{ matrix.board }}
-                path: pico-asha/build/${{ matrix.board }}/pico_asha.[ue][fl][2f]
+                name: pico-asha-firmware
+                path: pico-asha/build/pico_asha_fw.uf2
 
     build_gui_windows:
         name: Build GUI for Windows
