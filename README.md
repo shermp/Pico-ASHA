@@ -99,9 +99,7 @@ Currently, Pico-ASHA attempts to pair/bond with any hearing aid devices that are
 
 Once hearing devices have paired/bonded the first time, they will automatically reconnect without needing to be in pairing mode.
 
-Pico-ASHA should appear as a standard USB audio "sound card" in your operating system. To start streaming audio to your hearing devices, set Pico-ASHA as your current sound output device. Note, Pico-ASHA will also show a microphone. Ignore this.
-
-I also highly recommend connecting to the Pico-ASHA serial for logs while testing, either UART or USB as described in previous sections.
+Pico-ASHA should appear as a standard USB audio "sound card" in your operating system. To start streaming audio to your hearing devices, set Pico-ASHA as your current sound output device.
 
 ## Licence
 
