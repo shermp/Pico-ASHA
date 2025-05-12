@@ -58,16 +58,10 @@ static uint32_t current_sample_rate  = 16000;
 static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for master channel 0
 static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for master channel 0
 
-// Buffer for microphone data
-[[maybe_unused]] static int16_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 2] = {};
 // Buffer for speaker data
 static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2] = {};
 // Speaker data size received in the last frame
 static int spk_data_size;
-// Resolution per format
-const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX};
-// Current resolution, update on format change
-uint8_t current_resolution;
 
 // Last time a packet was recieved, used to detect when a host stops sending audio
 static absolute_time_t last_packet_time = 0;
@@ -87,25 +81,6 @@ void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf,
                            [[maybe_unused]] bool rts)
 {}
 
-// void serial_task()
-// {
-//     int ch;
-//     while ((ch = stdio_getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-//       char c = (char)ch;
-//       if (c == '\r') {
-//         complete_std_line = curr_stdin_buff;
-//         curr_stdin_buff.clear();
-//         if (usb_ser_ctx) {
-//             async_context_set_work_pending(usb_ser_ctx, &stdin_pending_worker);
-//         }
-//         return;
-//       } else if (c == '\n') {
-//         return;
-//       }
-//       curr_stdin_buff.append(1, c);
-//     }
-// }
-
 /*------------- MAIN -------------*/
 void usb_main(void)
 {
@@ -114,7 +89,6 @@ void usb_main(void)
   {
     tud_task(); // TinyUSB device task
     audio_task();
-    //serial_task();
   }
 }
 
@@ -336,18 +310,7 @@ extern "C" bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_reque
 extern "C" bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void)rhport;
-  [[maybe_unused]] uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
-  uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
-
-  TU_LOG2("Set interface %d alt %d\n", itf, alt);
-  
-  // Clear buffer when streaming format is changed
-  spk_data_size = 0;
-  if(alt != 0)
-  {
-    current_resolution = resolutions_per_format[alt-1];
-  }
-
+  (void)p_request;
   return true;
 }
 
@@ -360,17 +323,6 @@ extern "C" bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_r
 
   //printf("tud_audio_rx_done_pre_read_cb\n");
   spk_data_size = tud_audio_read(spk_buf, n_bytes_received);
-  return true;
-}
-
-extern "C" bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
-{
-  (void)rhport;
-  (void)itf;
-  (void)ep_in;
-  (void)cur_alt_setting;
-
-  // This callback could be used to fill microphone data separately
   return true;
 }
 
