@@ -60,7 +60,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0100,
+    .bcdDevice          = 0x0105,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -157,8 +157,7 @@ char const* string_desc_arr [] =
   "Pico-ASHA adapter",              // 2: Product
   pico_uid,                         // 3: Unique serial
   "Pico-ASHA Speakers",             // 4: Audio Interface
-  "Pico-ASHA Microphone",           // 5: Audio Interface
-  "Pico-ASHA CDC",                  // 6: CDC Interface
+  "Pico-ASHA CDC",                  // 5: CDC Interface
 };
 
 static uint16_t _desc_str[32];
