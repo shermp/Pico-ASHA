@@ -74,6 +74,11 @@ jobs:
         name: Build GUI for Windows
         runs-on: windows-2022
         steps:
+            - name: Print env variables
+              shell: pwsh
+              run: |
+                dir Env:
+                  
             - name: Checkout repository
               uses: actions/checkout@v4
             
