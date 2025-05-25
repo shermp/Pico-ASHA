@@ -9,6 +9,7 @@
 #include <QList>
 
 #include "remotedevice.h"
+#include "pairdialog.h"
 #include "asha_comms.hpp"
 
 class PicoAshaMainWindow : public QMainWindow
@@ -42,6 +43,11 @@ public:
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
 
+    void onAdPacketReceived(asha::comm::AdvertisingPacket const& ad_pkt);
+
+public slots:
+    void onPairDialogAcceptedRejected();
+
 signals:
     void hciLogPathChanged(QString const& path);
     void hciLogActionBtnClicked();
@@ -49,6 +55,7 @@ signals:
     void cmdConnAllowedBtnClicked(bool allowed);
     void cmdStreamingEnabledBtnClicked(bool enabled);
     void cmdRemoveBondBtnClicked();
+    void pairWithAddress(QByteArray const& addr, uint8_t addr_type);
 
 private:
     QWidget* m_mainWidget;
@@ -65,6 +72,8 @@ private:
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;
     QLabel* m_hciPathLbl;
+
+    PairDialog* m_currPairDlg;
 
     bool m_serialConnected;
     bool m_connectionsAllowed;

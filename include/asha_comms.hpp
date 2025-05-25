@@ -24,6 +24,7 @@ namespace comm
         Event,
         HCI,
         Cmd,
+        Advert
     };
 
     enum class StatusType : uint8_t
@@ -95,6 +96,7 @@ namespace comm
         AllowConnect,
         AudioStreaming,
         IntroPacket,
+        PairBond,
     };
 
     enum class CmdStatus : uint8_t
@@ -213,10 +215,27 @@ namespace comm
             bool      enable_hci;
             bool      allow_connect;
             bool      audio_streaming_enabled;
+            struct {
+                uint8_t addr[6];
+                uint8_t addr_type;
+                uint8_t reserved[3];
+            } pair_bond;
         } data;
     };
 
-    static_assert(sizeof(CmdPacket) == 4);
+    static_assert(sizeof(CmdPacket) == 12);
+
+    struct AdvertisingPacket
+    {
+        uint8_t addr[6] = {};
+        uint8_t addr_type;
+        uint8_t rssi;
+        bool    is_ha;
+        uint8_t reserved[3];
+        char    name[28] = {};
+    };
+
+    static_assert(sizeof(AdvertisingPacket) == 40);
 
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event);
 
@@ -224,6 +243,7 @@ namespace comm
 
     void send_intro_packet(int8_t num_connections, uint16_t flags = 0x00);
     void send_remote_info_packet(RemoteInfo const& remote_info);
+    void send_advertising_packet(AdvertisingPacket const& ad_packet);
 
     bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet);
     void send_cmd_resp(uint16_t const conn_id, CmdPacket const& resp);

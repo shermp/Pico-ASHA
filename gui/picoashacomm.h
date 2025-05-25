@@ -89,6 +89,7 @@ public slots:
     void onCmdConnAllowedBtnClicked(bool allowed);
     void onCmdStreamingEnabledBtnClicked(bool enabled);
     void onCmdRemoveBondBtnClicked();
+    void onPairWithAddress(QByteArray const& addr, uint8_t addr_type);
 };
 
 #endif // PICOASHACOMM_H

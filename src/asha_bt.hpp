@@ -1,5 +1,7 @@
 #pragma once
 
+#include <etl/string.h>
+
 #include "asha_common.hpp"
 
 namespace asha 
@@ -12,6 +14,7 @@ struct AdvertisingReport {
     uint8_t   event_type;
     bd_addr_type_t  address_type;
     uint8_t   rssi;
+    etl::string<28> name;
 
     bool is_hearing_aid = false;
 
