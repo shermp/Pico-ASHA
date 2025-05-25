@@ -128,6 +128,13 @@ namespace comm
         construct_and_send_packet(Type::RemInfo, unset_conn_id, remote_info);
     }
 
+    void send_advertising_packet(AdvertisingPacket const& ad_packet)
+    {
+        if (stdio_usb_connected()) {
+            construct_and_send_packet(Type::Advert, unset_conn_id, ad_packet);
+        }
+    }
+
     bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet)
     {
         int ch;

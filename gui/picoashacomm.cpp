@@ -38,6 +38,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRemoveBondBtnClicked, this, &PicoAshaComm::onCmdRemoveBondBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::pairWithAddress, this, &PicoAshaComm::onPairWithAddress);
 
     connect_timer.start(timer_interval);
 
@@ -233,6 +234,18 @@ void PicoAshaComm::onCmdRemoveBondBtnClicked()
     );
 }
 
+void PicoAshaComm::onPairWithAddress(const QByteArray &addr, uint8_t addr_type)
+{
+    using namespace asha::comm;
+    CmdPacket pkt = {
+        .cmd = Command::PairBond,
+        .cmd_status = CmdStatus::CmdOk,
+        .data = {.pair_bond = {.addr = {}, .addr_type = addr_type}}
+    };
+    memcpy(pkt.data.pair_bond.addr, addr.data(), addr.size());
+    sendCommandPacket(pkt);
+}
+
 template<typename T>
 bool assert_packet_size(size_t dec_size, const char* pkt_type, T const& pkt)
 {
@@ -306,6 +319,15 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         qDebug() << "\nGot RemoteInfo packet";
         memcpy(&info, decoded.constData() + sizeof header, sizeof info);
         m_ui->addRemote(info);
+        break;
+    case Type::Advert:
+        AdvertisingPacket ad;
+        if (!assert_packet_size(decoded.size(), "AdvertisingPacket", ad)) {
+            return;
+        }
+        qDebug() << "Got Advertising packet";
+        memcpy(&ad, decoded.constData() + sizeof header, sizeof ad);
+        m_ui->onAdPacketReceived(ad);
         break;
     }
 }

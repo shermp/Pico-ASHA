@@ -114,6 +114,7 @@ HearingAid::HearingAid()
     next_conn_id = comm::unset_conn_id;
     connections_allowed = true;
     audio_streaming_enabled = true;
+    auto_pair_enabled = false;
 }
 
 void HearingAid::process()
@@ -356,6 +357,11 @@ void HearingAid::set_audio_streaming_enabled(bool enabled)
     audio_streaming_enabled = enabled;
 }
 
+void HearingAid::set_auto_pair_enabled(bool enabled)
+{
+    auto_pair_enabled = enabled;
+}
+
 void HearingAid::start_scan()
 {
     if (connections_allowed) {
@@ -371,11 +377,27 @@ void HearingAid::on_ad_report(const AdvertisingReport& report)
     if (full_set_connected()) { 
         return; 
     }
-    if (runtime_settings.full_set_paired || report.is_hearing_aid) {
-        gap_connect(report.address, report.address_type);
+    if (runtime_settings.full_set_paired || (auto_pair_enabled && report.is_hearing_aid)) {
+        connect(report.address, report.address_type);
     } else {
+        comm::AdvertisingPacket ad_pkt = {};
+        bd_addr_copy(ad_pkt.addr, report.address);
+        ad_pkt.addr_type = report.address_type;
+        ad_pkt.is_ha = report.is_hearing_aid;
+        ad_pkt.rssi = report.rssi;
+        size_t name_size = report.name.size() < sizeof(ad_pkt.name) ? report.name.size()
+                                                                    : sizeof(ad_pkt.name);
+        strncpy(ad_pkt.name, report.name.data(), name_size);
+        ad_pkt.name[sizeof(ad_pkt.name)-1] = '\0';
+        comm::send_advertising_packet(ad_pkt);
         start_scan();
     }
+}
+
+void HearingAid::connect(const bd_addr_t addr, bd_addr_type_t addr_type)
+{
+    gap_stop_scan();
+    gap_connect(addr, addr_type);
 }
 
 void HearingAid::on_connected(bd_addr_t addr, hci_con_handle_t handle)

@@ -20,7 +20,7 @@ constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 constexpr uint16_t asha_conn_latency  = 10;
 
 static bool enable_send_intro_packet = false;
-static bool enable_comm_event_sending = false;
+static bool usb_serial_is_connected = false;
 
 LEDManager led_mgr = {};
 
@@ -59,6 +59,9 @@ static hci_dump_t pa_hci_dump_impl = {
 };
 
 static void audio_timer_handler(btstack_timer_source_t * timer);
+
+static btstack_timer_source_t auto_pair_timer = {};
+static void auto_pair_timer_handler(btstack_timer_source_t * timer);
 
 static void add_bonded_to_fal();
 
@@ -193,6 +196,9 @@ static void process_serial_cmds()
             case Command::IntroPacket:
                 enable_send_intro_packet = true;
                 break;
+            case Command::PairBond:
+                HearingAid::connect(cmd_pkt.data.pair_bond.addr, (bd_addr_type_t)cmd_pkt.data.pair_bond.addr_type);
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;
@@ -211,12 +217,12 @@ static void process_timer_handler(btstack_timer_source_t* timer)
         if (enable_send_intro_packet) {
             HearingAid::on_serial_host_connected();
             enable_send_intro_packet = false;
-            enable_comm_event_sending = true;
+            usb_serial_is_connected = true;
         }
     } else {
-        enable_comm_event_sending = false;
+        usb_serial_is_connected = false;
     }
-    if (enable_comm_event_sending) {
+    if (usb_serial_is_connected) {
         comm::try_send_events();
     }
     HearingAid::process();
@@ -228,6 +234,13 @@ static void audio_timer_handler(btstack_timer_source_t* timer)
     btstack_run_loop_add_timer(timer);
 
     HearingAid::process_audio();
+}
+
+static void auto_pair_timer_handler([[maybe_unused]] btstack_timer_source_t * timer)
+{
+    if (!usb_serial_is_connected) {
+        HearingAid::set_auto_pair_enabled(true);
+    }
 }
 
 static void hci_event_handler(PACKET_HANDLER_PARAMS)
@@ -260,6 +273,11 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 btstack_run_loop_set_timer_handler(&audio_timer, &audio_timer_handler);
                 btstack_run_loop_set_timer(&audio_timer, ha_audio_interval_ms);
                 btstack_run_loop_add_timer(&audio_timer);
+
+                // Set the auto pair timer handler
+                btstack_run_loop_set_timer_handler(&auto_pair_timer, &auto_pair_timer_handler);
+                btstack_run_loop_set_timer(&auto_pair_timer, 10000);
+                btstack_run_loop_add_timer(&auto_pair_timer);
 
                 HearingAid::start_scan();
             }
@@ -365,6 +383,11 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
                     is_hearing_aid = true;
                 }
             }
+            break;
+        case BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME:
+        case BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME:
+            name.clear();
+            name.append((const char*)adv_data, size);
             break;
         default:
             break;
