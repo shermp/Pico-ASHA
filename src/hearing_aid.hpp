@@ -122,8 +122,10 @@ struct HearingAid
     static bool is_addr_connected(const bd_addr_t addr);
     static void set_connections_allowed(bool allowed);
     static void set_audio_streaming_enabled(bool enabled);
+    static void set_auto_pair_enabled(bool enabled);
     static void start_scan();
     static void on_ad_report(const AdvertisingReport& report);
+    static void connect(const bd_addr_t addr, bd_addr_type_t addr_type);
     static void on_connected(bd_addr_t addr, hci_con_handle_t handle);
     static void on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_t reason);
     static void on_data_len_set(hci_con_handle_t handle, uint16_t rx_octets, uint16_t rx_time, uint16_t tx_octets, uint16_t tx_time);
@@ -190,6 +192,7 @@ private:
 
     inline static bool connections_allowed;
     inline static bool audio_streaming_enabled;
+    inline static bool auto_pair_enabled;
 
     /* Member functions */
 

@@ -16,6 +16,7 @@ static QString widgetNameFromConnID(uint16_t connID)
 PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    m_currPairDlg = nullptr;
     m_mainWidget = new QWidget;
     auto mainVBox = new QVBoxLayout;
 
@@ -269,6 +270,23 @@ void PicoAshaMainWindow::setHciActionBtnStop(bool enabled)
 {
     m_hciActionBtn->setText("HCI Stop");
     m_hciActionBtn->setEnabled(enabled);
+}
+
+void PicoAshaMainWindow::onAdPacketReceived(const asha::comm::AdvertisingPacket &ad_pkt)
+{
+    if (!m_currPairDlg) {
+        m_currPairDlg = new PairDialog(this);
+        QObject::connect(m_currPairDlg, &PairDialog::addressSelected, this, &PicoAshaMainWindow::pairWithAddress);
+        QObject::connect(m_currPairDlg, &PairDialog::accepted, this, &PicoAshaMainWindow::onPairDialogAcceptedRejected);
+        m_currPairDlg->open();
+    }
+    m_currPairDlg->setAdPacket(ad_pkt);
+}
+
+void PicoAshaMainWindow::onPairDialogAcceptedRejected()
+{
+    m_currPairDlg->deleteLater();
+    m_currPairDlg = nullptr;
 }
 
 void PicoAshaMainWindow::onSerialConnected(bool connected)
