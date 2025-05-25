@@ -94,6 +94,7 @@ namespace comm
         Restart,
         AllowConnect,
         AudioStreaming,
+        IntroPacket,
     };
 
     enum class CmdStatus : uint8_t

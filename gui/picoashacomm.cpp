@@ -60,6 +60,13 @@ void PicoAshaComm::onConnectTimer()
                 qDebug() << "Serial port opened to " << p.description();
                 m_serial.setDataTerminalReady(true);
                 m_ui->onSerialConnected(true);
+                sendCommandPacket(
+                    {
+                        .cmd = asha::comm::Command::IntroPacket,
+                        .cmd_status = asha::comm::CmdStatus::CmdOk,
+                        .data = {}
+                    }
+                );
             }
         }
     }

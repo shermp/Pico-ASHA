@@ -19,7 +19,8 @@ constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 
 constexpr uint16_t asha_conn_latency  = 10;
 
-static bool first_comm_packet = true;
+static bool enable_send_intro_packet = false;
+static bool enable_comm_event_sending = false;
 
 LEDManager led_mgr = {};
 
@@ -189,6 +190,9 @@ static void process_serial_cmds()
             case Command::AudioStreaming:
                 HearingAid::set_audio_streaming_enabled(cmd_pkt.data.audio_streaming_enabled);
                 break;
+            case Command::IntroPacket:
+                enable_send_intro_packet = true;
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;
@@ -202,16 +206,19 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
     btstack_run_loop_set_timer(timer, ha_process_interval_ms);
     btstack_run_loop_add_timer(timer);
 
+    process_serial_cmds();
     if (stdio_usb_connected()) {
-        if (first_comm_packet) {
-            first_comm_packet = false;
+        if (enable_send_intro_packet) {
             HearingAid::on_serial_host_connected();
+            enable_send_intro_packet = false;
+            enable_comm_event_sending = true;
         }
     } else {
-        first_comm_packet = true;
+        enable_comm_event_sending = false;
     }
-    process_serial_cmds();
-    comm::try_send_events();
+    if (enable_comm_event_sending) {
+        comm::try_send_events();
+    }
     HearingAid::process();
 }
 
