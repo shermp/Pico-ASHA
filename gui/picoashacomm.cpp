@@ -58,6 +58,7 @@ void PicoAshaComm::onConnectTimer()
             if (m_serial.open(QIODevice::ReadWrite)) {
                 connect_timer.stop();
                 qDebug() << "Serial port opened to " << p.description();
+                m_serialConnected = true;
                 m_serial.setDataTerminalReady(true);
                 m_ui->onSerialConnected(true);
                 sendCommandPacket(
@@ -79,6 +80,7 @@ void PicoAshaComm::onSerialError(QSerialPort::SerialPortError error)
     case NoError:
         break;
     case ResourceError:
+        m_serialConnected = false;
         m_serial.close();
         m_ui->onSerialConnected(false);
         m_ui->removeRemotes();
