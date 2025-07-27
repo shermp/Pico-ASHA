@@ -2,6 +2,8 @@
 
 Pico ASHA is an attempt to implement Android's Audio Streaming for Hearing Aids (ASHA) protocol on a Raspberry Pi Pico W microcontroller.
 
+Visit the [website](https://shermp.github.io/Pico-ASHA) for documentation.
+
 ## Status
 
 **This project is in Beta** Currently, it is possible to discover and stream audio to Oticon hearing aids.
