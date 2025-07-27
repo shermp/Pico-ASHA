@@ -1,0 +1,9 @@
+site_name: Pico ASHA
+nav:
+  - index.md
+  - guide.md
+  - development.md
+  - faq.md
+  - status.md
+markdown_extensions:
+  - admonition
