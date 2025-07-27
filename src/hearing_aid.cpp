@@ -1075,10 +1075,8 @@ void HearingAid::process_audio()
                 }
                 break;
             case AudioState::Streaming:
-                if (!audio_streaming_enabled || !pcm_is_streaming || ha->credits == 0) {
-                    if (!audio_streaming_enabled || !pcm_is_streaming) {
-                        asha_audio_set_encoding_enabled(false);
-                    }
+                if (!audio_streaming_enabled || !pcm_is_streaming) {
+                    asha_audio_set_encoding_enabled(false);
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
                     short_log_pkt.set_data_str("PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
@@ -1101,11 +1099,18 @@ void HearingAid::process_audio()
                         ha->first_audio_send = false;
                     }
                     if (ha->curr_read_index < w_index) {
+                        if (ha->credits == 0) {
+                            short_log_pkt.set_data_str("%s", "Zero credits");
+                            add_event_to_buffer(ha->conn_id, short_log_pkt);
+                            ha->send_acp_stop();
+                            break;
+                        }
                         // Restart stream if starting to fall behind
                         if (w_index - ha->curr_read_index >= 3) {
                             short_log_pkt.set_data_str("%s", "Stream falled behind: restarting");
                             add_event_to_buffer(ha->conn_id, short_log_pkt);
                             ha->send_acp_stop();
+                            break;
                         }
 
                         ha->set_audio_busy();
