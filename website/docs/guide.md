@@ -16,20 +16,7 @@ These microcontrollers are cheap to purchase, and readily available.
 
 ## Download Pico ASHA firmware and software
 
-You can download the firmware and GUI application from the following links:
-
-[Pico W Firmware]()
-
-[Pico 2W Firmware]()
-
-[Pico ASHA Gui for Windows]()
-
-!!! Note
-
-    Pico ASHA Gui is only compiled for Windows at this time. Linux users 
-    can compile it themselves if required. I do not have a Mac to build or test.
-
-    I accept [pull requests](https://github.com/shermp/Pico-ASHA/pulls) to add precompiled binaries for other OS's.
+Go do the [Download](download.md) page to download firmware and the GUI application.
     
 ## First start with GUI
 

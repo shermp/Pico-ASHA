@@ -1,6 +1,7 @@
 site_name: Pico ASHA
 nav:
   - index.md
+  - download.md
   - guide.md
   - development.md
   - faq.md
