@@ -22,6 +22,7 @@ void RemoteDevice::setRemoteInfo(const asha::comm::RemoteInfo &remote)
     setMfgName(remote.mfg_name);
     setModelName(remote.model_name);
     setFwVersion(remote.fw_vers);
+    setSwVersion(remote.sw_vers);
     setSide(remote.side);
     setMode(remote.mode);
     setAudioStreaming(remote.audio_streaming);
@@ -49,6 +50,7 @@ void RemoteDevice::setCachedProps(CachedProps const& props)
     setModelName(props.modelName);
     setMfgName(props.mfgName);
     setFwVersion(props.fwVersion);
+    setSwVersion(props.swVersion);
     setG24KHz(props.g24kHZ);
     setMode(props.mode);
     setSide(props.side);
@@ -108,6 +110,12 @@ void RemoteDevice::setFwVersion(QString const& fwVersion)
 {
     m_fwVersionLabel.setText(fwVersion);
     m_cachedProps.fwVersion = fwVersion;
+}
+
+void RemoteDevice::setSwVersion(QString const& swVersion)
+{
+    m_swVersionLabel.setText(swVersion);
+    m_cachedProps.swVersion = swVersion;
 }
 
 void RemoteDevice::setSide(Side side)
@@ -170,6 +178,7 @@ void RemoteDevice::setDefaultValues()
     m_mfgNameLabel.setText("");
     m_modelNameLabel.setText("");
     m_fwVersionLabel.setText("");
+    m_swVersionLabel.setText("");
     m_modeLabel.setText("Unknown");
     m_g72224Label.setText("No");
     m_psmLabel.setText("0x00");
@@ -211,6 +220,7 @@ void RemoteDevice::setupUI()
     addRowToLayout("Make", &m_mfgNameLabel);
     addRowToLayout("Model", &m_modelNameLabel);
     addRowToLayout("FW Version", &m_fwVersionLabel);
+    addRowToLayout("SW Version", &m_swVersionLabel);
     addRowToLayout("Mode", &m_modeLabel);
     addRowToLayout("24 kHz Support", &m_g72224Label);
     addRowToLayout("PSM", &m_psmLabel);

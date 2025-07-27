@@ -452,6 +452,12 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         }
         if (rem) rem->setFwVersion(pkt.data.str);
         break;
+    case EventType::SWRead:
+        if (checkError(header, pkt, "SoftwareRead")) {
+            return;
+        }
+        if (rem) rem->setSwVersion(pkt.data.str);
+        break;
     case EventType::L2CAPCon:
         if (checkError(header, pkt, "L2CAPConnected")) {
             return;

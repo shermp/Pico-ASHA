@@ -70,6 +70,8 @@ namespace comm
         ModelRead,
         // Data is up to 32 byte null terminated string
         FWRead,
+        // Data is up to 32 byte null terminated string
+        SWRead,
         L2CAPCon,
         L2CAPDiscon,
         ASPNotEnable,
@@ -152,13 +154,14 @@ namespace comm
         char mfg_name[32];
         char model_name[32];
         char fw_vers[32];
+        char sw_vers[32];
         CSide side;
         CMode mode;
         bool audio_streaming;
         int8_t curr_vol;
     };
 
-    static_assert(sizeof(RemoteInfo) == 148);
+    static_assert(sizeof(RemoteInfo) == 180);
 
     struct EventPacket
     {

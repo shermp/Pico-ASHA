@@ -26,6 +26,7 @@ public:
         QString mfgName;
         QString modelName;
         QString fwVersion;
+        QString swVersion;
         Side side;
         Mode mode;
         bool g24kHZ;
@@ -55,6 +56,7 @@ public:
     void setMfgName(QString const& mfgName);
     void setModelName(QString const& modelName);
     void setFwVersion(QString const& fwVersion);
+    void setSwVersion(QString const& swVersion);
     void setSide(Side side);
     void setSide(asha::comm::CSide side);
     void setMode(Mode mode);
@@ -83,6 +85,7 @@ private:
     QLabel m_mfgNameLabel;
     QLabel m_modelNameLabel;
     QLabel m_fwVersionLabel;
+    QLabel m_swVersionLabel;
     QLabel m_modeLabel;
     QLabel m_g72224Label;
     QLabel m_psmLabel;
