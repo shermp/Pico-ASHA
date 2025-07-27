@@ -201,7 +201,7 @@ static void process_serial_cmds()
     }
 }
 
-static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* timer)
+static void process_timer_handler(btstack_timer_source_t* timer)
 {
     btstack_run_loop_set_timer(timer, ha_process_interval_ms);
     btstack_run_loop_add_timer(timer);
@@ -222,7 +222,7 @@ static void __not_in_flash_func(process_timer_handler)(btstack_timer_source_t* t
     HearingAid::process();
 }
 
-static void __not_in_flash_func(audio_timer_handler)(btstack_timer_source_t* timer)
+static void audio_timer_handler(btstack_timer_source_t* timer)
 {
     btstack_run_loop_set_timer(timer, ha_audio_interval_ms);
     btstack_run_loop_add_timer(timer);

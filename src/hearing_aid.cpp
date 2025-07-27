@@ -116,7 +116,7 @@ HearingAid::HearingAid()
     audio_streaming_enabled = true;
 }
 
-void __not_in_flash_func(HearingAid::process)()
+void HearingAid::process()
 {
     using enum ProcessState;
     using namespace comm;
@@ -1046,7 +1046,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
     }
 }
 
-void __not_in_flash_func(HearingAid::process_audio)()
+void HearingAid::process_audio()
 {
     using namespace comm;
 

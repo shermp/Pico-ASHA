@@ -62,6 +62,7 @@ set(ASHA_SRC
 set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
 
 add_executable(pico_asha ${ASHA_SRC})
+pico_set_binary_type(pico_asha copy_to_ram)
 
 target_include_directories(pico_asha PUBLIC src/ lib/ include/)
 
@@ -76,6 +77,8 @@ pico_enable_stdio_uart(pico_asha 1)
 
 list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")
 list(APPEND pico_asha_defines "PICO_USE_FASTEST_SUPPORTED_CLOCK=1")
+
+list(APPEND pico_asha_defines "CYW43_RESOURCE_ATTRIBUTE=__attribute__((aligned(4))) __in_flash(\"cyw43_firmware\")")
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wdeprecated-enum-enum-conversion HAVE_DEP_ENNUM_ENUM_CONV)
