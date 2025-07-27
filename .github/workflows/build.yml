@@ -57,7 +57,7 @@ jobs:
               run: |
                 mkdir -p pico-asha/build/${{ matrix.board }}
                 cd pico-asha/build/${{ matrix.board }}
-                cmake -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=${{ matrix.board }} ../..
+                cmake -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{ matrix.board }} ../..
 
             - name: Compile
               run: |
