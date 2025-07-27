@@ -209,6 +209,12 @@ void HearingAid::process()
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.fw_vers);
                 break;
+            case ReadSWVers:
+                ev_type = EventType::SWRead;
+                //LOG_INFO("%s: Read FW version", ha->get_side_str());
+                ha->set_process_busy();
+                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.sw_vers);
+                break;
             case ConnectL2CAP:
                 ev_type = EventType::L2CAPCon;
                 //LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
@@ -310,6 +316,7 @@ void HearingAid::on_serial_host_connected()
         memcpy(info.mfg_name, ha->manufacturer.data(), sizeof(info.mfg_name));
         memcpy(info.model_name, ha->model.data(), sizeof(info.model_name));
         memcpy(info.fw_vers, ha->fw_vers.data(), sizeof(info.fw_vers));
+        memcpy(info.sw_vers, ha->sw_vers.data(), sizeof(info.sw_vers));
         info.side = (ha->rop.side == Side::Left)  ? CSide::Left : 
                     (ha->rop.side == Side::Right) ? CSide::Right
                                                   : CSide::Unset;
@@ -744,6 +751,10 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
                 short_log_pkt.set_data_str("%s", "FW vers char discovered");
                 ha->services.dis.fw_vers = c;
+            } else if (c.uuid16 == DisUUID::swVers) {
+                //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
+                short_log_pkt.set_data_str("%s", "SW vers char discovered");
+                ha->services.dis.sw_vers = c;
             }
             add_event_to_buffer(ha->conn_id, short_log_pkt);
             break;
@@ -829,6 +840,10 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                 //LOG_INFO("%s: FW version read", ha->get_side_str());
                 ha->fw_vers.clear();
                 ha->fw_vers.append((const char*)val, val_len);
+            } else if (val_handle == ha->services.dis.sw_vers.value_handle) {
+                //LOG_INFO("%s: FW version read", ha->get_side_str());
+                ha->sw_vers.clear();
+                ha->sw_vers.append((const char*)val, val_len);
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
@@ -905,6 +920,18 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                     } else {
                         EventPacket ev_pkt(EventType::FWRead);
                         ev_pkt.set_data_str("%s", ha->fw_vers.c_str());
+                        add_event_to_buffer(ha->conn_id, ev_pkt);
+                    }
+                    ha->process_state = ReadSWVers;
+                    break;
+                case ReadSWVers | ProcessBusy:
+                    if (att_status != ATT_ERROR_SUCCESS) {
+                        //LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
+                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::SWRead, StatusType::ATTStatus, att_status));
+                        // Not a fatal error
+                    } else {
+                        EventPacket ev_pkt(EventType::SWRead);
+                        ev_pkt.set_data_str("%s", ha->sw_vers.c_str());
                         add_event_to_buffer(ha->conn_id, ev_pkt);
                     }
                     ha->process_state = ConnectL2CAP;

@@ -58,10 +58,11 @@ struct HearingAid
         ReadMfgName         = 1U << 10,
         ReadModelNum        = 1U << 11,
         ReadFWVers          = 1U << 12,
-        ConnectL2CAP        = 1U << 13,
-        EnASPNotification   = 1U << 14,
-        Finalize            = 1U << 15,
-        Audio               = 1U << 16,
+        ReadSWVers          = 1U << 13,
+        ConnectL2CAP        = 1U << 14,
+        EnASPNotification   = 1U << 15,
+        Finalize            = 1U << 16,
+        Audio               = 1U << 17,
         Disconnect          = 1U << 29,
         Done                = 1U << 30,
         ProcessBusy         = 1U << 31
@@ -96,6 +97,7 @@ struct HearingAid
     etl::string<32> manufacturer = {};
     etl::string<32> model = {};
     etl::string<32> fw_vers = {};
+    etl::string<32> sw_vers = {};
 
     /* ASHA vars */
 
@@ -155,6 +157,7 @@ private:
             gatt_client_characteristic_t manufacture_name = {};
             gatt_client_characteristic_t model_num = {};
             gatt_client_characteristic_t fw_vers = {};
+            gatt_client_characteristic_t sw_vers = {};
         } dis = {};
 
         struct {
