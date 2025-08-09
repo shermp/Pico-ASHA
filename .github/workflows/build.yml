@@ -9,8 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-    PICO_SDK_COMMIT_HASH: ee68c78d0afae2b69c03ae1a72bf5cc267a2d94c
-    CYW43_DRIVER_COMMIT_HASH: 7f422fef4ea5bff7285fb78340d3f28f5461cff2
+    PICO_SDK_COMMIT_HASH: a1438dff1d38bd9c65dbd693f0e5db4b9ae91779
 
 jobs:
     build_firmware:
@@ -33,12 +32,6 @@ jobs:
                 submodules: recursive
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
                 fetch-depth: "0"
-
-            - name: Update cyw43-driver for DLE fix
-              run: |
-                cd pico-sdk/lib/cyw43-driver
-                git fetch
-                git checkout ${{ env.CYW43_DRIVER_COMMIT_HASH }}
 
             - name: Patch TinyUSB 0.18 with UAC2 fix
               run: |
