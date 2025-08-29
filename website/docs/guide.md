@@ -26,6 +26,12 @@ Go do the [Download](download.md) page to download firmware and the GUI applicat
 
 !!! Note
 
+    Make sure your hearing aids are not connected to other devices such as mobile phones. Otherwise 
+    your hearing devices may fail to pair or connect
+
+
+!!! Note
+
     Linux users will most likely need to belong to the `dialout` group to gain serial port permissions
 
 To get started using the GUI, follow the following steps: 
@@ -57,6 +63,11 @@ To get started using the GUI, follow the following steps:
 
     It is recommended that the GUI is used for the first time, as it can show any errors during the 
     pairing and connecting process.
+
+!!! Note
+
+    Make sure your hearing aids are not connected to other devices such as mobile phones. Otherwise 
+    your hearing devices may fail to pair or connect
 
 To get started without the GUI, follow the following steps:
 
