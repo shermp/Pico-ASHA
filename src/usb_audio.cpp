@@ -332,8 +332,8 @@ extern "C" bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_r
 
 void audio_task(void)
 {
-  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[1] ? ASHA_USB_VOL_MUTE : volume[1]);
-  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
+  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[0] ? ASHA_USB_VOL_MUTE : volume[0]);
+  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[0] ? ASHA_USB_VOL_MUTE : volume[0]);
 
   if (spk_data_size == ASHA_PCM_STEREO_PACKET_SIZE * 2) {
     last_packet_time = get_absolute_time();
