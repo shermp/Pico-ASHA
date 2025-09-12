@@ -54,6 +54,7 @@ void PicoAshaComm::onConnectTimer()
 {
     auto serial_ports = QSerialPortInfo::availablePorts();
     for (auto& p : serial_ports) {
+        qDebug() << "Serial port description: " << p.description();
         if (p.description().contains("ASHA")) {
             m_serial.setPort(p);
             if (m_serial.open(QIODevice::ReadWrite)) {
