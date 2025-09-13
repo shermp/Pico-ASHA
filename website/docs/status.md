@@ -12,4 +12,3 @@ Pico ASHA is currently in **BETA**. Essential functionality is complete, however
 | Sonic Radiant SE 60 | Working |
 | Cochlear Nucleus 8 | Working |
 | Starkey Arc AI | Can Pair, but not open L2CAP CoC Connection |
-
