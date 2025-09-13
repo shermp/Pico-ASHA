@@ -13,6 +13,8 @@ Visit the [website](https://shermp.github.io/Pico-ASHA) for documentation.
 | Device | Status |
 | --- | --- |
 | Oticon More 2 | Working |
+| Sonic Radiant SE 60 | Working |
+| Cochlear Nucleus 8 | Working |
 | Starkey Arc AI | Can Pair, but not open L2CAP CoC Connection |
 
 **It should be safe, but I cannot guarantee it will not mess up your hearing aids!**
