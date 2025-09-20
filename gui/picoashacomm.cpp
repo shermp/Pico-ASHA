@@ -32,6 +32,8 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(&m_serial, &QSerialPort::errorOccurred, this, &PicoAshaComm::onSerialError);
     QObject::connect(&m_serial, &QSerialPort::readyRead, this, &PicoAshaComm::onSerialReadyRead);
 
+    QObject::connect(&intro_timer, &QTimer::timeout, this, &PicoAshaComm::onIntroTimer);
+
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogPathChanged, this, &PicoAshaComm::onHciLogPathChanged);
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
@@ -55,7 +57,7 @@ void PicoAshaComm::onConnectTimer()
     auto serial_ports = QSerialPortInfo::availablePorts();
     for (auto& p : serial_ports) {
         qDebug() << "Serial port description: " << p.description();
-        if (p.description().contains("ASHA")) {
+        if (p.vendorIdentifier() == 0xCafe && p.productIdentifier() == 16401U) {
             m_serial.setPort(p);
             if (m_serial.open(QIODevice::ReadWrite)) {
                 connect_timer.stop();
@@ -63,6 +65,7 @@ void PicoAshaComm::onConnectTimer()
                 m_serialConnected = true;
                 m_serial.setDataTerminalReady(true);
                 m_ui->onSerialConnected(true);
+                intro_timer.start(250);
                 sendCommandPacket(
                     {
                         .cmd = asha::comm::Command::IntroPacket,
@@ -73,6 +76,17 @@ void PicoAshaComm::onConnectTimer()
             }
         }
     }
+}
+
+void PicoAshaComm::onIntroTimer()
+{
+    qDebug() << "Intro packet timeout reached";
+    closeSerial();
+    m_serialConnected = false;
+    m_ui->onSerialConnected(false);
+    m_ui->removeRemotes();
+    intro_timer.stop();
+    connect_timer.start(timer_interval);
 }
 
 void PicoAshaComm::onSerialError(QSerialPort::SerialPortError error)
@@ -286,6 +300,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         if (!assert_packet_size(decoded.size(), "IntroPacket", intro)) {
             return;
         }
+        intro_timer.stop();
         memcpy(&intro, decoded.constData() + sizeof header, sizeof intro);
         setPaFirmwareVers(QString("%1.%2.%3").arg(
                                                   QString::number(intro.pa_version.major),
@@ -298,6 +313,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
         m_ui->setAudioStreamingEnabled(intro.test_flag(IntroFlags::streaming_enabled));
         m_ui->setCmdBtnsEnabled(true);
+
         break;
     }
     case Type::Event: {
