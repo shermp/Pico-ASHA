@@ -50,6 +50,7 @@ private:
     QByteArray m_currPacket;
 
     QTimer connect_timer;
+    QTimer intro_timer;
 
     PicoAshaMainWindow* m_ui;
 
@@ -81,6 +82,7 @@ signals:
 
 public slots:
     void onConnectTimer();
+    void onIntroTimer();
     void onSerialError(QSerialPort::SerialPortError error);
     void onSerialReadyRead();
     void onHciLogPathChanged(QString const& path);
