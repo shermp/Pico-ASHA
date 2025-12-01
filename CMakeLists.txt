@@ -19,6 +19,8 @@ cmake_minimum_required(VERSION 3.13)
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
+# SET(LOG 2)
+
 include(pico_sdk_import.cmake)
 
 project(pico_asha VERSION 0.2.0 LANGUAGES C CXX)
@@ -57,7 +59,7 @@ set(ASHA_SRC
   lib/nanocobs/cobs.c
 )
 
-set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
+set_source_files_properties(${ASHA_SRC} PROPERTIES COMPILE_OPTIONS "-Wall;-Werror")
 
 add_executable(pico_asha ${ASHA_SRC})
 pico_set_binary_type(pico_asha copy_to_ram)
@@ -69,7 +71,7 @@ list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_M
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_PATCH=${CMAKE_PROJECT_VERSION_PATCH}")
 
 list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
-pico_enable_stdio_usb(pico_asha 1)
+pico_enable_stdio_usb(pico_asha 0)
 pico_enable_stdio_uart(pico_asha 1)
 
 list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")

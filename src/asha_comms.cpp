@@ -1,5 +1,6 @@
 #include <pico/time.h>
-#include <pico/stdio_usb.h>
+#include <pico/stdio.h>
+//#include <pico/stdio_usb.h>
 
 #include <etl/circular_buffer.h>
 #include <nanocobs/cobs.h>
@@ -8,6 +9,20 @@
 
 #include "asha_comms.hpp"
 #include "asha_vers.h"
+
+#define ASHA_COMM_DISABLE 1
+
+#if ASHA_COMM_DISABLE
+    #define ASHA_COMM_EARLY_RET return;
+    #define ASHA_COMM_EARLY_RET_TRUE return true;
+    #define ASHA_COMM_EARLY_RET_FALSE return false;
+#else
+    #define ASHA_COMM_EARLY_RET
+    #define ASHA_COMM_EARLY_RET_TRUE
+    #define ASHA_COMM_EARLY_RET_FALSE
+#endif
+
+static bool stdio_usb_connected() {return false;}
 
 namespace asha
 {
@@ -81,6 +96,7 @@ namespace comm
     template<typename T>
     static void construct_and_send_packet(Type header_type, uint16_t conn_id, T const& packet)
     {
+        ASHA_COMM_EARLY_RET
         auto pkt = construct_packet(header_type, conn_id, packet);
 
         size_t enc_len = 0;
@@ -90,7 +106,8 @@ namespace comm
     }
 
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event)
-    {        
+    {   
+        ASHA_COMM_EARLY_RET
         auto pkt = construct_packet(Type::Event, conn_id, event);
         event_buff.push({0});
         auto& buff = event_buff.back();
@@ -100,6 +117,7 @@ namespace comm
 
     void try_send_events()
     {
+        ASHA_COMM_EARLY_RET
         bool flush_req = false;
         while (!event_buff.empty() && stdio_usb_connected()) {
             const auto& buff = event_buff.front();
@@ -114,6 +132,7 @@ namespace comm
 
     void send_intro_packet(int8_t num_connections, uint16_t flags)
     {
+        ASHA_COMM_EARLY_RET
         construct_and_send_packet(Type::Intro, unset_conn_id, IntroPacket{.pa_version = {
             .major = PICO_ASHA_FW_VERS_MAJOR,
             .minor = PICO_ASHA_FW_VERS_MINOR,
@@ -125,11 +144,13 @@ namespace comm
 
     void send_remote_info_packet(RemoteInfo const& remote_info)
     {
+        ASHA_COMM_EARLY_RET
         construct_and_send_packet(Type::RemInfo, unset_conn_id, remote_info);
     }
 
     void send_advertising_packet(AdvertisingPacket const& ad_packet)
     {
+        ASHA_COMM_EARLY_RET
         if (stdio_usb_connected()) {
             construct_and_send_packet(Type::Advert, unset_conn_id, ad_packet);
         }
@@ -137,6 +158,7 @@ namespace comm
 
     bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet)
     {
+        ASHA_COMM_EARLY_RET_FALSE
         int ch;
         bool got_cmd = false;
         while ((ch = stdio_getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
@@ -166,6 +188,7 @@ namespace comm
 
     void send_cmd_resp(uint16_t const conn_id, CmdPacket const& resp)
     {
+        ASHA_COMM_EARLY_RET
         construct_and_send_packet(Type::Cmd, conn_id, resp);        
     }
 
@@ -174,6 +197,7 @@ namespace comm
 
     void send_hci_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len)
     {
+        ASHA_COMM_EARLY_RET
         if (packet_type == LOG_MESSAGE_PACKET) return;
         auto abs_time = get_absolute_time();
         uint32_t incl_len = (len > max_hci_packet_len) ? max_hci_packet_len : len;
