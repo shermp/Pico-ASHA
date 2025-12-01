@@ -33,10 +33,10 @@ jobs:
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
                 fetch-depth: "0"
 
-            - name: Patch TinyUSB 0.18 with UAC2 fix
+            - name: Update TinyUSB to v0.20.0
               run: |
                 cd pico-sdk/lib/tinyusb
-                git apply ../../../pico-asha/patch/tinyusb-v0.18-uac2-fix.patch
+                git pull && git checkout 0.20.0
 
             - name: Install dependencies
               run: |
