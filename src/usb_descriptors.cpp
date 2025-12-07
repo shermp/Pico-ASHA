@@ -114,8 +114,8 @@ extern "C" uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_CDC_IN      0x85
 #endif
 
-//#define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1) + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
-#define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1))
+#define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1) + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
+//#define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1))
 
 uint8_t const desc_configuration[] =
 {
@@ -126,7 +126,7 @@ uint8_t const desc_configuration[] =
     TUD_AUDIO10_SPEAKER_STEREO_FB_DESCRIPTOR(ITF_NUM_AUDIO_CONTROL, 4, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX, EPNUM_AUDIO, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_FS, 16000),
 
     // CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-    //TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 5, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64)
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 5, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64)
 };
 
 TU_VERIFY_STATIC(sizeof(desc_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect size");
@@ -152,7 +152,7 @@ char const* string_desc_arr [] =
   "Pico-ASHA adapter",              // 2: Product
   pico_uid,                         // 3: Unique serial
   "Pico-ASHA Speakers",             // 4: Audio Interface
-  //"Pico-ASHA CDC",                  // 5: CDC Interface
+  "Pico-ASHA CDC",                  // 5: CDC Interface
 };
 
 static uint16_t _desc_str[32];
