@@ -389,8 +389,9 @@ void audio_task(void)
     if (s == (ASHA_PCM_STEREO_PACKET_SIZE * 2)) {
       tud_audio_read(spk_buf, s);
 
-      asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[1] ? ASHA_USB_VOL_MUTE : volume[1]);
-      asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
+      asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
+                                  mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
+                                  mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
 
       if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
         ++silence_counter;

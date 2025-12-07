@@ -72,7 +72,9 @@ uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index
 /**
  * Set the current volume, as provided by USB
  */
-void asha_audio_set_curr_usb_vol(enum AshaAudioSide side, int16_t usb_volume);
+//void asha_audio_set_curr_usb_vol(enum AshaAudioSide side, int16_t usb_volume);
+
+void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol);
 
 /**
  * Get the current volume, as provided by USB
