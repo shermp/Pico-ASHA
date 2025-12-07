@@ -1,7 +1,7 @@
 #include <btstack.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdio_uart.h>
-//#include <pico/stdio_usb.h>
+#include <pico/stdio_usb.h>
 
 #include <hardware/watchdog.h>
 
@@ -57,8 +57,6 @@ static hci_dump_t pa_hci_dump_impl = {
     .log_packet = &comm::send_hci_packet,
     .log_message = &comm::send_hci_message
 };
-
-static bool stdio_usb_connected() {return false;}
 
 static void audio_timer_handler(btstack_timer_source_t * timer);
 

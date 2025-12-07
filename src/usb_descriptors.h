@@ -34,8 +34,8 @@ enum
 {
   ITF_NUM_AUDIO_CONTROL = 0,
   ITF_NUM_AUDIO_STREAMING,
-  // ITF_NUM_CDC,
-  // ITF_NUM_CDC_DATA,
+  ITF_NUM_CDC,
+  ITF_NUM_CDC_DATA,
   ITF_NUM_TOTAL
 };
 
@@ -48,7 +48,12 @@ enum
 #define UAC1_ENTITY_FEATURE_UNIT        0x02
 #define UAC1_ENTITY_OUTPUT_TERMINAL     0x03
 
+#define TUD_AUDIO10_DESC_IAD_LEN 8
+#define TUD_AUDIO10_DESC_IAD(_firstitf, _nitfs, _stridx) \
+  TUD_AUDIO10_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitf, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V1, _stridx
+
 #define TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(_nfreqs) (\
+  + TUD_AUDIO10_DESC_IAD_LEN\
   + TUD_AUDIO10_DESC_STD_AC_LEN\
   + TUD_AUDIO10_DESC_CS_AC_LEN(1)\
   + TUD_AUDIO10_DESC_INPUT_TERM_LEN\
@@ -62,6 +67,8 @@ enum
   + TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN)
 
 #define TUD_AUDIO10_SPEAKER_STEREO_FB_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epout, _epoutsize, ...) \
+  /* Standard Interface Association Descriptor (IAD) */\
+  TUD_AUDIO10_DESC_IAD(/*_firstitf*/ ITF_NUM_AUDIO_CONTROL, /*_nitfs*/ 2, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.3.1) */\
   TUD_AUDIO10_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.3.2) */\

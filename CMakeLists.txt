@@ -70,8 +70,8 @@ list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MAJOR=${CMAKE_PROJECT_VERSION_M
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_MINOR}")
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_PATCH=${CMAKE_PROJECT_VERSION_PATCH}")
 
-list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
-pico_enable_stdio_usb(pico_asha 0)
+# list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
+pico_enable_stdio_usb(pico_asha 1)
 pico_enable_stdio_uart(pico_asha 1)
 
 list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")

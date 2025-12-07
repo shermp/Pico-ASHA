@@ -28,11 +28,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <pico/time.h>
+
 #include <tusb.h>
 
 #include "usb_descriptors.h"
 
 #include "asha_audio.h"
+#include "asha_comms.hpp"
 
 namespace asha
 {
@@ -52,6 +55,9 @@ static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for
 static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2] = {};
 // Speaker data size received in the last frame
 static volatile int spk_data_size;
+
+// Last time a packet was recieved, used to detect when a host stops sending audio
+static absolute_time_t last_packet_time = 0;
 
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
@@ -371,22 +377,34 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 // AUDIO Task
 //--------------------------------------------------------------------+
 
+static comm::EventPacket short_log_pkt(comm::EventType::ShortLog);
+
 void audio_task(void)
 {
-  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[1] ? ASHA_USB_VOL_MUTE : volume[1]);
-  asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
-
-  if (spk_data_size == ASHA_PCM_STEREO_PACKET_SIZE * 2) {
+  absolute_time_t now = get_absolute_time();
+  if (spk_data_size) {
     uint16_t s = spk_data_size;
     spk_data_size = 0;
-    tud_audio_read(spk_buf, s);
-    if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
-      ++silence_counter;
-    } else {
-      silence_counter = 0;
+    last_packet_time = now;
+    if (s == (ASHA_PCM_STEREO_PACKET_SIZE * 2)) {
+      tud_audio_read(spk_buf, s);
+
+      asha_audio_set_curr_usb_vol(AshaAudioSide::AudioLeft, mute[1] ? ASHA_USB_VOL_MUTE : volume[1]);
+      asha_audio_set_curr_usb_vol(AshaAudioSide::AudioRight, mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
+
+      if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
+        ++silence_counter;
+      } else {
+        silence_counter = 0;
+      }
+      asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
+      asha_audio_encode_1ms_pcm(spk_buf);
     }
-    asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
-    asha_audio_encode_1ms_pcm(spk_buf);
+  } else {
+    if (absolute_time_diff_us(last_packet_time, now) > 5000) {
+      asha_audio_set_pcm_streaming_enabled(false);
+      last_packet_time = now;
+    }
   }
 }
 
