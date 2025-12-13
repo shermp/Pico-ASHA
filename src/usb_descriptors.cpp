@@ -26,6 +26,7 @@
 
 #include <tusb.h>
 #include "usb_descriptors.h"
+#include "usb_common.hpp"
 
 #include "asha_unique_id.hpp"
 
@@ -60,7 +61,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0209,
+    .bcdDevice          = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_uac_version),
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -117,7 +118,7 @@ extern "C" uint8_t const * tud_descriptor_device_cb(void)
 #define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1) + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
 //#define CONFIG_UAC1_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(1))
 
-uint8_t const desc_configuration[] =
+uint8_t const desc_uac1_configuration[] =
 {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC1_TOTAL_LEN, 0x00, 100),
@@ -129,7 +130,24 @@ uint8_t const desc_configuration[] =
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 5, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64)
 };
 
-TU_VERIFY_STATIC(sizeof(desc_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect size");
+TU_VERIFY_STATIC(sizeof(desc_uac1_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect size");
+
+
+#define CONFIG_UAC2_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_AUDIO20_SPEAKER_STEREO_FB_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
+
+uint8_t const desc_uac2_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, byte per sample, bit per sample, EP Out, EP size, EP feedback, feedback EP size,
+  TUD_AUDIO20_SPEAKER_STEREO_FB_DESCRIPTOR(ITF_NUM_AUDIO_CONTROL, 4, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX, EPNUM_AUDIO, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_HS),
+
+  // CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 5, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64)
+};
+
+TU_VERIFY_STATIC(sizeof(desc_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Incorrect size");
+
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -137,7 +155,7 @@ TU_VERIFY_STATIC(sizeof(desc_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect
 extern "C" uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
-  return desc_configuration;
+  return usb_uac_version == 2 ? desc_uac2_configuration : desc_uac1_configuration;
 }
 
 //--------------------------------------------------------------------+
