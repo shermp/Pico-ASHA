@@ -92,8 +92,6 @@ extern "C" void bt_main()
     runtime_settings.init();
     runtime_settings.get_settings();
 
-    stdio_set_driver_enabled(&stdio_uart, runtime_settings.serial_uart_enabled);
-
     async_context_t *ctx = cyw43_arch_async_context();
 
     led_mgr.set_ctx(ctx);
