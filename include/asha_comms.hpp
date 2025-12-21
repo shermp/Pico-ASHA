@@ -242,6 +242,13 @@ namespace comm
 
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event);
 
+    template<typename ...Fmt>
+    void short_log(uint16_t const conn_id, const char* format, Fmt&&... fmt) {
+        EventPacket pkt(EventType::ShortLog);
+        pkt.set_data_str(format, fmt...);
+        add_event_to_buffer(conn_id, pkt);
+    }
+
     void try_send_events();
 
     void send_intro_packet(int8_t num_connections, uint16_t flags = 0x00);

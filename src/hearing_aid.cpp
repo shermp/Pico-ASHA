@@ -532,14 +532,11 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
 
     uint8_t ev_type = hci_event_packet_get_type(packet);
 
-    EventPacket short_log_pkt(EventType::ShortLog);
-
     switch (ev_type) {
         case SM_EVENT_JUST_WORKS_REQUEST:
             handle = sm_event_just_works_request_get_handle(packet);
             ha = get_by_con_handle(handle);
-            short_log_pkt.set_data_str("%s", "Just Works Req");
-            add_event_to_buffer(ha->conn_id, short_log_pkt);
+            short_log(ha->conn_id, "%s", "Just Works Req");
             //LOG_INFO("%s: Just Works requested", ha->get_side_str());
             sm_just_works_confirm(handle);
             break;
@@ -547,8 +544,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_PAIRING_STARTED:
             handle = sm_event_pairing_started_get_handle(packet);
             ha = get_by_con_handle(handle);
-            short_log_pkt.set_data_str("%s", "Pairing started");
-            add_event_to_buffer(ha->conn_id, short_log_pkt);
+            short_log(ha->conn_id, "%s", "Pairing started");
             //LOG_INFO("%s: Pairing started", ha->get_side_str());
             break;
 
@@ -576,8 +572,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
                 case ERROR_CODE_AUTHENTICATION_FAILURE:
                     if (reason == SM_REASON_AUTHENTHICATION_REQUIREMENTS) {
                         //LOG_ERROR("%s: Auth requirements not met. Attempting downgrade", ha->get_side_str());
-                        short_log_pkt.set_data_str("%s", "Attempt auth downgrade");
-                        add_event_to_buffer(ha->conn_id, short_log_pkt);
+                        short_log(ha->conn_id, "%s", "Attempt auth downgrade");
                         auth_req = SM_AUTHREQ_BONDING;
                         sm_set_authentication_requirements(auth_req);
                         sm_request_pairing(handle);
@@ -597,8 +592,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_REENCRYPTION_STARTED:
             handle = sm_event_reencryption_started_get_handle(packet);
             ha = get_by_con_handle(handle);
-            short_log_pkt.set_data_str("%s", "Reencryption started");
-            add_event_to_buffer(ha->conn_id, short_log_pkt);
+            short_log(ha->conn_id, "%s", "Reencryption started");
             //LOG_INFO("%s: Reencryption started", ha->get_side_str());
             break;
 
@@ -637,8 +631,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
             break;
         default:
             //LOG_ERROR("Unhandled SM event: 0x%02x", ev_type);
-            short_log_pkt.set_data_str("Unhandled SM Ev: 0x%02x", ev_type);
-            add_event_to_buffer(unset_conn_id, short_log_pkt);
+            short_log(unset_conn_id, "Unhandled SM Ev: 0x%02x", ev_type);
             break;
     }
 }
@@ -655,23 +648,20 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
             handle = gatt_event_service_query_result_get_handle(packet);
             ha = get_by_con_handle(handle);
 
-            EventPacket short_log_pkt(EventType::ShortLog);
-
             gatt_event_service_query_result_get_service(packet, &s);
             if (uuid_eq(s.uuid128, AshaUUID::service) || s.uuid16 == AshaUUID::service16) {
                 //LOG_INFO("%s: Discovered ASHA service", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "ASHA service discovered");
+                short_log(ha->conn_id, "%s", "ASHA service discovered");
                 ha->services.asha.service = s;
             } else if (s.uuid16 == GapUUID::service16) {
                 //LOG_INFO("%s: Discovered GAP service", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "GAP service discovered");
+                short_log(ha->conn_id, "%s", "GAP service discovered");
                 ha->services.gap.service = s;
             } else if (s.uuid16 == DisUUID::service16) {
                 //LOG_INFO("%s: Discovered DIS service", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "DIS service discovered");
+                short_log(ha->conn_id, "%s", "DIS service discovered");
                 ha->services.dis.service = s;
             }
-            add_event_to_buffer(ha->conn_id, short_log_pkt);
             break;
         }
         case GATT_EVENT_QUERY_COMPLETE:
@@ -713,50 +703,47 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
             gatt_event_characteristic_query_result_get_characteristic(packet, &c);
 
-            EventPacket short_log_pkt(EventType::ShortLog);
-
             if (uuid_eq(c.uuid128, AshaUUID::readOnlyProps)) {
                 //LOG_INFO("%s: Discovered ReadOnlyProperties characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "ROP char discovered");
+                short_log(ha->conn_id, "%s", "ROP char discovered");
                 ha->services.asha.rop = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::audioControlPoint)) {
                 //LOG_INFO("%s: Discovered AudioControlPoint characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "ACP char discovered");
+                short_log(ha->conn_id, "%s", "ACP char discovered");
                 ha->services.asha.acp = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::audioStatus)) {
                 //LOG_INFO("%s: Discovered AudioStatusPoint characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "ASP char discovered");
+                short_log(ha->conn_id, "%s", "ASP char discovered");
                 ha->services.asha.asp = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::volume)) {
                 //LOG_INFO("%s: Discovered Volume characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "Volume char discovered");
+                short_log(ha->conn_id, "%s", "Volume char discovered");
                 ha->services.asha.vol = c;
             } else if (uuid_eq(c.uuid128, AshaUUID::psm)) {
                 //LOG_INFO("%s: Discovered PSM characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "PSM char discovered");
+                short_log(ha->conn_id, "%s", "PSM char discovered");
                 ha->services.asha.psm = c;
             } else if (c.uuid16 == GapUUID::deviceName16) {
                 //LOG_INFO("%s: Discovered Device Name characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "Device name char discovered");
+                short_log(ha->conn_id, "%s", "Device name char discovered");
                 ha->services.gap.device_name = c;
             } else if (c.uuid16 == DisUUID::mfgName) {
                 //LOG_INFO("%s: Discovered Manufacturer Name characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "Mfg name char discovered");
+                short_log(ha->conn_id, "%s", "Mfg name char discovered");
                 ha->services.dis.manufacture_name = c;
             } else if (c.uuid16 == DisUUID::modelNum) {
                 //LOG_INFO("%s: Discovered Model Number characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "Model num char discovered");
+                short_log(ha->conn_id, "%s", "Model num char discovered");
                 ha->services.dis.model_num = c;
             } else if (c.uuid16 == DisUUID::fwVers) {
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "FW vers char discovered");
+                short_log(ha->conn_id, "%s", "FW vers char discovered");
                 ha->services.dis.fw_vers = c;
             } else if (c.uuid16 == DisUUID::swVers) {
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
-                short_log_pkt.set_data_str("%s", "SW vers char discovered");
+                short_log(ha->conn_id, "%s", "SW vers char discovered");
                 ha->services.dis.sw_vers = c;
             }
-            add_event_to_buffer(ha->conn_id, short_log_pkt);
             break;
         }
         case GATT_EVENT_QUERY_COMPLETE:
@@ -1109,8 +1096,6 @@ void HearingAid::process_audio()
     int8_t vol_r = usb_vol_r == ASHA_USB_VOL_MUTE ? volume_mute : (int8_t)(usb_vol_r / ASHA_USB_VOL_RES);
     bool pcm_is_streaming = asha_audio_get_pcm_streaming_enabled();
 
-    EventPacket short_log_pkt(EventType::ShortLog);
-
     asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
 
     for (auto ha : hearing_aids) {
@@ -1128,16 +1113,14 @@ void HearingAid::process_audio()
                     asha_audio_set_encoding_enabled(false);
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
-                    short_log_pkt.set_data_str("PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
-                    add_event_to_buffer(ha->conn_id, short_log_pkt);
+                    short_log(ha->conn_id, "PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
                     ha->send_acp_stop();
                 } else {
                     // Send volume update if volume has changed
                     int8_t v = ha->rop.side == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
                         ha->curr_vol = v;
-                        short_log_pkt.set_data_str("USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
-                        add_event_to_buffer(ha->conn_id, short_log_pkt);
+                        short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
                         ha->send_volume(ha->curr_vol);
                     }
                     if (w_index == 0) {
@@ -1149,15 +1132,13 @@ void HearingAid::process_audio()
                     }
                     if (ha->curr_read_index < w_index) {
                         if (ha->credits == 0) {
-                            short_log_pkt.set_data_str("%s", "Zero credits");
-                            add_event_to_buffer(ha->conn_id, short_log_pkt);
+                            short_log(ha->conn_id, "%s", "Zero credits");
                             ha->send_acp_stop();
                             break;
                         }
                         // Restart stream if starting to fall behind
                         if (w_index - ha->curr_read_index >= 3) {
-                            short_log_pkt.set_data_str("%s", "Stream falled behind: restarting");
-                            add_event_to_buffer(ha->conn_id, short_log_pkt);
+                            short_log(ha->conn_id, "%s", "Stream falled behind: restarting");
                             ha->send_acp_stop();
                             break;
                         }
