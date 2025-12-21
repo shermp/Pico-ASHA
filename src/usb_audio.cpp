@@ -521,8 +521,6 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 // AUDIO Task
 //--------------------------------------------------------------------+
 
-static comm::EventPacket short_log_pkt(comm::EventType::ShortLog);
-
 void audio_task(void)
 {
   absolute_time_t now = get_absolute_time();
