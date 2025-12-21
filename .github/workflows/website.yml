@@ -2,7 +2,8 @@ name: Build and deploy website
 
 on:
     push:
-    pull_request:
+      branches:
+        - main
     workflow_dispatch:
 
 permissions:
