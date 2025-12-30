@@ -372,7 +372,7 @@ void HearingAid::set_auto_pair_enabled(bool enabled)
 void HearingAid::start_scan()
 {
     if (connections_allowed) {
-        gap_set_scan_params(1, 0x0030, 0x0030, runtime_settings.full_set_paired ? 1 : 0);
+        gap_set_scan_params(1, 0x0030, 0x0030, runtime_settings.get_full_set_paired() ? 1 : 0);
         gap_start_scan();
     }
 }
@@ -384,7 +384,7 @@ void HearingAid::on_ad_report(const AdvertisingReport& report)
     if (full_set_connected()) { 
         return; 
     }
-    if (runtime_settings.full_set_paired || (auto_pair_enabled && report.is_hearing_aid)) {
+    if (runtime_settings.get_full_set_paired() || (auto_pair_enabled && report.is_hearing_aid)) {
         connect(report.address, report.address_type);
     } else {
         comm::AdvertisingPacket ad_pkt = {};

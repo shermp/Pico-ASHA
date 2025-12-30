@@ -11,6 +11,7 @@
 
 #include "runtime_settings.hpp"
 #include "hearing_aid.hpp"
+#include "usb_common.hpp"
 
 namespace asha
 {
@@ -42,16 +43,21 @@ extern "C" int main()
     const char uid_suffix[4] = {'-', 'C', 'D', 'C'};
     memcpy(pico_uid + (sizeof(pico_uid) - sizeof(uid_suffix) - 1), uid_suffix, sizeof(uid_suffix));
 
+    sleep_ms(250);
+    multicore_launch_core1(bt_main);
+
+    while (!runtime_settings) {
+        sleep_ms(50);
+    }
+
+    usb_uac_version = runtime_settings.get_uac_version();
+
     // Init TinyUSB before stdio init
     board_init();
     // init device stack on configured roothub port
     tud_init(BOARD_TUD_RHPORT);
 
     stdio_init_all();
-    sleep_ms(250);
-    
-    multicore_launch_core1(bt_main);
-
     sleep_ms(250);
     usb_main();
     while(1) {

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include <pico/mutex.h>
+
 #include <btstack_tlv.h>
 
 namespace asha
@@ -14,27 +16,40 @@ constexpr uint32_t str_to_tag(const char tag[5])
 
 struct RuntimeSettings
 {
-    enum Tag : uint32_t {
-        HCIDump = str_to_tag("PAHC"),
-        FullSetPaired = str_to_tag("PAFS"),
-    };
-    bool hci_dump_enabled = false;
-    bool full_set_paired = false;
-
+    RuntimeSettings() { mutex_init(&mtx); }
 
     void init();
 
-    void get_settings();
+    bool get_hci_dump_enabled();
+    bool get_full_set_paired();
+    uint16_t get_uac_version();
 
     bool set_hci_dump_enabled(bool is_enabled);
     bool set_full_set_paired(bool have_full_set);
+    bool set_uac_version(uint16_t version);
 
-    explicit operator bool() const {return tlv_impl && tlv_ctx; }
+    explicit operator bool();
 
 private:
+    enum Tag : uint32_t {
+        HCIDump = str_to_tag("PAHC"),
+        FullSetPaired = str_to_tag("PAFS"),
+        UACVersion = str_to_tag("PAUA"),
+    };
+
     // used to store remote device in TLV
     const btstack_tlv_t * tlv_impl = nullptr;
     void *                tlv_ctx = nullptr;
+
+    bool got_settings = false;
+
+    bool hci_dump_enabled = false;
+    bool full_set_paired = false;
+    uint16_t uac_version = 2U;
+
+    mutex_t mtx = {};
+
+    void get_settings();
 
     template <typename T>
     bool get_tlv_tag(enum Tag tag, T& var) 
