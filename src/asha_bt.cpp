@@ -63,6 +63,9 @@ static void audio_timer_handler(btstack_timer_source_t * timer);
 static btstack_timer_source_t auto_pair_timer = {};
 static void auto_pair_timer_handler(btstack_timer_source_t * timer);
 
+static btstack_timer_source_t delay_start_timer = {};
+static void delay_start_timer_handler(btstack_timer_source_t * timer);
+
 static void add_bonded_to_fal();
 
 static void add_bonded_to_fal()
@@ -90,33 +93,19 @@ extern "C" void bt_main()
     }
 
     runtime_settings.init();
-    runtime_settings.get_settings();
-
-    async_context_t *ctx = cyw43_arch_async_context();
-
-    led_mgr.set_ctx(ctx);
-
     if (!runtime_settings) {
         //LOG_ERROR("Runtime settings not initialised");
         add_event_to_buffer(unset_conn_id, EventPacket(EventType::PicoASHAInit, StatusType::PAStatus, PAError::PARuntimeSettingsErr));
     }
 
-    if (runtime_settings.hci_dump_enabled) {
-        // Allow time for USB serial to connect before proceeding
+    async_context_t *ctx = cyw43_arch_async_context();
+
+    led_mgr.set_ctx(ctx);
+
+    if (runtime_settings.get_hci_dump_enabled()) {
         hci_dump_init(&pa_hci_dump_impl);
-        while (!stdio_usb_connected()) {
-            sleep_ms(250);
-        }
-        sleep_ms(250);
+    }    
 
-    }
-
-    //LOG_INFO("BT ASHA starting.");
-    
-    /* Start init BTStack systems */
-    // if (runtime_settings.hci_dump_enabled) {
-    //     hci_dump_init(hci_dump_embedded_stdout_get_instance());
-    // }
     /* L2CAP init required for basic btstack functionality */
     //LOG_INFO("L2CAP Init.");
     l2cap_init();
@@ -241,6 +230,33 @@ static void auto_pair_timer_handler([[maybe_unused]] btstack_timer_source_t * ti
     }
 }
 
+void delay_start_timer_handler(btstack_timer_source_t *timer)
+{
+    // If dumping HCI packets, we want wait for USB CDC to ensure
+    // no packets are lost
+    if (runtime_settings.get_hci_dump_enabled() && !stdio_usb_connected()) {
+        btstack_run_loop_set_timer(timer, 100);
+        btstack_run_loop_add_timer(timer);
+    }
+    // Set the process timer handler
+    btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);
+    btstack_run_loop_set_timer(&process_timer, ha_process_interval_ms);
+    btstack_run_loop_add_timer(&process_timer);
+
+    // Set the audio timer handler
+    btstack_run_loop_set_timer_handler(&audio_timer, &audio_timer_handler);
+    btstack_run_loop_set_timer(&audio_timer, ha_audio_interval_ms);
+    btstack_run_loop_add_timer(&audio_timer);
+
+    // Set the auto pair timer handler
+    btstack_run_loop_set_timer_handler(&auto_pair_timer, &auto_pair_timer_handler);
+    btstack_run_loop_set_timer(&auto_pair_timer, 10000);
+    btstack_run_loop_add_timer(&auto_pair_timer);
+
+    HearingAid::start_scan();
+
+}
+
 static void hci_event_handler(PACKET_HANDLER_PARAMS)
 {
     if (packet_type != HCI_EVENT_PACKET) { return; }
@@ -259,25 +275,12 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
                 gap_local_bd_addr(local_addr);
                 //LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
-                if (!runtime_settings.full_set_paired) {
+                if (!runtime_settings.get_full_set_paired()) {
                     HearingAid::delete_pair();
                 }
-                // Set the process timer handler
-                btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);
-                btstack_run_loop_set_timer(&process_timer, ha_process_interval_ms);
-                btstack_run_loop_add_timer(&process_timer);
-
-                // Set the audio timer handler
-                btstack_run_loop_set_timer_handler(&audio_timer, &audio_timer_handler);
-                btstack_run_loop_set_timer(&audio_timer, ha_audio_interval_ms);
-                btstack_run_loop_add_timer(&audio_timer);
-
-                // Set the auto pair timer handler
-                btstack_run_loop_set_timer_handler(&auto_pair_timer, &auto_pair_timer_handler);
-                btstack_run_loop_set_timer(&auto_pair_timer, 10000);
-                btstack_run_loop_add_timer(&auto_pair_timer);
-
-                HearingAid::start_scan();
+                btstack_run_loop_set_timer_handler(&delay_start_timer, &delay_start_timer_handler);
+                btstack_run_loop_set_timer(&delay_start_timer, 0);
+                btstack_run_loop_add_timer(&delay_start_timer);
             }
             break;
         /* Every time a GAP advertising report is received, handle it here */
