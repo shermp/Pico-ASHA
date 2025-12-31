@@ -187,6 +187,8 @@ private:
     bool first_audio_send = false;
     uint8_t* audio_data = nullptr;
 
+    bool stop_request_from_other = false;
+
     std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};
 
     uint16_t conn_id = comm::unset_conn_id;

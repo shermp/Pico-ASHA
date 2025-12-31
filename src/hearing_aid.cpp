@@ -250,6 +250,9 @@ void HearingAid::process()
                 }
                 ha->cached = true;
                 ha->process_state = Audio;
+                if (ha->other && ha->other->is_streaming()) {
+                    ha->other->stop_request_from_other = true;
+                }
                 ha->audio_state = AudioState::Ready;
             default:
                 break;
@@ -1069,6 +1072,8 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                     } else if (ha->audio_state == AudioState::Stop) {
                         //LOG_INFO("%s: Audio stop OK", ha->get_side_str());
                         add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStop));
+
+                        ha->stop_request_from_other = false;
                         ha->audio_state = AudioState::Ready;
                     }
                     break;
@@ -1108,9 +1113,12 @@ void HearingAid::process_audio()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                if (audio_streaming_enabled && pcm_is_streaming && ha->credits >= 8) {
-                    ha->set_audio_busy();
-                    ha->send_acp_start();
+                if ((!ha->other || !ha->other->stop_request_from_other) 
+                    && audio_streaming_enabled 
+                    && pcm_is_streaming 
+                    && ha->credits >= 8) {
+                        ha->set_audio_busy();
+                        ha->send_acp_start();
                 }
                 break;
             case AudioState::Streaming:
@@ -1119,6 +1127,9 @@ void HearingAid::process_audio()
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
                     short_log(ha->conn_id, "PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
+                    ha->send_acp_stop();
+                } else if (ha->stop_request_from_other) {
+                    short_log(ha->conn_id, "%s", "Stop requested from other");
                     ha->send_acp_stop();
                 } else {
                     // Send volume update if volume has changed
@@ -1138,12 +1149,18 @@ void HearingAid::process_audio()
                     if (ha->curr_read_index < w_index) {
                         if (ha->credits == 0) {
                             short_log(ha->conn_id, "%s", "Zero credits");
+                            if (ha->other && ha->other->is_streaming()) {
+                                ha->other->stop_request_from_other = true;
+                            }
                             ha->send_acp_stop();
                             break;
                         }
                         // Restart stream if starting to fall behind
-                        if (w_index - ha->curr_read_index >= 3) {
-                            short_log(ha->conn_id, "%s", "Stream falled behind: restarting");
+                        if (w_index - ha->curr_read_index >= 2) {
+                            short_log(ha->conn_id, "%s", "Stream fell behind: restart");
+                            if (ha->other && ha->other->is_streaming()) {
+                                ha->other->stop_request_from_other = true;
+                            }
                             ha->send_acp_stop();
                             break;
                         }
