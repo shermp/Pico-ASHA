@@ -4,6 +4,7 @@
 #include <QFrame>
 #include <QMessageBox>
 #include <QStatusBar>
+#include <QVariant>
 
 #include "picoashamainwindow.h"
 #include "remotedevice.h"
@@ -66,6 +67,16 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
                                    "this allows pairing a different set of hearing aids.");
     cmdLayout->addWidget(m_cmdRemoveBondBtn);
 
+    m_cmdUacVersCb = new QComboBox();
+    m_cmdUacVersCb->addItem("UAC1", QVariant(1u));
+    m_cmdUacVersCb->addItem("UAC2", QVariant(2u));
+    m_cmdUacVersCb->setToolTip("Change USB Audio Class version.\n"
+                               "Most people should stick with UAC2, however UAC1 may be compatible "
+                               "With older operating systems such as Windows XP - 8.\n"
+                               "This setting will persist, allowing you to set it on one device, "
+                               "then plug it into an older device that only supports UAC1.");
+    cmdLayout->addWidget(m_cmdUacVersCb);
+
     cmdLayout->addStretch();
     cmdGroup->setLayout(cmdLayout);
     mainVBox->addWidget(cmdGroup);
@@ -81,6 +92,13 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
         auto ans = QMessageBox::question(this, this->windowTitle(), "Are you sure you want to unpair connected hearing aids?");
         if (ans == QMessageBox::Yes) {
             emit cmdRemoveBondBtnClicked();
+        }
+    });
+    QObject::connect(m_cmdUacVersCb, &QComboBox::activated, this, [=, this](int index) {
+        auto uac_ver_item = m_cmdUacVersCb->itemData(index);
+        uint16_t uac_ver = static_cast<uint16_t>(uac_ver_item.toUInt());
+        if (uac_ver != m_UacVersion) {
+            emit cmdUacVersChanged(uac_ver);
         }
     });
     setConnectionsAllowed(false);
@@ -260,6 +278,15 @@ void PicoAshaMainWindow::setAudioStreamingEnabled(bool enabled)
     }
 }
 
+void PicoAshaMainWindow::setUacVersion(uint16_t uac_ver)
+{
+    // Note index 0 = UAC1, index 1 = UAC2
+    if (uac_ver == 1U || uac_ver == 2U) {
+        m_UacVersion = uac_ver;
+        m_cmdUacVersCb->setCurrentIndex(uac_ver - 1);
+    }
+}
+
 void PicoAshaMainWindow::setHciActionBtnStart(bool enabled)
 {
     m_hciActionBtn->setText("HCI Start");
@@ -307,6 +334,7 @@ void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
     m_cmdConnAllowedBtn->setEnabled(enabled);
     m_cmdStreamingEnabledBtn->setEnabled(enabled);
     m_cmdRemoveBondBtn->setEnabled(enabled);
+    m_cmdUacVersCb->setEnabled(enabled);
 }
 
 void PicoAshaMainWindow::setPicoAshaVerStr(const QString &version)

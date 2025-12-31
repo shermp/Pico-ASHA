@@ -91,6 +91,7 @@ public slots:
     void onCmdConnAllowedBtnClicked(bool allowed);
     void onCmdStreamingEnabledBtnClicked(bool enabled);
     void onCmdRemoveBondBtnClicked();
+    void onCmdUacChanged(uint16_t uac_ver);
     void onPairWithAddress(QByteArray const& addr, uint8_t addr_type);
 };
 

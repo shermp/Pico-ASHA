@@ -40,6 +40,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRemoveBondBtnClicked, this, &PicoAshaComm::onCmdRemoveBondBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdUacVersChanged, this, &PicoAshaComm::onCmdUacChanged);
     QObject::connect(m_ui, &PicoAshaMainWindow::pairWithAddress, this, &PicoAshaComm::onPairWithAddress);
 
     connect_timer.start(timer_interval);
@@ -249,6 +250,21 @@ void PicoAshaComm::onCmdRemoveBondBtnClicked()
     );
 }
 
+void PicoAshaComm::onCmdUacChanged(uint16_t uac_ver)
+{
+    using namespace asha::comm;
+    bool res = sendCommandPacket(
+        {
+            .cmd = Command::UACVersion,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {.uac_version = uac_ver}
+        }
+        );
+    if (res) {
+        m_ui->setUacVersion(uac_ver);
+    }
+}
+
 void PicoAshaComm::onPairWithAddress(const QByteArray &addr, uint8_t addr_type)
 {
     using namespace asha::comm;
@@ -295,6 +311,8 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
     //          << "\n";
 
     switch(header.type) {
+    case Type::Cmd:
+        break;
     case Type::Intro: {
         IntroPacket intro;
         if (!assert_packet_size(decoded.size(), "IntroPacket", intro)) {
@@ -312,6 +330,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setPicoAshaVerStr(paFirmwareVers());
         m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
         m_ui->setAudioStreamingEnabled(intro.test_flag(IntroFlags::streaming_enabled));
+        m_ui->setUacVersion(intro.test_flag(IntroFlags::uac_version) ? 2U : 1U);
         m_ui->setCmdBtnsEnabled(true);
 
         break;

@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QList>
+#include <QComboBox>
 
 #include "remotedevice.h"
 #include "pairdialog.h"
@@ -39,6 +40,7 @@ public:
     void setPicoAshaVerStr(QString const& version);
     void setConnectionsAllowed(bool allowed);
     void setAudioStreamingEnabled(bool enabled);
+    void setUacVersion(uint16_t uac_ver);
 
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
@@ -55,6 +57,7 @@ signals:
     void cmdConnAllowedBtnClicked(bool allowed);
     void cmdStreamingEnabledBtnClicked(bool enabled);
     void cmdRemoveBondBtnClicked();
+    void cmdUacVersChanged(uint16_t uac_vers);
     void pairWithAddress(QByteArray const& addr, uint8_t addr_type);
 
 private:
@@ -68,6 +71,7 @@ private:
     QPushButton* m_cmdConnAllowedBtn;
     QPushButton* m_cmdStreamingEnabledBtn;
     QPushButton* m_cmdRemoveBondBtn;
+    QComboBox*   m_cmdUacVersCb;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;
@@ -78,6 +82,7 @@ private:
     bool m_serialConnected;
     bool m_connectionsAllowed;
     bool m_streamingEnabled;
+    uint16_t m_UacVersion;
 };
 
 #endif // PICOASHAMAINWINDOW_H
