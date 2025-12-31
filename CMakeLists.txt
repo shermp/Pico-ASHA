@@ -23,7 +23,7 @@ SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
 include(pico_sdk_import.cmake)
 
-project(pico_asha VERSION 0.2.0 LANGUAGES C CXX)
+project(pico_asha VERSION 0.3.0 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
