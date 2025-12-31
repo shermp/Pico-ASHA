@@ -19,8 +19,6 @@ static atomic_int_least16_t vol_m;
 static atomic_int_least16_t vol_l;
 static atomic_int_least16_t vol_r;
 
-static atomic_bool prefer_main_vol_channel = false;
-
 g722_encode_state_t enc_state_l;
 g722_encode_state_t enc_state_r;
 
@@ -106,20 +104,8 @@ uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index
     return side == AudioLeft ? buff->l : buff->r;
 }
 
-// void asha_audio_set_curr_usb_vol(enum AshaAudioSide side, int16_t usb_volume)
-// {
-//     if (side == AudioLeft) {
-//         vol_l = usb_volume;
-//     } else {
-//         vol_r = usb_volume;
-//     }
-// }
-
 void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol)
 {
-    int16_t vm = vol_m;
-    // If the main volume channel changes, prefer that over individual channels
-    prefer_main_vol_channel = (vm != main_vol);
     vol_m = main_vol;
     vol_l = left_vol;
     vol_r = right_vol;
@@ -127,12 +113,16 @@ void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t rig
 
 int16_t asha_audio_get_curr_usb_vol(enum AshaAudioSide side)
 {
-    bool use_main_v = prefer_main_vol_channel;
     int16_t vol;
-    if (use_main_v) {
-        vol = vol_m;
-    } else {
+    if (vol_l != vol_r) {
+        // Volume levels are different for each side, user likely wants this
         vol = side == AudioLeft ? vol_l : vol_r;
+    } else {
+        // Choose the lowest volume. Some OS drivers seem to prefer setting the "main"
+        // channel (observed on MacOS with UAC1). Some set all the same (Windows UAC1) 
+        // and some set the left/right pair (Windows UAC2). Channels that are not changed 
+        // are often set to the loudest level - we don't want that!
+        vol = (vol_m < vol_l) ? vol_m : vol_l;
     }
     return vol;
 }
