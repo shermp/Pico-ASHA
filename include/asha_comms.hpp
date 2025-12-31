@@ -10,8 +10,12 @@ namespace comm
     constexpr uint16_t unset_conn_id = 0;
 
     namespace IntroFlags {
+        // Allowed: bit 1, disallowed: bit 0
         constexpr uint16_t conn_allowed = 1 << 0u;
+        // Enabled: bit 1, disabled: bit 0
         constexpr uint16_t streaming_enabled = 1 << 1u;
+        // UAC1: bit 0, UAC2: bit 1
+        constexpr uint16_t uac_version = 1 << 2u;
     }
 
     enum class CSide : uint8_t {Left = 0, Right = 1, Unset = 2};
@@ -99,6 +103,7 @@ namespace comm
         AudioStreaming,
         IntroPacket,
         PairBond,
+        UACVersion,
     };
 
     enum class CmdStatus : uint8_t
@@ -223,6 +228,7 @@ namespace comm
                 uint8_t addr_type;
                 uint8_t reserved[3];
             } pair_bond;
+            uint16_t uac_version;
         } data;
     };
 

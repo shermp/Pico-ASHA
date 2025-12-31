@@ -300,6 +300,11 @@ void HearingAid::on_serial_host_connected()
     if (audio_streaming_enabled) {
         intro_flags |= IntroFlags::streaming_enabled;
     }
+    runtime_settings.get_uac_version();
+    if (runtime_settings.get_uac_version() == 2U) {
+        intro_flags |= IntroFlags::uac_version;
+    }
+
     send_intro_packet((int8_t)num_connected(), intro_flags);
     for (auto ha : hearing_aids) {
         if (!ha->is_connected()) {

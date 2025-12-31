@@ -186,6 +186,13 @@ static void process_serial_cmds()
             case Command::PairBond:
                 HearingAid::connect(cmd_pkt.data.pair_bond.addr, (bd_addr_type_t)cmd_pkt.data.pair_bond.addr_type);
                 break;
+            case Command::UACVersion:
+                {
+                    uint16_t uac_ver = cmd_pkt.data.uac_version;
+                    if ((uac_ver == 1 || uac_ver == 2) && runtime_settings.set_uac_version(uac_ver)) {
+                        watchdog_enable(250, true);
+                    }
+                }
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;
