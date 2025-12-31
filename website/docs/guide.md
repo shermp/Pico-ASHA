@@ -37,7 +37,7 @@ Go do the [Download](download.md) page to download firmware and the GUI applicat
 To get started using the GUI, follow the following steps: 
 
 1. Unzip the GUI application somewhere, and launch `PicoASHAGui.exe` from the `bin` folder. It should look like:
-   ![GUI not connected](screenshots/GUI-Not-Connected.png)
+   ![GUI not connected](screenshots/0.3.0/GUI-Not-Connected.png)
 
 2. Plug the micro usb cable into the Pico, then press and hold the button labeled `BOOTSEL` while plugging 
    the other end of the cable into your computer. A 'USB drive' should appear in your file explorer
@@ -109,7 +109,7 @@ The GUI can provide some useful tools for diagnostics and limited control.
 
 When connected to Pico ASHA which is connected to hearing devices, the GUI looks like:
 
-![GUI connected](screenshots/GUI-Connected.png)
+![GUI connected](screenshots/0.3.0/GUI-Connected.png)
 
 ### Top section
 
@@ -132,6 +132,11 @@ they can be connected to another device such as an Android phone.
 
 - **Unpair**: Pico ASHA only supports one set of hearing devices at a time. This allows starting 
 the pairing process again, potentially with a different set of hearing devices.
+
+- **USB Audio Class version**: Select which version of the USB Audio Class to use. The default 
+is to use UAC2. If you want to use Pico-ASHA with an older operating system such as Windows XP - 8 
+you can switch to UAC1. Tested working on Windows XP (although the serial connection for the GUI 
+does not work).
 
 ### HCI Logging
 
