@@ -10,6 +10,7 @@ concurrency:
 
 env:
     PICO_SDK_COMMIT_HASH: a1438dff1d38bd9c65dbd693f0e5db4b9ae91779
+    TINYUSB_TAG: "0.20.0"
 
 jobs:
     build_firmware:
@@ -20,12 +21,12 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                 path: pico-asha
 
             - name: Checkout Pico SDK
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                 repository: raspberrypi/pico-sdk
                 path: pico-sdk
@@ -33,24 +34,29 @@ jobs:
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
                 fetch-depth: "0"
 
-            - name: Update TinyUSB to v0.20.0
-              run: |
-                cd pico-sdk/lib/tinyusb
-                git pull && git checkout 0.20.0
+            - name: Checkout TinyUSB
+              uses: actions/checkout@v6
+              with:
+                repository: hathach/tinyusb
+                path: tinyusb
+                submodules: recursive
+                ref: "${{ env.TINYUSB_TAG }}"
+                fetch-depth: "0"
 
             - name: Install dependencies
               run: |
                 sudo apt-get update && sudo apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
             
-            - name: Set env variables
-              run: |
-                echo "PICO_SDK_PATH=$(realpath ./pico-sdk)" >> "$GITHUB_ENV"
-            
             - name: Configure build
               run: |
                 mkdir -p pico-asha/build/${{ matrix.board }}
                 cd pico-asha/build/${{ matrix.board }}
-                cmake -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=${{ matrix.board }} ../..
+                cmake \
+                  -DPICO_SDK_PATH=${{github.workspace}}/pico-sdk \
+                  -DPICO_TINYUSB_PATH=${{github.workspace}}/tinyusb \
+                  -DCMAKE_BUILD_TYPE=MinSizeRel \
+                  -DPICO_BOARD=${{ matrix.board }} \
+                  ../..
 
             - name: Compile
               run: |
