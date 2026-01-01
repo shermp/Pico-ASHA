@@ -6,6 +6,9 @@
 
 #include <btstack_tlv.h>
 
+#include "asha_audio.h"
+#include "usb_common.hpp"
+
 namespace asha
 {
 
@@ -22,11 +25,11 @@ struct RuntimeSettings
 
     bool get_hci_dump_enabled();
     bool get_full_set_paired();
-    uint16_t get_uac_version();
+    USBSettings get_usb_settings();
 
     bool set_hci_dump_enabled(bool is_enabled);
     bool set_full_set_paired(bool have_full_set);
-    bool set_uac_version(uint16_t version);
+    bool set_usb_settings(USBSettings const& settings);
 
     explicit operator bool();
 
@@ -34,7 +37,7 @@ private:
     enum Tag : uint32_t {
         HCIDump = str_to_tag("PAHC"),
         FullSetPaired = str_to_tag("PAFS"),
-        UACVersion = str_to_tag("PAUA"),
+        USBSetting = str_to_tag("PAUS"),
     };
 
     // used to store remote device in TLV
@@ -45,7 +48,7 @@ private:
 
     bool hci_dump_enabled = false;
     bool full_set_paired = false;
-    uint16_t uac_version = 2U;
+    USBSettings usb_settings = {};
 
     mutex_t mtx = {};
 

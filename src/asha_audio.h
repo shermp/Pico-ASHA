@@ -39,7 +39,7 @@ extern "C" {
  * which gives a range of -12192 to 0 and a resolution of 96.
  */
 
-#define ASHA_USB_VOL_MAX   -3072 // -12dB
+#define ASHA_USB_VOL_MAX       0 // 0dB
 #define ASHA_USB_VOL_MIN  -12192 // -47.625dB
 #define ASHA_USB_VOL_RES      96 // 96/256 is the step between ASHA volume levels
 #define ASHA_USB_VOL_MUTE -32768

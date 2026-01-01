@@ -303,12 +303,14 @@ void HearingAid::on_serial_host_connected()
     if (audio_streaming_enabled) {
         intro_flags |= IntroFlags::streaming_enabled;
     }
-    runtime_settings.get_uac_version();
-    if (runtime_settings.get_uac_version() == 2U) {
-        intro_flags |= IntroFlags::uac_version;
-    }
-
     send_intro_packet((int8_t)num_connected(), intro_flags);
+    USBInfo usb_info = {
+        .uac_vers = usb_settings.uac_version,
+        .min_vol = usb_settings.min_vol,
+        .max_vol = usb_settings.max_vol,
+        .reserved = 0
+    };
+    send_usb_info_packet(usb_info);
     for (auto ha : hearing_aids) {
         if (!ha->is_connected()) {
             continue;

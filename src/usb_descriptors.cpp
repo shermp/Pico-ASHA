@@ -61,7 +61,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_uac_version),
+    .bcdDevice          = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_settings.uac_version),
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -155,7 +155,7 @@ TU_VERIFY_STATIC(sizeof(desc_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Inco
 extern "C" uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
-  return usb_uac_version == 2 ? desc_uac2_configuration : desc_uac1_configuration;
+  return usb_settings.uac_version == 2 ? desc_uac2_configuration : desc_uac1_configuration;
 }
 
 //--------------------------------------------------------------------+
@@ -165,7 +165,7 @@ extern "C" uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 char const* string_desc_arr [] =
 {
-  (const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
+  (const char[]) { 0x09, 0x04 },    // 0: is supported language is English (0x0409)
   "Pico-ASHA",                      // 1: Manufacturer
   "Pico-ASHA adapter",              // 2: Product
   pico_uid,                         // 3: Unique serial
