@@ -39,6 +39,9 @@ namespace comm
         }
     };
 
+    // Don't empty a large event buffer all at once
+    constexpr int send_limit = 2;
+
     constexpr size_t zero_prefix = 1;
     constexpr size_t cobs_ev_buff_size = zero_prefix + COBS_ENCODE_MAX(sizeof(HeaderPacket) + sizeof(EventPacket));
 
@@ -102,13 +105,16 @@ namespace comm
     void try_send_events()
     {
         bool flush_req = false;
-        while (!event_buff.empty() && stdio_usb_connected()) {
+        int send_count = 0;
+        while (!event_buff.empty() && send_count < send_limit && stdio_usb_connected()) {
             const auto& buff = event_buff.front();
             stdio_put_string((const char*)buff.data(), buff.size(), false, false);
             flush_req = true;
+            ++send_count;
             event_buff.pop();
         }
         if (flush_req) {
+            send_count = 0;
             stdio_flush();
         }
     }
