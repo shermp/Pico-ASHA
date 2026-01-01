@@ -67,19 +67,46 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
                                    "this allows pairing a different set of hearing aids.");
     cmdLayout->addWidget(m_cmdRemoveBondBtn);
 
-    m_cmdUacVersCb = new QComboBox();
-    m_cmdUacVersCb->addItem("UAC1", QVariant(1u));
-    m_cmdUacVersCb->addItem("UAC2", QVariant(2u));
-    m_cmdUacVersCb->setToolTip("Change USB Audio Class version.\n"
+    cmdLayout->addStretch();
+    cmdGroup->setLayout(cmdLayout);
+    mainVBox->addWidget(cmdGroup);
+
+    auto usbGroup = new QGroupBox("USB Settings");
+    auto usbLayout = new QHBoxLayout;
+    usbLayout->addStretch();
+
+    auto usbUacLabel = new QLabel("UAC Version");
+    usbLayout->addWidget(usbUacLabel);
+
+    m_USBUacVersCombo = new QComboBox();
+    m_USBUacVersCombo->addItem("UAC1", QVariant(1u));
+    m_USBUacVersCombo->addItem("UAC2", QVariant(2u));
+    m_USBUacVersCombo->setToolTip("Change USB Audio Class version.\n"
                                "Most people should stick with UAC2, however UAC1 may be compatible "
                                "With older operating systems such as Windows XP - 8.\n"
                                "This setting will persist, allowing you to set it on one device, "
                                "then plug it into an older device that only supports UAC1.");
-    cmdLayout->addWidget(m_cmdUacVersCb);
+    usbLayout->addWidget(m_USBUacVersCombo);
 
-    cmdLayout->addStretch();
-    cmdGroup->setLayout(cmdLayout);
-    mainVBox->addWidget(cmdGroup);
+    auto usbVolMinLabel = new QLabel("Min Volume");
+    usbLayout->addWidget(usbVolMinLabel);
+    m_USBVolMinSpin = new QSpinBox();
+    m_USBVolMinSpin->setRange(-127, 0);
+    usbLayout->addWidget(m_USBVolMinSpin);
+
+    auto usbVolMaxLabel = new QLabel("Max Volume");
+    usbLayout->addWidget(usbVolMaxLabel);
+    m_USBVolMaxSpin = new QSpinBox();
+    m_USBVolMaxSpin->setRange(-127, 0);
+    usbLayout->addWidget(m_USBVolMaxSpin);
+
+    m_USBSettingsBtn = new QPushButton("Update");
+    usbLayout->addWidget(m_USBSettingsBtn);
+
+    usbLayout->addStretch();
+    usbGroup->setLayout(usbLayout);
+    mainVBox->addWidget(usbGroup);
+
 
     QObject::connect(m_cmdRestartBtn, &QPushButton::clicked, this, &PicoAshaMainWindow::cmdRestartBtnClicked);
     QObject::connect(m_cmdConnAllowedBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
@@ -94,16 +121,23 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
             emit cmdRemoveBondBtnClicked();
         }
     });
-    QObject::connect(m_cmdUacVersCb, &QComboBox::activated, this, [=, this](int index) {
-        auto uac_ver_item = m_cmdUacVersCb->itemData(index);
-        uint16_t uac_ver = static_cast<uint16_t>(uac_ver_item.toUInt());
-        if (uac_ver != m_UacVersion) {
-            emit cmdUacVersChanged(uac_ver);
-        }
+    QObject::connect(m_USBUacVersCombo, &QComboBox::activated, this, [=, this](int index) {
+        setUSBSettingsBtnState();
     });
+    QObject::connect(m_USBVolMinSpin, &QSpinBox::valueChanged, this, [=, this](int value) {
+        setUSBSettingsBtnState();
+    });
+    QObject::connect(m_USBVolMaxSpin, &QSpinBox::valueChanged, this, [=, this](int value) {
+        setUSBSettingsBtnState();
+    });
+    QObject::connect(m_USBSettingsBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
+        emit usbSettingsBtnClicked(fromUsbWidgets());
+    });
+
     setConnectionsAllowed(false);
     setAudioStreamingEnabled(false);
     setCmdBtnsEnabled(false);
+    setUSBWidgetsEnabled(false);
 
     auto hciGroup = new QGroupBox("HCI Logging");
     auto hciLayout = new QHBoxLayout;
@@ -278,12 +312,25 @@ void PicoAshaMainWindow::setAudioStreamingEnabled(bool enabled)
     }
 }
 
-void PicoAshaMainWindow::setUacVersion(uint16_t uac_ver)
+void PicoAshaMainWindow::setUSBInfo(const asha::comm::USBInfo &usb_info)
 {
-    // Note index 0 = UAC1, index 1 = UAC2
-    if (uac_ver == 1U || uac_ver == 2U) {
-        m_UacVersion = uac_ver;
-        m_cmdUacVersCb->setCurrentIndex(uac_ver - 1);
+    m_usbInfo = usb_info;
+    int uac_ver = static_cast<int>(m_usbInfo.uac_vers);
+    int vol_min = static_cast<int>(m_usbInfo.min_vol) / 96;
+    int vol_max = static_cast<int>(m_usbInfo.max_vol) / 96;
+    m_USBUacVersCombo->setCurrentIndex(uac_ver - 1);
+    m_USBVolMinSpin->setValue(vol_min);
+    m_USBVolMaxSpin->setValue(vol_max);
+    setUSBSettingsBtnState();
+}
+
+void PicoAshaMainWindow::setUSBSettingsBtnState()
+{
+    auto info = fromUsbWidgets();
+    if (m_usbInfo != info && info.min_vol < info.max_vol) {
+        m_USBSettingsBtn->setEnabled(true);
+    } else {
+        m_USBSettingsBtn->setEnabled(false);
     }
 }
 
@@ -316,6 +363,14 @@ void PicoAshaMainWindow::onPairDialogAcceptedRejected()
     m_currPairDlg = nullptr;
 }
 
+asha::comm::USBInfo PicoAshaMainWindow::fromUsbWidgets()
+{
+    auto uac_ver = static_cast<uint16_t>(m_USBUacVersCombo->currentData().toUInt());
+    auto min_vol = static_cast<int16_t>(m_USBVolMinSpin->value() * 96);
+    auto max_vol = static_cast<int16_t>(m_USBVolMaxSpin->value() * 96);
+    return {.uac_vers = uac_ver, .min_vol = min_vol, .max_vol = max_vol, .reserved = 0U};
+}
+
 void PicoAshaMainWindow::onSerialConnected(bool connected)
 {
     m_serialConnected = connected;
@@ -334,7 +389,16 @@ void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
     m_cmdConnAllowedBtn->setEnabled(enabled);
     m_cmdStreamingEnabledBtn->setEnabled(enabled);
     m_cmdRemoveBondBtn->setEnabled(enabled);
-    m_cmdUacVersCb->setEnabled(enabled);
+}
+
+void PicoAshaMainWindow::setUSBWidgetsEnabled(bool enabled)
+{
+    m_USBUacVersCombo->setEnabled(enabled);
+    m_USBVolMinSpin->setEnabled(enabled);
+    m_USBVolMaxSpin->setEnabled(enabled);
+    if (!enabled) {
+        m_USBSettingsBtn->setEnabled(enabled);
+    }
 }
 
 void PicoAshaMainWindow::setPicoAshaVerStr(const QString &version)

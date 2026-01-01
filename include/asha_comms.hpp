@@ -28,7 +28,8 @@ namespace comm
         Event,
         HCI,
         Cmd,
-        Advert
+        Advert,
+        USBInfo,
     };
 
     enum class StatusType : uint8_t
@@ -103,7 +104,7 @@ namespace comm
         AudioStreaming,
         IntroPacket,
         PairBond,
-        UACVersion,
+        USBSettings,
     };
 
     enum class CmdStatus : uint8_t
@@ -145,6 +146,21 @@ namespace comm
     };
 
     static_assert(sizeof(IntroPacket) == 8);
+
+    struct USBInfo
+    {
+        // USB Audio Class Version (1 or 2)
+        uint16_t uac_vers;
+        // Minimum volume. Must be in range -12,192 - 0
+        int16_t  min_vol;
+        // Maximum volume. Must be in range -12,192 - 0
+        int16_t  max_vol;
+        uint16_t reserved;
+
+        bool operator==(const USBInfo&) const = default;
+    };
+
+    static_assert(sizeof(USBInfo) == 8);
 
     struct RemoteInfo
     {
@@ -228,7 +244,7 @@ namespace comm
                 uint8_t addr_type;
                 uint8_t reserved[3];
             } pair_bond;
-            uint16_t uac_version;
+            USBInfo usb_settings;
         } data;
     };
 
@@ -258,6 +274,7 @@ namespace comm
     void try_send_events();
 
     void send_intro_packet(int8_t num_connections, uint16_t flags = 0x00);
+    void send_usb_info_packet(USBInfo const& usb_info);
     void send_remote_info_packet(RemoteInfo const& remote_info);
     void send_advertising_packet(AdvertisingPacket const& ad_packet);
 

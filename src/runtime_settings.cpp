@@ -29,12 +29,12 @@ bool RuntimeSettings::get_full_set_paired()
     return paired;
 }
 
-uint16_t RuntimeSettings::get_uac_version()
+USBSettings RuntimeSettings::get_usb_settings()
 {
     mutex_enter_blocking(&mtx);
-    uint16_t vers = uac_version;
+    USBSettings settings = usb_settings;
     mutex_exit(&mtx);
-    return vers;
+    return settings;
 }
 
 RuntimeSettings::operator bool()
@@ -57,9 +57,9 @@ void RuntimeSettings::get_settings()
     if (!get_tlv_tag(Tag::FullSetPaired, full_set_paired)) {
         full_set_paired = false;
     }
-    if (!get_tlv_tag(Tag::UACVersion, uac_version)) {
-        if (uac_version < 1 || uac_version > 2) {
-            uac_version = 2U;
+    if (!get_tlv_tag(Tag::USBSetting, usb_settings)) {
+        if (!usb_settings) {
+            usb_settings = USBSettings();
         }
     }
     got_settings = true;
@@ -89,13 +89,13 @@ bool RuntimeSettings::set_full_set_paired(bool have_full_set)
     return res;
 }
 
-bool RuntimeSettings::set_uac_version(uint16_t version)
+bool RuntimeSettings::set_usb_settings(USBSettings const &settings)
 {
     bool res = false;
     mutex_enter_blocking(&mtx);
-    if (uac_version != version && (version == 1 || version == 2)) {
-        uac_version = version;
-        res = store_tlv_tag(Tag::UACVersion, uac_version);
+    if (settings && settings != usb_settings) {
+        usb_settings = settings;
+        res = store_tlv_tag(Tag::USBSetting, usb_settings);
     }
     mutex_exit(&mtx);
     return res;

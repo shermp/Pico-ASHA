@@ -186,10 +186,11 @@ static void process_serial_cmds()
             case Command::PairBond:
                 HearingAid::connect(cmd_pkt.data.pair_bond.addr, (bd_addr_type_t)cmd_pkt.data.pair_bond.addr_type);
                 break;
-            case Command::UACVersion:
+            case Command::USBSettings:
                 {
-                    uint16_t uac_ver = cmd_pkt.data.uac_version;
-                    if ((uac_ver == 1 || uac_ver == 2) && runtime_settings.set_uac_version(uac_ver)) {
+                    USBInfo& info = cmd_pkt.data.usb_settings;
+                    USBSettings settings = {.uac_version = info.uac_vers, .min_vol = info.min_vol, .max_vol = info.max_vol};
+                    if (settings && (settings != usb_settings) && runtime_settings.set_usb_settings(settings)) {
                         watchdog_enable(250, true);
                     }
                 }

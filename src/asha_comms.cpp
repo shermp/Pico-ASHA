@@ -124,6 +124,11 @@ namespace comm
         .flags = flags});
     }
 
+    void send_usb_info_packet(USBInfo const &usb_info)
+    {
+        construct_and_send_packet(Type::USBInfo, unset_conn_id, usb_info);
+    }
+
     void send_remote_info_packet(RemoteInfo const& remote_info)
     {
         construct_and_send_packet(Type::RemInfo, unset_conn_id, remote_info);

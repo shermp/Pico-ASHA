@@ -40,7 +40,7 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRemoveBondBtnClicked, this, &PicoAshaComm::onCmdRemoveBondBtnClicked);
-    QObject::connect(m_ui, &PicoAshaMainWindow::cmdUacVersChanged, this, &PicoAshaComm::onCmdUacChanged);
+    QObject::connect(m_ui, &PicoAshaMainWindow::usbSettingsBtnClicked, this, &PicoAshaComm::onUsbSettingsBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::pairWithAddress, this, &PicoAshaComm::onPairWithAddress);
 
     connect_timer.start(timer_interval);
@@ -250,18 +250,18 @@ void PicoAshaComm::onCmdRemoveBondBtnClicked()
     );
 }
 
-void PicoAshaComm::onCmdUacChanged(uint16_t uac_ver)
+void PicoAshaComm::onUsbSettingsBtnClicked(const asha::comm::USBInfo &usb_info)
 {
     using namespace asha::comm;
     bool res = sendCommandPacket(
         {
-            .cmd = Command::UACVersion,
+            .cmd = Command::USBSettings,
             .cmd_status = CmdStatus::CmdOk,
-            .data = {.uac_version = uac_ver}
+            .data = {.usb_settings = usb_info}
         }
         );
     if (res) {
-        m_ui->setUacVersion(uac_ver);
+        m_ui->setUSBInfo(usb_info);
     }
 }
 
@@ -330,11 +330,19 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setPicoAshaVerStr(paFirmwareVers());
         m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
         m_ui->setAudioStreamingEnabled(intro.test_flag(IntroFlags::streaming_enabled));
-        m_ui->setUacVersion(intro.test_flag(IntroFlags::uac_version) ? 2U : 1U);
         m_ui->setCmdBtnsEnabled(true);
-
         break;
     }
+    case Type::USBInfo:
+        USBInfo usb_info;
+        if (!assert_packet_size(decoded.size(), "USBInfo", usb_info)) {
+            return;
+        }
+        memcpy(&usb_info, decoded.constData() + sizeof header, sizeof usb_info);
+        qDebug() << "\nGot USBInfo packet";
+        m_ui->setUSBInfo(usb_info);
+        m_ui->setUSBWidgetsEnabled(true);
+        break;
     case Type::Event: {
         EventPacket pkt(EventType::ShortLog);
         if (!assert_packet_size(decoded.size(), "EventPacket", pkt)) {

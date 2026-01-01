@@ -50,7 +50,7 @@ extern "C" int main()
         sleep_ms(50);
     }
 
-    usb_uac_version = runtime_settings.get_uac_version();
+    usb_settings = runtime_settings.get_usb_settings();
 
     // Init TinyUSB before stdio init
     board_init();

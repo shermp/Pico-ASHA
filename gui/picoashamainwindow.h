@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QList>
 #include <QComboBox>
+#include <QSpinBox>
 
 #include "remotedevice.h"
 #include "pairdialog.h"
@@ -36,11 +37,13 @@ public:
     void onSerialConnected(bool connected);
 
     void setCmdBtnsEnabled(bool enabled);
+    void setUSBWidgetsEnabled(bool enabled);
 
     void setPicoAshaVerStr(QString const& version);
     void setConnectionsAllowed(bool allowed);
     void setAudioStreamingEnabled(bool enabled);
-    void setUacVersion(uint16_t uac_ver);
+    void setUSBInfo(asha::comm::USBInfo const& usb_info);
+    void setUSBSettingsBtnState();
 
     void setHciActionBtnStart(bool enabled);
     void setHciActionBtnStop(bool enabled);
@@ -57,7 +60,7 @@ signals:
     void cmdConnAllowedBtnClicked(bool allowed);
     void cmdStreamingEnabledBtnClicked(bool enabled);
     void cmdRemoveBondBtnClicked();
-    void cmdUacVersChanged(uint16_t uac_vers);
+    void usbSettingsBtnClicked(asha::comm::USBInfo const& usb_info);
     void pairWithAddress(QByteArray const& addr, uint8_t addr_type);
 
 private:
@@ -71,7 +74,11 @@ private:
     QPushButton* m_cmdConnAllowedBtn;
     QPushButton* m_cmdStreamingEnabledBtn;
     QPushButton* m_cmdRemoveBondBtn;
-    QComboBox*   m_cmdUacVersCb;
+
+    QComboBox*   m_USBUacVersCombo;
+    QSpinBox*    m_USBVolMinSpin;
+    QSpinBox*    m_USBVolMaxSpin;
+    QPushButton* m_USBSettingsBtn;
 
     QPushButton* m_hciActionBtn;
     QPushButton* m_hciPathBtn;
@@ -82,7 +89,9 @@ private:
     bool m_serialConnected;
     bool m_connectionsAllowed;
     bool m_streamingEnabled;
-    uint16_t m_UacVersion;
+
+    asha::comm::USBInfo m_usbInfo;
+    asha::comm::USBInfo fromUsbWidgets();
 };
 
 #endif // PICOASHAMAINWINDOW_H
