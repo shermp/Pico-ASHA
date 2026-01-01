@@ -142,11 +142,16 @@ does not work).
 
 - **Volume management**: It may be useful to restrict the USB volume range to prevent Pico-ASHA from getting too quiet or 
 loud. The valid range is -127 (minimum) to 0 (maximum).
+
       * **Minimum Volume**: Select the minimum USB volume that Pico-ASHA reports to OS. Must be lower 
 than the maximum value.
 
       * **Maximum Volume**: Select the maximum USB volume that Pico-ASHA reports to OS. Must be greater 
 than the minimum value.
+
+!!! Note
+
+    Windows can get confused when changing the volume range. It is recommended to restart Windows once you have decided on a range to use.
 
 - **Update button**: Allows saving the changed USB Audio Class version and volume range to Pico-ASHA.
 Changes persist accross connections.
