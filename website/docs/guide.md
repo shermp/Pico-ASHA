@@ -133,10 +133,23 @@ they can be connected to another device such as an Android phone.
 - **Unpair**: Pico ASHA only supports one set of hearing devices at a time. This allows starting 
 the pairing process again, potentially with a different set of hearing devices.
 
+### USB Settings (from version 0.3.0)
+
 - **USB Audio Class version**: Select which version of the USB Audio Class to use. The default 
 is to use UAC2. If you want to use Pico-ASHA with an older operating system such as Windows XP - 8 
 you can switch to UAC1. Tested working on Windows XP (although the serial connection for the GUI 
 does not work).
+
+- **Volume management**: It may be useful to restrict the USB volume range to prevent Pico-ASHA from getting too quiet or 
+loud. The valid range is -127 (minimum) to 0 (maximum).
+      * **Minimum Volume**: Select the minimum USB volume that Pico-ASHA reports to OS. Must be lower 
+than the maximum value.
+
+      * **Maximum Volume**: Select the maximum USB volume that Pico-ASHA reports to OS. Must be greater 
+than the minimum value.
+
+- **Update button**: Allows saving the changed USB Audio Class version and volume range to Pico-ASHA.
+Changes persist accross connections.
 
 ### HCI Logging
 
