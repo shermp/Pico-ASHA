@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 
 #include <etl/string.h>
 
@@ -14,32 +15,32 @@ namespace asha
 
 constexpr int ha_process_delay_ticks = 500;
 
-enum class Side {Left = 0, Right = 1, Unset = 2};
-enum class Mode {Mono = 0, Binaural = 1, Unset = 2};
+enum class Side  {Left = 0, Right = 1};
+enum class Mode  {Mono = 0, Binaural = 1};
+enum class Codec {G722_16, G722_24};
 
-struct ROP {
-    uint8_t version;
-    Side side = Side::Unset;
-    Mode mode = Mode::Unset;
-    bool csis_supported;
-    struct HiSyncID {
-        uint16_t manufacturer_id;
-        std::array<uint8_t, 6> unique_id;
+struct ROP
+{
+    uint8_t raw_data[17] = {};
 
-        bool operator==(const HiSyncID& other) const = default;
-        bool operator!=(const HiSyncID& other) const {return !(operator==(other));}
-    } id;
-    bool le_coc_supported;
-    uint16_t render_delay;
-    bool codec_16khz;
-    bool codec_24khz;
-    uint8_t raw_rop_data[17];
+    void read(const uint8_t* data) { memcpy(raw_data, data, sizeof(raw_data)); }
+    Side side() { return (raw_data[1] & 0b00000001) ? Side::Right : Side::Left; }
+    Mode mode() { return (raw_data[1] & 0b00000010) ? Mode::Binaural : Mode::Mono; }
+    uint16_t mfg_id() { return little_endian_read_16(raw_data, 2); }
+    std::span<uint8_t, 6> unique_id() { return std::span<uint8_t, 6>(raw_data + 4, 6); }
+    bool le_coc_supported() { return (raw_data[10] & 0b00000001); }
+    uint16_t render_delay() { return little_endian_read_16(raw_data, 11); }
+    bool supports_codec(Codec c) {
+        uint16_t codecs = little_endian_read_16(raw_data, 15);
+        switch (c) {
+            case Codec::G722_16:
+                return codecs & 0b0000000000000010;
+            case Codec::G722_24:
+                return codecs & 0b0000000000000100;
+        }
+    }
 
-    ROP();
-    void read(const uint8_t* data);
-    bool operator==(const ROP& other) const = default;
-    bool operator!=(const ROP& other) const {return !(operator==(other));}
-    void print_values();
+    explicit operator bool() const { return raw_data[0]; } 
 };
 
 struct HearingAid
