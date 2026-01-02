@@ -678,19 +678,19 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
 
             gatt_event_service_query_result_get_service(packet, &s);
-            if (uuid_eq(s.uuid128, AshaUUID::service) || s.uuid16 == AshaUUID::service16) {
+            if (AshaUUID::service == s.uuid128 || AshaUUID::service16 == s.uuid16) {
                 //LOG_INFO("%s: Discovered ASHA service", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "ASHA service discovered");
                 ha->services.asha.service = s;
-            } else if (s.uuid16 == GapUUID::service16) {
+            } else if (GapUUID::service16 == s.uuid16) {
                 //LOG_INFO("%s: Discovered GAP service", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "GAP service discovered");
                 ha->services.gap.service = s;
-            } else if (s.uuid16 == DisUUID::service16) {
+            } else if (DisUUID::service16 == s.uuid16) {
                 //LOG_INFO("%s: Discovered DIS service", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "DIS service discovered");
                 ha->services.dis.service = s;
-            } else if (uuid_eq(s.uuid128, MfiUUID::service)) {
+            } else if (MfiUUID::service == s.uuid128) {
                 short_log(ha->conn_id, "%s", "MFI service discovered");
                 ha->services.mfi.service = s;
             }
@@ -735,47 +735,47 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             ha = get_by_con_handle(handle);
             gatt_event_characteristic_query_result_get_characteristic(packet, &c);
 
-            if (uuid_eq(c.uuid128, AshaUUID::readOnlyProps)) {
+            if (AshaUUID::readOnlyProps == c.uuid128) {
                 //LOG_INFO("%s: Discovered ReadOnlyProperties characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "ROP char discovered");
                 ha->services.asha.rop = c;
-            } else if (uuid_eq(c.uuid128, AshaUUID::audioControlPoint)) {
+            } else if (AshaUUID::audioControlPoint == c.uuid128) {
                 //LOG_INFO("%s: Discovered AudioControlPoint characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "ACP char discovered");
                 ha->services.asha.acp = c;
-            } else if (uuid_eq(c.uuid128, AshaUUID::audioStatus)) {
+            } else if (AshaUUID::audioStatus == c.uuid128) {
                 //LOG_INFO("%s: Discovered AudioStatusPoint characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "ASP char discovered");
                 ha->services.asha.asp = c;
-            } else if (uuid_eq(c.uuid128, AshaUUID::volume)) {
+            } else if (AshaUUID::volume == c.uuid128) {
                 //LOG_INFO("%s: Discovered Volume characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "Volume char discovered");
                 ha->services.asha.vol = c;
-            } else if (uuid_eq(c.uuid128, AshaUUID::psm)) {
+            } else if (AshaUUID::psm == c.uuid128) {
                 //LOG_INFO("%s: Discovered PSM characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "PSM char discovered");
                 ha->services.asha.psm = c;
-            } else if (c.uuid16 == GapUUID::deviceName16) {
+            } else if (GapUUID::deviceName16 == c.uuid16) {
                 //LOG_INFO("%s: Discovered Device Name characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "Device name char discovered");
                 ha->services.gap.device_name = c;
-            } else if (c.uuid16 == DisUUID::mfgName) {
+            } else if (DisUUID::mfgName == c.uuid16) {
                 //LOG_INFO("%s: Discovered Manufacturer Name characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "Mfg name char discovered");
                 ha->services.dis.manufacture_name = c;
-            } else if (c.uuid16 == DisUUID::modelNum) {
+            } else if (DisUUID::modelNum == c.uuid16) {
                 //LOG_INFO("%s: Discovered Model Number characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "Model num char discovered");
                 ha->services.dis.model_num = c;
-            } else if (c.uuid16 == DisUUID::fwVers) {
+            } else if (DisUUID::fwVers == c.uuid16) {
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "FW vers char discovered");
                 ha->services.dis.fw_vers = c;
-            } else if (c.uuid16 == DisUUID::swVers) {
+            } else if (DisUUID::swVers == c.uuid16) {
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "SW vers char discovered");
                 ha->services.dis.sw_vers = c;
-            } else if (uuid_eq(c.uuid128, MfiUUID::battery)) {
+            } else if (MfiUUID::battery == c.uuid128) {
                 short_log(ha->conn_id, "%s", "MFI battery char discovered");
                 ha->services.mfi.battery = c;
             }
