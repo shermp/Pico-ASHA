@@ -45,7 +45,7 @@ struct ROP {
 struct HearingAid
 {
     enum ProcessState : uint32_t {
-        ProcessUnset               = 1U <<  0,
+        ProcessUnset        = 1U <<  0,
         DiscoverServices    = 1U <<  1,
         PairBond            = 1U <<  2,
         DataLength          = 1U <<  3,
@@ -59,10 +59,13 @@ struct HearingAid
         ReadModelNum        = 1U << 11,
         ReadFWVers          = 1U << 12,
         ReadSWVers          = 1U << 13,
-        ConnectL2CAP        = 1U << 14,
-        EnASPNotification   = 1U << 15,
-        Finalize            = 1U << 16,
-        Audio               = 1U << 17,
+        DiscoverMFIChar     = 1U << 14,
+        ReadBattery         = 1U << 15,
+        ConnectL2CAP        = 1U << 16,
+        EnBattNotification  = 1U << 17,
+        EnASPNotification   = 1U << 18,
+        Finalize            = 1U << 19,
+        Audio               = 1U << 20,
         Disconnect          = 1U << 29,
         Done                = 1U << 30,
         ProcessBusy         = 1U << 31
@@ -111,6 +114,10 @@ struct HearingAid
     inline static uint8_t auth_req;
     bool paired_and_bonded = false;
 
+    /* MFI vars */
+
+    uint8_t battery_level = 0;
+
     /* Member functions */
     
     HearingAid();
@@ -139,7 +146,7 @@ struct HearingAid
     static void handle_char_read(PACKET_HANDLER_PARAMS);
     static void handle_acp_write(PACKET_HANDLER_PARAMS);
     static void handle_l2cap_cbm(PACKET_HANDLER_PARAMS);
-    static void handle_asp_notification_reg(PACKET_HANDLER_PARAMS);
+    static void handle_notification_reg(PACKET_HANDLER_PARAMS);
     static void handle_gatt_notification(PACKET_HANDLER_PARAMS);
     static void process_audio();
 
@@ -168,6 +175,11 @@ private:
             gatt_client_characteristic_t vol = {};
             gatt_client_characteristic_t psm = {};  
         } asha = {};
+
+        struct {
+            gatt_client_service_t service = {};
+            gatt_client_characteristic_t battery = {};
+        } mfi = {};
     } services = {};
 
     /* L2CAP credit management */

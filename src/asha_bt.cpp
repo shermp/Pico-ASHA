@@ -387,7 +387,7 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
                 if (uuid_eq(tmp_uuid128, AshaUUID::service)) {
                     //LOG_SCAN("ASHA 128 bit UUID service discovered");
                     is_hearing_aid = true;
-                } else if (uuid_eq(tmp_uuid128, mfiUUID)) {
+                } else if (uuid_eq(tmp_uuid128, MfiUUID::service)) {
                     //LOG_SCAN("MFI UUID discovered");
                     is_hearing_aid = true;
                 }

@@ -89,6 +89,9 @@ namespace comm
         StreamReady,
         StreamPause,
         AudioVolume,
+        DiscMFIChar,
+        MfiBatteryRead,
+        MFIBatteryNotEnable,
     };
 
     enum class CmdType : uint8_t {
@@ -180,9 +183,11 @@ namespace comm
         CMode mode;
         bool audio_streaming;
         int8_t curr_vol;
+        uint8_t curr_battery;
+        uint8_t reserved[3];
     };
 
-    static_assert(sizeof(RemoteInfo) == 180);
+    static_assert(sizeof(RemoteInfo) == 184);
 
     struct EventPacket
     {
@@ -202,6 +207,7 @@ namespace comm
             uint16_t credits;
             uint8_t rop[17];
             char    str[32];
+            uint8_t battery_level;
         } data = {};
 
         EventPacket();

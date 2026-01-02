@@ -215,6 +215,16 @@ void HearingAid::process()
                 ha->set_process_busy();
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.sw_vers);
                 break;
+            case DiscoverMFIChar:
+                ev_type = EventType::DiscMFIChar;
+                ha->set_process_busy();
+                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.mfi.service);
+                break;
+            case ReadBattery:
+                ev_type = EventType::MfiBatteryRead;
+                ha->set_process_busy();
+                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.mfi.battery);
+                break;
             case ConnectL2CAP:
                 ev_type = EventType::L2CAPCon;
                 //LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
@@ -228,11 +238,19 @@ void HearingAid::process()
                                                LEVEL_2, 
                                                &ha->cid);
                 break;
+            case EnBattNotification:
+                ev_type = EventType::MFIBatteryNotEnable;
+                ha->set_process_busy();
+                res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_notification_reg, 
+                                                                            ha->conn_handle, 
+                                                                            &ha->services.mfi.battery, 
+                                                                            GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION);
+                break;
             case EnASPNotification:
                 ev_type = EventType::ASPNotEnable;
                 //LOG_INFO("%s: Enable ASP notification", ha->get_side_str());
                 ha->set_process_busy();
-                res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_asp_notification_reg, 
+                res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_notification_reg, 
                                                                             ha->conn_handle, 
                                                                             &ha->services.asha.asp, 
                                                                             GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION);
@@ -335,6 +353,7 @@ void HearingAid::on_serial_host_connected()
                                                      : CMode::Unset;
         info.audio_streaming = ha->is_streaming();
         info.curr_vol = ha->curr_vol;
+        info.curr_battery = ha->battery_level;
 
         send_remote_info_packet(info);
     }
@@ -671,6 +690,9 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
                 //LOG_INFO("%s: Discovered DIS service", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "DIS service discovered");
                 ha->services.dis.service = s;
+            } else if (uuid_eq(s.uuid128, MfiUUID::service)) {
+                short_log(ha->conn_id, "%s", "MFI service discovered");
+                ha->services.mfi.service = s;
             }
             break;
         }
@@ -753,6 +775,9 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
                 //LOG_INFO("%s: Discovered FW Version characteristic", ha->get_side_str());
                 short_log(ha->conn_id, "%s", "SW vers char discovered");
                 ha->services.dis.sw_vers = c;
+            } else if (uuid_eq(c.uuid128, MfiUUID::battery)) {
+                short_log(ha->conn_id, "%s", "MFI battery char discovered");
+                ha->services.mfi.battery = c;
             }
             break;
         }
@@ -786,6 +811,13 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
                         // Not a fatal error
                     }
                     ha->process_state = ReadMfgName;
+                    break;
+                case DiscoverMFIChar | ProcessBusy:
+                    if (att_status != ATT_ERROR_SUCCESS) {
+                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DiscMFIChar, StatusType::ATTStatus, att_status));
+                        // Not a fatal error
+                    }
+                    ha->process_state = ReadBattery;
                     break;
                 default:
                     break;
@@ -841,6 +873,8 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                 //LOG_INFO("%s: FW version read", ha->get_side_str());
                 ha->sw_vers.clear();
                 ha->sw_vers.append((const char*)val, val_len);
+            } else if (val_handle == ha->services.mfi.battery.value_handle) {
+                ha->battery_level = val[0];
             }
             break;
         case GATT_EVENT_QUERY_COMPLETE:
@@ -870,7 +904,7 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                         EventPacket ev_pkt(EventType::PSMRead);
                         ev_pkt.data.psm = ha->psm;
                         add_event_to_buffer(ha->conn_id, ev_pkt);
-                        ha->process_state = ha->cached ? ConnectL2CAP : DiscoverGAPChar;
+                        ha->process_state = ha->cached ? ReadBattery : DiscoverGAPChar;
                     }
                     break;
                 case ReadDeviceName | ProcessBusy:
@@ -929,6 +963,18 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                     } else {
                         EventPacket ev_pkt(EventType::SWRead);
                         ev_pkt.set_data_str("%s", ha->sw_vers.c_str());
+                        add_event_to_buffer(ha->conn_id, ev_pkt);
+                    }
+                    ha->process_state = DiscoverMFIChar;
+                    break;
+                case ReadBattery | ProcessBusy:
+                    if (att_status != ATT_ERROR_SUCCESS) {
+                        //LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
+                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::MfiBatteryRead, StatusType::ATTStatus, att_status));
+                        // Not a fatal error
+                    } else {
+                        EventPacket ev_pkt(EventType::MfiBatteryRead);
+                        ev_pkt.data.battery_level = ha->battery_level;
                         add_event_to_buffer(ha->conn_id, ev_pkt);
                     }
                     ha->process_state = ConnectL2CAP;
@@ -1015,31 +1061,48 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
     }
 }
 
-void HearingAid::handle_asp_notification_reg(PACKET_HANDLER_PARAMS)
+void HearingAid::handle_notification_reg(PACKET_HANDLER_PARAMS)
 {
     using namespace comm;
+
+    if (hci_event_packet_get_type(packet) != GATT_EVENT_QUERY_COMPLETE) {
+        return;
+    }
 
     hci_con_handle_t handle = HCI_CON_HANDLE_INVALID;
     uint8_t att_status = ATT_ERROR_SUCCESS;
     HearingAid *ha = nullptr;
 
-    if (hci_event_packet_get_type(packet) == GATT_EVENT_QUERY_COMPLETE) {
-        handle = gatt_event_query_complete_get_handle(packet);
-        att_status = gatt_event_query_complete_get_att_status(packet);
-        ha = get_by_con_handle(handle);
-        if (att_status != ATT_ERROR_SUCCESS) {
-            //LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->get_side_str(), att_err_str(att_status));
-            // Try again later
-            ha->unset_process_busy();
-            ++ha->error_count;
-            ha->process_delay_ticks = ha_process_delay_ticks;
-            add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable, StatusType::ATTStatus, att_status));
-        } else {
-            //LOG_INFO("%s: ASP notifications enabled", ha->get_side_str());
+    handle = gatt_event_query_complete_get_handle(packet);
+    att_status = gatt_event_query_complete_get_att_status(packet);
+    ha = get_by_con_handle(handle);
+
+    switch (ha->process_state) {
+        case EnASPNotification | ProcessBusy:
+            if (att_status != ATT_ERROR_SUCCESS) {
+                //LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->get_side_str(), att_err_str(att_status));
+                // Try again later
+                ha->unset_process_busy();
+                ++ha->error_count;
+                ha->process_delay_ticks = ha_process_delay_ticks;
+                add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable, StatusType::ATTStatus, att_status));
+            } else {
+                //LOG_INFO("%s: ASP notifications enabled", ha->get_side_str());
+                ha->process_state = ProcessState::EnBattNotification;
+                add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable));
+            }
+            break;
+        case EnBattNotification | ProcessBusy:
+            if (att_status != ATT_ERROR_SUCCESS) {
+                // Not fatal - just continue
+                add_event_to_buffer(ha->conn_id, EventPacket(EventType::MFIBatteryNotEnable, StatusType::ATTStatus, att_status));
+            } else {
+                add_event_to_buffer(ha->conn_id, EventPacket(EventType::MFIBatteryNotEnable));
+            }
             ha->process_state = ProcessState::Finalize;
-            add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable));
-        }
+            break;
     }
+    
 }
 
 void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
@@ -1090,6 +1153,11 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                     add_event_to_buffer(ha->conn_id, err_ev_pkt);
                     break;
             }
+        } else if (val_handle == ha->services.mfi.battery.value_handle) {
+            ha->battery_level = gatt_event_notification_get_value(packet)[0];
+            EventPacket ev_pkt(EventType::MfiBatteryRead);
+            ev_pkt.data.battery_level = ha->battery_level;
+            add_event_to_buffer(ha->conn_id, ev_pkt);
         }
     }
 }

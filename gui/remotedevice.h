@@ -64,6 +64,7 @@ public:
     void setAudioStreaming(bool audioStreaming);
     void setCurrVolume(int8_t currVol);
     void setG24KHz(bool enabled);
+    void setCurrBattery(uint8_t currBattery);
 
     void setDefaultValues();
     bool isDefaultValues();
@@ -92,6 +93,7 @@ private:
     QLabel m_l2CIDLabel;
     QLabel m_audioStreamingLabel;
     QLabel m_currVolumeLabel;
+    QLabel m_currBatteryLabel;
 
     bool greyedOut;
 };
