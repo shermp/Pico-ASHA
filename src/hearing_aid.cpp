@@ -59,46 +59,6 @@ static T get_val(const uint8_t *start)
     return val;
 }
 
-ROP::ROP()
-{}
-
-void ROP::read(const uint8_t* data)
-{
-    std::bitset<8>  device_cap{data[1]};
-    std::bitset<8>  feat_map{data[10]};
-    std::bitset<16> codecs{get_val<uint16_t>(&data[15])};
-
-    version = data[0];
-    side = device_cap[0] ? Side::Right : Side::Left;
-    mode = device_cap[1] ? Mode::Binaural : Mode::Mono;
-    csis_supported = device_cap[2];
-    id.manufacturer_id = get_val<uint16_t>(&data[2]);
-    memcpy(id.unique_id.data(), &data[4], id.unique_id.size());
-    le_coc_supported = feat_map[0];
-    render_delay = get_val<uint16_t>(&data[11]);
-    codec_16khz = codecs[1];
-    codec_24khz = codecs[2];
-
-    memcpy(raw_rop_data, data, sizeof raw_rop_data);
-}
-
-// void ROP::print_values()
-// {
-//     LOG_INFO("ROP -"
-//         " Side: %s,"
-//         " Mode: %s,"
-//         " M. ID: %04hx,"
-//         " Delay: %hu,"
-//         " 16KHz: %s,"
-//         " 24KHz: %s",
-//         (side == Side::Left ? "L" : "R"),
-//         (mode == Mode::Binaural ? "B" : "M"),
-//         id.manufacturer_id,
-//         render_delay,
-//         codec_16khz ? "Y" : "N",
-//         codec_24khz ? "Y" : "N");
-// }
-
 /* Public methods */
 
 HearingAid::HearingAid()
@@ -345,12 +305,13 @@ void HearingAid::on_serial_host_connected()
         memcpy(info.model_name, ha->model.data(), sizeof(info.model_name));
         memcpy(info.fw_vers, ha->fw_vers.data(), sizeof(info.fw_vers));
         memcpy(info.sw_vers, ha->sw_vers.data(), sizeof(info.sw_vers));
-        info.side = (ha->rop.side == Side::Left)  ? CSide::Left : 
-                    (ha->rop.side == Side::Right) ? CSide::Right
-                                                  : CSide::Unset;
-        info.mode = (ha->rop.mode == Mode::Binaural) ? CMode::Binaural :
-                    (ha->rop.mode == Mode::Mono)     ? CMode::Mono
-                                                     : CMode::Unset;
+        if (ha->rop) {
+            info.side = (ha->rop.side() == Side::Left) ? CSide::Left : CSide::Right;
+            info.mode = (ha->rop.mode() == Mode::Binaural) ? CMode::Binaural : CMode::Mono;
+        } else {
+            info.side = CSide::Unset;
+            info.mode = CMode::Unset;
+        }
         info.audio_streaming = ha->is_streaming();
         info.curr_vol = ha->curr_vol;
         info.curr_battery = ha->battery_level;
@@ -849,7 +810,7 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
             if (val_handle == ha->services.asha.rop.value_handle) {
                 //LOG_INFO("%s: ROP characteristic read", ha->get_side_str());
                 ha->rop.read(val);
-                ha->side_str = ha->rop.side == Side::Left ? "Left" : "Right";
+                ha->side_str = ha->rop.side() == Side::Left ? "Left" : "Right";
             } else if (val_handle == ha->services.asha.psm.value_handle) {
                 ha->psm = val[0];
                 //LOG_INFO("%s: PSM characteristic read: %d", ha->get_side_str(), ha->psm);
@@ -890,7 +851,7 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                         ha->disconnect();
                     } else {
                         EventPacket ev_pkt(EventType::ROPRead);
-                        memcpy(ev_pkt.data.rop, ha->rop.raw_rop_data, sizeof ev_pkt.data.rop);
+                        memcpy(ev_pkt.data.rop, ha->rop.raw_data, sizeof ev_pkt.data.rop);
                         add_event_to_buffer(ha->conn_id, ev_pkt);
                         ha->process_state = ReadPSM;
                     }
@@ -1203,7 +1164,7 @@ void HearingAid::process_audio()
                     ha->send_acp_stop();
                 } else {
                     // Send volume update if volume has changed
-                    int8_t v = ha->rop.side == Side::Left ? vol_l : vol_r;
+                    int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
                         ha->curr_vol = v;
                         short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
@@ -1237,8 +1198,8 @@ void HearingAid::process_audio()
 
                         ha->set_audio_busy();
 
-                        enum AshaAudioSide audio_side = ha->rop.side == Side::Left ? AshaAudioSide::AudioLeft
-                                                                                   : AshaAudioSide::AudioRight;
+                        enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
+                                                                                     : AshaAudioSide::AudioRight;
                         ha->audio_data = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
                         ++(ha->curr_read_index);
                         l2cap_request_can_send_now_event(ha->cid);
@@ -1298,14 +1259,14 @@ bool HearingAid::full_set_connected()
     bool have_left = false;
     bool have_right = false;
     for (auto ha : hearing_aids) {
-        if (ha->is_connected() && ha->rop.side != Side::Unset) {
-            if (ha->rop.mode == Mode::Mono) {
+        if (ha->is_connected() && ha->rop) {
+            if (ha->rop.mode() == Mode::Mono) {
                 have_left = true;
                 have_right = true;
                 break;
-            } else if (ha->rop.side == Side::Left) {
+            } else if (ha->rop.side() == Side::Left) {
                 have_left = true;
-            } else if (ha->rop.side == Side::Right) {
+            } else if (ha->rop.side() == Side::Right) {
                 have_right = true;
             }
         }
@@ -1483,7 +1444,7 @@ void HearingAid::reset()
 
 const char* HearingAid::get_side_str()
 {
-    return (rop.side == Side::Unset) ? bd_addr_to_str(addr) : side_str;
+    return (rop) ? bd_addr_to_str(addr) : side_str;
 }
 
 static void delete_paired_devices()
