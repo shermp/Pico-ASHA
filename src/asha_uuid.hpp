@@ -34,18 +34,62 @@ constexpr std::array<uint8_t, 16> uuid_from_str(const char uuid_str[37])
     return uuid;
 }
 
+struct UUID
+{
+    enum class UUIDType { UUID16, UUID128 };
+    const union UVar {
+        uint16_t u16;
+        std::array<uint8_t, 16> u128;
+
+        constexpr UVar(const uint16_t u) : u16(u) {};
+        constexpr UVar(std::array<uint8_t, 16> const& u) : u128(u) {};
+    } uuid;
+    const UUIDType type;
+
+    constexpr UUID(const uint16_t uuid_16) : uuid(uuid_16), type(UUIDType::UUID16) {}
+
+    // UUID(const uint8_t* uuid_128) {
+    //     memcpy(uuid.u128.data(), uuid_128, sizeof(uuid.u128));
+    //     type = UUIDType::UUID128;
+    // }
+
+    constexpr UUID(const char uuid_str[37]) : uuid(uuid_from_str(uuid_str)), type(UUIDType::UUID128) {}
+
+    constexpr bool operator==(UUID const& rhs) const {
+        switch (type) {
+            case UUIDType::UUID16:
+                return type == rhs.type && uuid.u16 == rhs.uuid.u16;
+            case UUIDType::UUID128:
+                return type == rhs.type && uuid.u128 == rhs.uuid.u128;
+            default:
+                return false;
+        }
+    }
+
+    constexpr bool operator==(const uint16_t rhs) const {
+        return type == UUIDType::UUID16 && uuid.u16 == rhs;
+    }
+
+    bool operator==(const uint8_t* rhs) const {
+        return type == UUIDType::UUID128 && memcmp(uuid.u128.data(), rhs, uuid.u128.size()) == 0;
+    }
+
+    constexpr size_t size() const {
+        return type == UUIDType::UUID128 ? uuid.u128.size() : sizeof(uuid.u16);
+    }
+};
+
 /* UUID's for the ASHA service and it's characteristics */
 namespace AshaUUID
 {
     // 16 bit ASHA service UUID, little endian
-    inline constexpr uint16_t service16 = 0xFDF0;
-
-    inline constexpr std::array<uint8_t, 16> service = uuid_from_str("0000FDF0-0000-1000-8000-00805F9B34FB");
-    inline constexpr std::array<uint8_t, 16> readOnlyProps = uuid_from_str("6333651e-c481-4a3e-9169-7c902aad37bb");
-    inline constexpr std::array<uint8_t, 16> audioControlPoint = uuid_from_str("f0d4de7e-4a88-476c-9d9f-1937b0996cc0");
-    inline constexpr std::array<uint8_t, 16> audioStatus = uuid_from_str("38663f1a-e711-4cac-b641-326b56404837");
-    inline constexpr std::array<uint8_t, 16> volume = uuid_from_str("00e4ca9e-ab14-41e4-8823-f9e70c7e91df");
-    inline constexpr std::array<uint8_t, 16> psm = uuid_from_str("2d410339-82b6-42aa-b34e-e2e01df8cc1a");
+    inline constexpr UUID service16(0xFDF0);
+    inline constexpr UUID service("0000FDF0-0000-1000-8000-00805F9B34FB");
+    inline constexpr UUID readOnlyProps("6333651e-c481-4a3e-9169-7c902aad37bb");
+    inline constexpr UUID audioControlPoint("f0d4de7e-4a88-476c-9d9f-1937b0996cc0");
+    inline constexpr UUID audioStatus("38663f1a-e711-4cac-b641-326b56404837");
+    inline constexpr UUID volume("00e4ca9e-ab14-41e4-8823-f9e70c7e91df");
+    inline constexpr UUID psm("2d410339-82b6-42aa-b34e-e2e01df8cc1a");
 }
 
 /* MFI hearing aid UUID. Not all devices advertise the ASHA service as
@@ -53,26 +97,23 @@ namespace AshaUUID
 
 namespace MfiUUID
 {
-    inline constexpr std::array<uint8_t, 16> service = uuid_from_str("7d74f4bd-c74a-4431-862c-cce884371592");
-    inline constexpr std::array<uint8_t, 16> battery = uuid_from_str("24e1dff3-ae90-41bf-bfbd-2cf8df42bf87");
+    inline constexpr UUID service("7d74f4bd-c74a-4431-862c-cce884371592");
+    inline constexpr UUID battery("24e1dff3-ae90-41bf-bfbd-2cf8df42bf87");
 }
 
 namespace GapUUID
 {
-    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_GENERIC_ACCESS;
-    constexpr uint16_t deviceName16 = ORG_BLUETOOTH_CHARACTERISTIC_GAP_DEVICE_NAME;
+    inline constexpr UUID service16(ORG_BLUETOOTH_SERVICE_GENERIC_ACCESS);
+    inline constexpr UUID deviceName16(ORG_BLUETOOTH_CHARACTERISTIC_GAP_DEVICE_NAME);
 }
 
 namespace DisUUID
 {
-    constexpr uint16_t service16 = ORG_BLUETOOTH_SERVICE_DEVICE_INFORMATION;
-    constexpr uint16_t mfgName = ORG_BLUETOOTH_CHARACTERISTIC_MANUFACTURER_NAME_STRING;
-    constexpr uint16_t modelNum = ORG_BLUETOOTH_CHARACTERISTIC_MODEL_NUMBER_STRING;
-    constexpr uint16_t fwVers = ORG_BLUETOOTH_CHARACTERISTIC_FIRMWARE_REVISION_STRING;
-    constexpr uint16_t swVers = ORG_BLUETOOTH_CHARACTERISTIC_SOFTWARE_REVISION_STRING;
+    inline constexpr UUID service16(ORG_BLUETOOTH_SERVICE_DEVICE_INFORMATION);
+    inline constexpr UUID mfgName(ORG_BLUETOOTH_CHARACTERISTIC_MANUFACTURER_NAME_STRING);
+    inline constexpr UUID modelNum(ORG_BLUETOOTH_CHARACTERISTIC_MODEL_NUMBER_STRING);
+    inline constexpr UUID fwVers(ORG_BLUETOOTH_CHARACTERISTIC_FIRMWARE_REVISION_STRING);
+    inline constexpr UUID swVers(ORG_BLUETOOTH_CHARACTERISTIC_SOFTWARE_REVISION_STRING);
 }
-
-inline bool uuid_eq(const uint8_t* u1, const uint8_t* u2) { return memcmp(u1, u2, sizeof(AshaUUID::service)) == 0; }
-inline bool uuid_eq(const uint8_t* u1, const std::array<uint8_t, 16>& u2) { return memcmp(u1, u2.data(), sizeof(AshaUUID::service)) == 0; }
 
 } // namespace asha
