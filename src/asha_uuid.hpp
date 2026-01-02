@@ -49,10 +49,13 @@ namespace AshaUUID
 }
 
 /* MFI hearing aid UUID. Not all devices advertise the ASHA service as
-   they should, but do advertise the MFI service.
-   
-   7d74f4bd-c74a-4431-862c-cce884371592 */
-inline constexpr std::array<uint8_t, 16> mfiUUID = uuid_from_str("7d74f4bd-c74a-4431-862c-cce884371592");
+   they should, but do advertise the MFI service. */
+
+namespace MfiUUID
+{
+    inline constexpr std::array<uint8_t, 16> service = uuid_from_str("7d74f4bd-c74a-4431-862c-cce884371592");
+    inline constexpr std::array<uint8_t, 16> battery = uuid_from_str("24e1dff3-ae90-41bf-bfbd-2cf8df42bf87");
+}
 
 namespace GapUUID
 {

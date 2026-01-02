@@ -27,6 +27,7 @@ void RemoteDevice::setRemoteInfo(const asha::comm::RemoteInfo &remote)
     setMode(remote.mode);
     setAudioStreaming(remote.audio_streaming);
     setCurrVolume(remote.curr_vol);
+    setCurrBattery(remote.curr_battery);
 }
 
 void RemoteDevice::setROPInfo(const char* rop)
@@ -166,6 +167,11 @@ void RemoteDevice::setG24KHz(bool enabled)
     m_cachedProps.g24kHZ = enabled;
 }
 
+void RemoteDevice::setCurrBattery(uint8_t currBattery)
+{
+    m_currBatteryLabel.setText(QString::number(currBattery));
+}
+
 void RemoteDevice::setDefaultValues()
 {
     setTitle("Side Unknown");
@@ -185,6 +191,7 @@ void RemoteDevice::setDefaultValues()
     m_l2CIDLabel.setText("0x00");
     m_audioStreamingLabel.setText("No");
     m_currVolumeLabel.setText("-128");
+    m_currBatteryLabel.setText("0");
 }
 
 bool RemoteDevice::isDefaultValues()
@@ -227,6 +234,7 @@ void RemoteDevice::setupUI()
     addRowToLayout("L2CAP CID", &m_l2CIDLabel);
     addRowToLayout("Audio Streaming", &m_audioStreamingLabel);
     addRowToLayout("Current Volume", &m_currVolumeLabel);
+    addRowToLayout("Current Battery", &m_currBatteryLabel);
 
     setLayout(&m_formLayout);
 }
