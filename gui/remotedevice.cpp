@@ -169,7 +169,8 @@ void RemoteDevice::setG24KHz(bool enabled)
 
 void RemoteDevice::setCurrBattery(uint8_t currBattery)
 {
-    m_currBatteryLabel.setText(QString::number(currBattery));
+    //m_currBatteryLabel.setText(QString::number(currBattery));
+    m_currBatteryBar.setValue(currBattery);
 }
 
 void RemoteDevice::setDefaultValues()
@@ -191,7 +192,7 @@ void RemoteDevice::setDefaultValues()
     m_l2CIDLabel.setText("0x00");
     m_audioStreamingLabel.setText("No");
     m_currVolumeLabel.setText("-128");
-    m_currBatteryLabel.setText("0");
+    m_currBatteryBar.setValue(0);
 }
 
 bool RemoteDevice::isDefaultValues()
@@ -234,7 +235,10 @@ void RemoteDevice::setupUI()
     addRowToLayout("L2CAP CID", &m_l2CIDLabel);
     addRowToLayout("Audio Streaming", &m_audioStreamingLabel);
     addRowToLayout("Current Volume", &m_currVolumeLabel);
-    addRowToLayout("Current Battery", &m_currBatteryLabel);
+
+    m_currBatteryBar.setRange(0, 10);
+    m_currBatteryBar.setFormat("%v/%m");
+    this->m_formLayout.addRow("Current Battery", &m_currBatteryBar);
 
     setLayout(&m_formLayout);
 }
