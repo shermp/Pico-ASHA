@@ -7,6 +7,7 @@
 #include <QString>
 #include <QLabel>
 #include <QFormLayout>
+#include <QProgressBar>
 #include "asha_comms.hpp"
 
 class RemoteDevice : public QGroupBox
@@ -93,7 +94,7 @@ private:
     QLabel m_l2CIDLabel;
     QLabel m_audioStreamingLabel;
     QLabel m_currVolumeLabel;
-    QLabel m_currBatteryLabel;
+    QProgressBar m_currBatteryBar;
 
     bool greyedOut;
 };
