@@ -114,7 +114,7 @@ When connected to Pico ASHA which is connected to hearing devices, the GUI looks
 ### Top section
 
 The top section shows some details about the connected hearing devices such as address, name, make, model 
-etc. It also shows the current streaming volume.
+etc. It also shows the current streaming volume as well as the battery level (out of 10).
 
 This section is purely informational.
 
