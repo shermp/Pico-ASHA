@@ -512,10 +512,12 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
             return;
         }
         if (rem) rem->setCurrBattery(pkt.data.battery_level);
+        break;
     case EventType::MFIBatteryNotEnable:
         if (checkError(header, pkt, "MFIBatteryNotEnable")) {
             return;
         }
+        break;
     case EventType::L2CAPCon:
         if (checkError(header, pkt, "L2CAPConnected")) {
             return;
