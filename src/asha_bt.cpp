@@ -194,6 +194,7 @@ static void process_serial_cmds()
                         watchdog_enable(250, true);
                     }
                 }
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;
