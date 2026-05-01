@@ -1151,6 +1151,13 @@ void HearingAid::process_audio()
                     && audio_streaming_enabled
                     && pcm_is_streaming
                     && ha->credits >= 4) {
+                        // Sync curr_vol with the host volume before ACPStart so the
+                        // start payload's volume byte reflects what the host is
+                        // currently asking for. Without this, the first ACPStart
+                        // after boot carries curr_vol's class default of -128 (the
+                        // ASHA mute sentinel) and some aids latch onto that initial
+                        // value, ignoring later writes to the volume characteristic.
+                        ha->curr_vol = ha->rop.side() == Side::Left ? vol_l : vol_r;
                         ha->set_audio_busy();
                         ha->send_acp_start();
                 }
