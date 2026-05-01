@@ -1144,10 +1144,13 @@ void HearingAid::process_audio()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                if ((!ha->other || !ha->other->stop_request_from_other) 
-                    && audio_streaming_enabled 
-                    && pcm_is_streaming 
-                    && ha->credits >= 8) {
+                // Require half the initial CoC credit window before resuming:
+                // enough headroom to start without forcing a full-window wait
+                // that can deadlock when credits idle below the ceiling.
+                if ((!ha->other || !ha->other->stop_request_from_other)
+                    && audio_streaming_enabled
+                    && pcm_is_streaming
+                    && ha->credits >= 4) {
                         ha->set_audio_busy();
                         ha->send_acp_start();
                 }
