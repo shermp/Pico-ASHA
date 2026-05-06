@@ -15,6 +15,12 @@ namespace asha
 
 constexpr int ha_process_delay_ticks = 500;
 
+// How long the audio loop is allowed to sit in Ready with the host
+// actively delivering audio but L2CAP credits stuck below the start
+// gate, before forcing a BLE reconnect to recover. Audio loop ticks
+// at 1 ms, so this is 3 seconds.
+constexpr uint32_t ready_stuck_timeout_ticks = 3000;
+
 enum class Side  {Left = 0, Right = 1};
 enum class Mode  {Mono = 0, Binaural = 1};
 enum class Codec {G722_16, G722_24};
@@ -186,6 +192,8 @@ private:
     /* L2CAP credit management */
 
     uint16_t credits = 0;
+    uint32_t zero_credits_cooldown = 0;
+    uint32_t ready_stuck_ticks = 0;
     int8_t curr_vol = -128;
 
     // Array to store current AudioControlPoint command packet
