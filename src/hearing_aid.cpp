@@ -1144,22 +1144,41 @@ void HearingAid::process_audio()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                // Require half the initial CoC credit window before resuming:
-                // enough headroom to start without forcing a full-window wait
-                // that can deadlock when credits idle below the ceiling.
+                // After a zero-credits stop, wait up to the cooldown window for
+                // credits to fully replenish before restarting; starting at low
+                // credit counts immediately re-drains and produces audible
+                // cycling. Falls through on timeout so we don't deadlock on aids
+                // that never grant back to the ceiling.
+                if (ha->zero_credits_cooldown > 0) {
+                    --ha->zero_credits_cooldown;
+                    if (ha->credits < 8) {
+                        break;
+                    }
+                }
                 if ((!ha->other || !ha->other->stop_request_from_other)
                     && audio_streaming_enabled
                     && pcm_is_streaming
                     && ha->credits >= 4) {
-                        // Sync curr_vol with the host volume before ACPStart so the
-                        // start payload's volume byte reflects what the host is
-                        // currently asking for. Without this, the first ACPStart
-                        // after boot carries curr_vol's class default of -128 (the
-                        // ASHA mute sentinel) and some aids latch onto that initial
-                        // value, ignoring later writes to the volume characteristic.
+                        // Sync curr_vol from the host volume so the start payload
+                        // reflects what the host is currently asking for. Without
+                        // this, curr_vol's class default of -128 (the ASHA mute
+                        // sentinel) gets baked into the first start after boot and
+                        // some aids latch onto it, ignoring later volume writes.
                         ha->curr_vol = ha->rop.side() == Side::Left ? vol_l : vol_r;
                         ha->set_audio_busy();
                         ha->send_acp_start();
+                        ha->ready_stuck_ticks = 0;
+                } else if (audio_streaming_enabled && pcm_is_streaming && ha->credits < 4) {
+                    // Aid wedged with credits stuck below the start gate. Only a
+                    // fresh L2CAP CoC channel resets the credit window, so force
+                    // a reconnect once the stuck timeout elapses.
+                    if (++ha->ready_stuck_ticks >= ready_stuck_timeout_ticks) {
+                        ha->ready_stuck_ticks = 0;
+                        short_log(ha->conn_id, "%s", "Ready state stuck, reconnecting");
+                        ha->disconnect();
+                    }
+                } else {
+                    ha->ready_stuck_ticks = 0;
                 }
                 break;
             case AudioState::Streaming:
@@ -1190,6 +1209,9 @@ void HearingAid::process_audio()
                     if (ha->curr_read_index < w_index) {
                         if (ha->credits == 0) {
                             short_log(ha->conn_id, "%s", "Zero credits");
+                            // Wait long enough for a slow aid to replenish before
+                            // attempting to restart; see the Ready branch above.
+                            ha->zero_credits_cooldown = 500;
                             if (ha->other && ha->other->is_streaming()) {
                                 ha->other->stop_request_from_other = true;
                             }
