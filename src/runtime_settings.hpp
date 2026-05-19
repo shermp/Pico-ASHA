@@ -31,6 +31,13 @@ struct RuntimeSettings
     bool set_full_set_paired(bool have_full_set);
     bool set_usb_settings(USBSettings const& settings);
 
+    // Store a pending setting in watchdog scratch registers so it can be
+    // written to TLV after the watchdog reboot, avoiding a race between the
+    // watchdog countdown and BTstack's own TLV writes.  Call immediately
+    // before watchdog_enable().
+    static void defer_hci_dump(bool enabled);
+    static void defer_usb_settings(USBSettings const& settings);
+
     explicit operator bool();
 
 private:
@@ -53,6 +60,7 @@ private:
     mutex_t mtx = {};
 
     void get_settings();
+    void apply_pending_scratch();
 
     template <typename T>
     bool get_tlv_tag(enum Tag tag, T& var) 
