@@ -2,6 +2,8 @@
 #include <pico/stdio.h>
 #include <pico/stdio_usb.h>
 
+#include <tusb.h>
+
 #include <etl/circular_buffer.h>
 #include <nanocobs/cobs.h>
 
@@ -218,8 +220,15 @@ namespace comm
         cobs_encode_inc(&enc_ctx, packet, incl_len);
         cobs_encode_inc_end(&enc_ctx, &enc_len);
 
-        stdio_put_string((const char*)cobs_enc_buff, enc_len + zero_prefix, false, false);
-        stdio_flush();
+        uint32_t total = enc_len + zero_prefix;
+        // Use tud_cdc_write() directly (non-blocking) instead of stdio_put_string().
+        // stdio_put_string() spin-waits up to 1 s when the 256-byte CDC TX ring
+        // buffer is full, stalling the BTstack run loop and causing the audio
+        // timer to miss ticks → "Stream fell behind" every ~100 ms.
+        // Dropping an HCI trace packet is acceptable; stalling audio is not.
+        if (tud_cdc_write_available() < total) return;
+        tud_cdc_write(cobs_enc_buff, total);
+        tud_cdc_write_flush();
     }
 
     void send_hci_message([[maybe_unused]] int log_level, 

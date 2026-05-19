@@ -1,14 +1,23 @@
 #include "runtime_settings.hpp"
 
+#include <hardware/structs/watchdog.h>
+
 #include "util.hpp"
 
 namespace asha
 {
 
+// Scratch-register encoding for deferred TLV writes across a watchdog reboot.
+// scratch[0] = command word; scratch[1..2] = packed data.
+// Scratch registers survive a watchdog reset but clear on power-on reset.
+static constexpr uint32_t SCRATCH_CMD_HCI_DUMP     = 0x41534801u; // 'A','S','H',1
+static constexpr uint32_t SCRATCH_CMD_USB_SETTINGS = 0x41534802u; // 'A','S','H',2
+
 void RuntimeSettings::init()
 {
     mutex_enter_blocking(&mtx);
     btstack_tlv_get_instance(&tlv_impl, &tlv_ctx);
+    apply_pending_scratch();
     get_settings();
     mutex_exit(&mtx);
 }
@@ -99,6 +108,47 @@ bool RuntimeSettings::set_usb_settings(USBSettings const &settings)
     }
     mutex_exit(&mtx);
     return res;
+}
+
+void RuntimeSettings::defer_hci_dump(bool enabled)
+{
+    watchdog_hw->scratch[0] = SCRATCH_CMD_HCI_DUMP;
+    watchdog_hw->scratch[1] = enabled ? 1u : 0u;
+}
+
+void RuntimeSettings::defer_usb_settings(USBSettings const& s)
+{
+    watchdog_hw->scratch[0] = SCRATCH_CMD_USB_SETTINGS;
+    // Pack uac_version (low 16 bits) and min_vol (high 16 bits) into scratch[1].
+    watchdog_hw->scratch[1] = (uint32_t)(uint16_t)s.uac_version
+                            | ((uint32_t)(uint16_t)s.min_vol << 16);
+    watchdog_hw->scratch[2] = (uint32_t)(uint16_t)s.max_vol;
+}
+
+// Called from init() after btstack_tlv_get_instance(), before get_settings().
+// Writes any deferred setting to TLV so get_settings() picks it up normally.
+void RuntimeSettings::apply_pending_scratch()
+{
+    switch (watchdog_hw->scratch[0]) {
+    case SCRATCH_CMD_HCI_DUMP: {
+        bool enabled = watchdog_hw->scratch[1] != 0u;
+        store_tlv_tag(Tag::HCIDump, enabled);
+        break;
+    }
+    case SCRATCH_CMD_USB_SETTINGS: {
+        USBSettings s;
+        s.uac_version = (uint16_t)(watchdog_hw->scratch[1] & 0xFFFFu);
+        s.min_vol     = (int16_t)(watchdog_hw->scratch[1] >> 16);
+        s.max_vol     = (int16_t)(watchdog_hw->scratch[2] & 0xFFFFu);
+        store_tlv_tag(Tag::USBSetting, s);
+        break;
+    }
+    default:
+        break;
+    }
+    watchdog_hw->scratch[0] = 0u;
+    watchdog_hw->scratch[1] = 0u;
+    watchdog_hw->scratch[2] = 0u;
 }
 
 } // namespace asha

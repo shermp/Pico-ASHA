@@ -159,9 +159,9 @@ static void process_serial_cmds()
         cmd_pkt.cmd_status = CmdStatus::CmdOk;
         switch (cmd_pkt.cmd) {
             case Command::HCIDump:
-                if (runtime_settings.set_hci_dump_enabled(cmd_pkt.data.enable_hci)) {
-                    //LOG_INFO("Enabling Watchdog");
-                    watchdog_enable(250, true);
+                if (runtime_settings.get_hci_dump_enabled() != cmd_pkt.data.enable_hci) {
+                    RuntimeSettings::defer_hci_dump(cmd_pkt.data.enable_hci);
+                    watchdog_enable(10, true);
                 }
                 break;
             case Command::DeletePair:
@@ -172,7 +172,7 @@ static void process_serial_cmds()
                 }
                 break;
             case Command::Restart:
-                watchdog_enable(250, true);
+                watchdog_enable(10, true);
                 break;
             case Command::AllowConnect:
                 HearingAid::set_connections_allowed(cmd_pkt.data.allow_connect);
@@ -190,8 +190,9 @@ static void process_serial_cmds()
                 {
                     USBInfo& info = cmd_pkt.data.usb_settings;
                     USBSettings settings = {.uac_version = info.uac_vers, .min_vol = info.min_vol, .max_vol = info.max_vol};
-                    if (settings && (settings != usb_settings) && runtime_settings.set_usb_settings(settings)) {
-                        watchdog_enable(250, true);
+                    if (settings && settings != runtime_settings.get_usb_settings()) {
+                        RuntimeSettings::defer_usb_settings(settings);
+                        watchdog_enable(10, true);
                     }
                 }
                 break;
@@ -246,6 +247,7 @@ void delay_start_timer_handler(btstack_timer_source_t *timer)
     if (runtime_settings.get_hci_dump_enabled() && !stdio_usb_connected()) {
         btstack_run_loop_set_timer(timer, 100);
         btstack_run_loop_add_timer(timer);
+        return;
     }
     // Set the process timer handler
     btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);
@@ -263,7 +265,6 @@ void delay_start_timer_handler(btstack_timer_source_t *timer)
     btstack_run_loop_add_timer(&auto_pair_timer);
 
     HearingAid::start_scan();
-
 }
 
 static void hci_event_handler(PACKET_HANDLER_PARAMS)
