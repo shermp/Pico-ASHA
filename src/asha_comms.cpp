@@ -220,12 +220,14 @@ namespace comm
         cobs_encode_inc(&enc_ctx, packet, incl_len);
         cobs_encode_inc_end(&enc_ctx, &enc_len);
 
+        // Write directly to CDC rather than via stdio_put_string(): the stdio
+        // path also writes to UART, where uart_putc() blocks on TX FIFO space
+        // at 115200 baud — at ~17 ms per 200-byte packet, this stalls core 1
+        // and causes the audio timer to miss ticks.
+        // This bypasses stdio_usb_mutex, creating a theoretical race if core 0
+        // calls tud_cdc_write() via stdio simultaneously. In practice core 0
+        // makes no stdio calls during audio streaming, so the risk is negligible.
         uint32_t total = enc_len + zero_prefix;
-        // Use tud_cdc_write() directly (non-blocking) instead of stdio_put_string().
-        // stdio_put_string() spin-waits up to 1 s when the 256-byte CDC TX ring
-        // buffer is full, stalling the BTstack run loop and causing the audio
-        // timer to miss ticks → "Stream fell behind" every ~100 ms.
-        // Dropping an HCI trace packet is acceptable; stalling audio is not.
         if (tud_cdc_write_available() < total) return;
         tud_cdc_write(cobs_enc_buff, total);
         tud_cdc_write_flush();
