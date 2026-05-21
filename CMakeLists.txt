@@ -28,6 +28,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Drop data immediately when the CDC TX buffer is full rather than stalling
+# core 1; DEADLOCK_TIMEOUT caps the mutex-wait as a secondary safety net.
+# Must precede pico_sdk_init() so the definitions reach pico_stdio_usb's
+# stdio_usb.c (target_compile_definitions on pico_asha would not).
+add_compile_definitions(
+    PICO_STDIO_USB_STDOUT_TIMEOUT_US=0
+    PICO_STDIO_DEADLOCK_TIMEOUT_MS=10
+)
+
 pico_sdk_init()
 
 message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
