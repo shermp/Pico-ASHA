@@ -395,6 +395,12 @@ void AdvertisingReport::check_if_ha(uint8_t length, const uint8_t * data)
                 }
             }
             break;
+        case BLUETOOTH_DATA_TYPE_SERVICE_DATA_16_BIT_UUID:
+            if (size >= 2 && little_endian_read_16(adv_data, 0) == AshaUUID::service16) {
+                //LOG_SCAN("ASHA 16 bit service data discovered");
+                is_hearing_aid = true;
+            }
+            break;
         case BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME:
         case BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME:
             name.clear();
