@@ -36,7 +36,7 @@ namespace comm
             orig_len = __builtin_bswap32(orig_len);
             incl_len = __builtin_bswap32(incl_len);
             pkt_flags = __builtin_bswap32(pkt_flags);
-            cuml_drops = __builtin_bswap32(pkt_flags);
+            cuml_drops = __builtin_bswap32(cuml_drops);
             ts_us = __builtin_bswap64(ts_us);
         }
     };
