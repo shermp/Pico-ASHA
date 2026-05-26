@@ -144,6 +144,7 @@ void PicoAshaComm::onHciLogActionBtnClicked()
         if (m_hciLogFile.isOpen()) {
             m_hciLogFile.close();
         }
+        m_hciLoggingEnabled = false;
         m_ui->setHciActionBtnStart(!m_hciLoggingPath.isEmpty());
         sendCommandPacket(
             {
