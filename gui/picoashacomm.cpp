@@ -16,8 +16,13 @@ constexpr int timer_interval = 1000;
 
 QMap<QByteArray, RemoteDevice::CachedProps> cached_remote_props;
 
-PicoAshaComm::PicoAshaComm(QObject *parent)
-    : QObject{parent}, m_serial(this), connect_timer(this), m_hciLoggingEnabled(false)
+PicoAshaComm::PicoAshaComm(QObject *parent) :
+    QObject{parent},
+    m_serial(this),
+    connect_timer(this),
+    m_serialConnected(false),
+    m_hciLoggingEnabled(false),
+    m_pairReqested(false)
 {
     m_ui = new PicoAshaMainWindow;
     m_ui->setHciActionBtnStart(false);
@@ -268,6 +273,7 @@ void PicoAshaComm::onUsbSettingsBtnClicked(const asha::comm::USBInfo &usb_info)
 
 void PicoAshaComm::onPairWithAddress(const QByteArray &addr, uint8_t addr_type)
 {
+    m_pairReqested = true;
     using namespace asha::comm;
     CmdPacket pkt = {
         .cmd = Command::PairBond,
@@ -312,8 +318,19 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
     //          << "\n";
 
     switch(header.type) {
-    case Type::Cmd:
+    case Type::Cmd: {
+        CmdPacket cmd;
+        if (!assert_packet_size(decoded.size(), "CmdPacket", cmd)) {
+            return;
+        }
+        memcpy(&cmd, decoded.constData() + sizeof header, sizeof cmd);
+        if (cmd.cmd_status == CmdStatus::CmdOk) {
+            if (cmd.cmd == Command::PairBond) {
+                m_pairReqested = false;
+            }
+        }
         break;
+    }
     case Type::Intro: {
         IntroPacket intro;
         if (!assert_packet_size(decoded.size(), "IntroPacket", intro)) {
@@ -334,7 +351,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setCmdBtnsEnabled(true);
         break;
     }
-    case Type::USBInfo:
+    case Type::USBInfo: {
         USBInfo usb_info;
         if (!assert_packet_size(decoded.size(), "USBInfo", usb_info)) {
             return;
@@ -344,6 +361,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setUSBInfo(usb_info);
         m_ui->setUSBWidgetsEnabled(true);
         break;
+    }
     case Type::Event: {
         EventPacket pkt(EventType::ShortLog);
         if (!assert_packet_size(decoded.size(), "EventPacket", pkt)) {
@@ -356,7 +374,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
     case Type::HCI:
         writeHciPacket(decoded.constData() + sizeof header, decoded.size() - sizeof header);
         break;
-    case Type::RemInfo:
+    case Type::RemInfo: {
         RemoteInfo info;
         if (!assert_packet_size(decoded.size(), "RemoteInfo", info)) {
             return;
@@ -365,7 +383,11 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         memcpy(&info, decoded.constData() + sizeof header, sizeof info);
         m_ui->addRemote(info);
         break;
-    case Type::Advert:
+    }
+    case Type::Advert: {
+        if (m_pairReqested) {
+            break;
+        }
         AdvertisingPacket ad;
         if (!assert_packet_size(decoded.size(), "AdvertisingPacket", ad)) {
             return;
@@ -374,6 +396,7 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         memcpy(&ad, decoded.constData() + sizeof header, sizeof ad);
         m_ui->onAdPacketReceived(ad);
         break;
+    }
     }
 }
 
