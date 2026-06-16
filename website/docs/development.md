@@ -35,7 +35,9 @@ cmake --build .
 
 ### Compile GUI
 
-A basic Qt GUI has been developed. You will need Qt6 development libraries (including qtserialport) available so that cmake can find it.
+A basic Qt GUI has been developed. You will need Qt6 development libraries (including qtserialport) available so that cmake can find it. 
+> If using Debian-based Linux, ensure the following packages (and their dependencies) are installed:
+>> qt6-base-dev libxcb-cursor0 libqt6serialport6-dev libxcb-xkb-dev libxkbcommon-dev libxkbfile-dev
 
 ```sh
 cd gui
