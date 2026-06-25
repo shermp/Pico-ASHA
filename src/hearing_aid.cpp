@@ -115,76 +115,22 @@ void HearingAid::process()
                 ha->set_process_busy();
                 ha->set_data_langth();
                 break;
-            case DiscoverASHAChar:
-                //LOG_INFO("%s: Discovering ASHA characteristics", ha->get_side_str());
-                ev_type = EventType::DiscASHAChar;
+            case DiscoverChars: {
                 ha->set_process_busy();
-                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.asha.service);
+                auto i = ha->service_index++; // Yes, the post-increment is on purpose
+                auto s = ha->service_arr[i];
+                ev_type = ha->service_ev_arr[i];
+                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, s);
                 break;
-            case ReadROP:
-                ev_type = EventType::ROPRead;
-                //LOG_INFO("%s: Read ROP characteristic", ha->get_side_str());
+            }
+            case ReadChars: {
                 ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.asha.rop);
+                auto i = ha->chars_index++; // Yes, the post-increment is on purpose
+                auto c = ha->chars_arr[i];
+                ev_type = ha->chars_ev_arr[i];
+                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, c);
                 break;
-            case ReadPSM:
-                ev_type = EventType::PSMRead;
-                //LOG_INFO("%s: Read PSM", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.asha.psm);
-                break;
-            case DiscoverGAPChar:
-                ev_type = EventType::DiscGAPChar;
-                //LOG_INFO("%s: Discover GAP characteristics", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.gap.service);
-                break;
-            case ReadDeviceName:
-                ev_type = EventType::DevNameRead;
-                //LOG_INFO("%s: Read device name", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.gap.device_name);
-                break;
-            case DiscoverDISChar:
-                ev_type = EventType::DiscDISChar;
-                //LOG_INFO("%s: Discover DIS characteristics", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.dis.service);
-                break;
-            case ReadMfgName:
-                ev_type = EventType::MfgRead;
-                //LOG_INFO("%s: Read manufacturer name", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.manufacture_name);
-                break;
-            case ReadModelNum:
-                ev_type = EventType::ModelRead;
-                //LOG_INFO("%s: Read model number", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.model_num);
-                break;
-            case ReadFWVers:
-                ev_type = EventType::FWRead;
-                //LOG_INFO("%s: Read FW version", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.fw_vers);
-                break;
-            case ReadSWVers:
-                ev_type = EventType::SWRead;
-                //LOG_INFO("%s: Read FW version", ha->get_side_str());
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.dis.sw_vers);
-                break;
-            case DiscoverMFIChar:
-                ev_type = EventType::DiscMFIChar;
-                ha->set_process_busy();
-                res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, &ha->services.mfi.service);
-                break;
-            case ReadBattery:
-                ev_type = EventType::MfiBatteryRead;
-                ha->set_process_busy();
-                res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, &ha->services.mfi.battery);
-                break;
+            }
             case ConnectL2CAP:
                 ev_type = EventType::L2CAPCon;
                 //LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
@@ -484,8 +430,7 @@ void HearingAid::on_data_len_set(hci_con_handle_t handle,
     // LOG_INFO("%s: DL set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
     //                     ha->get_side_str(),
     //                     rx_octets, rx_time, tx_octets, tx_time);    
-    
-    ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
+    ha->process_state = ProcessState::DiscoverChars;
 }
 
 void HearingAid::delete_pair()
@@ -747,41 +692,18 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
 
-            switch (ha->process_state) {
-                case DiscoverASHAChar | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error discovering ASHA characteristics: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DiscASHAChar, StatusType::ATTStatus, att_status));
-                        ha->disconnect();
-                    } else {
-                        ha->process_state = ReadROP;
-                    }
+            if (att_status != ATT_ERROR_SUCCESS) {
+                auto ev_type = ha->service_ev_arr[ha->service_index - 1];
+                add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::ATTStatus, att_status));
+                if (ev_type == EventType::DiscASHAChar) {
+                    ha->disconnect();
                     break;
-                case DiscoverGAPChar | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error discovering GAP characteristics: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DiscGAPChar, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    }
-                    ha->process_state = ReadDeviceName;
-                    break;
-                case DiscoverDISChar | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error discovering DIS characteristics: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DiscDISChar, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    }
-                    ha->process_state = ReadMfgName;
-                    break;
-                case DiscoverMFIChar | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DiscMFIChar, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    }
-                    ha->process_state = ReadBattery;
-                    break;
-                default:
-                    break;
+                }
+            }
+            if (ha->service_index < ha->service_arr.size()) {
+                ha->process_state = DiscoverChars;
+            } else {
+                ha->process_state = ReadChars;
             }
             break;
     }
@@ -838,112 +760,66 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
                 ha->battery_level = val[0];
             }
             break;
-        case GATT_EVENT_QUERY_COMPLETE:
+
+        case GATT_EVENT_QUERY_COMPLETE: {
             handle = gatt_event_query_complete_get_handle(packet);
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
 
-            switch (ha->process_state) {
-                case ReadROP | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading ROP characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ROPRead, StatusType::ATTStatus, att_status));
-                        ha->disconnect();
-                    } else {
-                        EventPacket ev_pkt(EventType::ROPRead);
-                        memcpy(ev_pkt.data.rop, ha->rop.raw_data, sizeof ev_pkt.data.rop);
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                        ha->process_state = ReadPSM;
-                    }
+            auto ev_type = ha->chars_ev_arr[ha->chars_index - 1];
+
+            if (att_status != ATT_ERROR_SUCCESS) {
+                add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::ATTStatus, att_status));
+                if (ev_type == EventType::ROPRead || ev_type == EventType::PSMRead) {
+                    ha->disconnect();
                     break;
-                case ReadPSM | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading PSM characteristics %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::PSMRead, StatusType::ATTStatus, att_status));
-                        ha->disconnect();
-                    } else {
-                        EventPacket ev_pkt(EventType::PSMRead);
-                        ev_pkt.data.psm = ha->psm;
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                        ha->process_state = ha->cached ? ReadBattery : DiscoverGAPChar;
-                    }
+                }
+            }
+            EventPacket ev_pkt(ev_type);
+            switch (ev_type) {
+                case EventType::ROPRead:
+                    memcpy(ev_pkt.data.rop, ha->rop.raw_data, sizeof ev_pkt.data.rop);
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadDeviceName | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading device name characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::DevNameRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::DevNameRead);
-                        ev_pkt.set_data_str("%s", ha->device_name.c_str());
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = DiscoverDISChar;
+                case EventType::PSMRead:
+                    ev_pkt.data.psm = ha->psm;
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadMfgName | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading manufacturer name characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::MfgRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::MfgRead);
-                        ev_pkt.set_data_str("%s", ha->manufacturer.c_str());
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = ReadModelNum;
+                case EventType::DevNameRead:
+                    ev_pkt.set_data_str("%s", ha->device_name.c_str());
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadModelNum | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading model number characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ModelRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::ModelRead);
-                        ev_pkt.set_data_str("%s", ha->model.c_str());
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = ReadFWVers;
+                case EventType::MfgRead:
+                    ev_pkt.set_data_str("%s", ha->manufacturer.c_str());
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadFWVers | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::FWRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::FWRead);
-                        ev_pkt.set_data_str("%s", ha->fw_vers.c_str());
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = ReadSWVers;
+                case EventType::ModelRead:
+                    ev_pkt.set_data_str("%s", ha->model.c_str());
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadSWVers | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::SWRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::SWRead);
-                        ev_pkt.set_data_str("%s", ha->sw_vers.c_str());
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = DiscoverMFIChar;
+                case EventType::FWRead:
+                    ev_pkt.set_data_str("%s", ha->fw_vers.c_str());
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
-                case ReadBattery | ProcessBusy:
-                    if (att_status != ATT_ERROR_SUCCESS) {
-                        //LOG_ERROR("%s: Error reading FW version characteristic: %s", ha->get_side_str(), att_err_str(att_status));
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::MfiBatteryRead, StatusType::ATTStatus, att_status));
-                        // Not a fatal error
-                    } else {
-                        EventPacket ev_pkt(EventType::MfiBatteryRead);
-                        ev_pkt.data.battery_level = ha->battery_level;
-                        add_event_to_buffer(ha->conn_id, ev_pkt);
-                    }
-                    ha->process_state = ConnectL2CAP;
+                case EventType::SWRead:
+                    ev_pkt.set_data_str("%s", ha->sw_vers.c_str());
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
+                    break;
+                case EventType::MfiBatteryRead:
+                    ev_pkt.data.battery_level = ha->battery_level;
+                    add_event_to_buffer(ha->conn_id, ev_pkt);
                     break;
                 default:
                     break;
             }
+
+            if (ha->chars_index < ha->chars_arr.size()) {
+                ha->process_state = ReadChars;
+            } else {
+                ha->process_state = ConnectL2CAP;
+            }
             break;
+        }
         default:
             break;
     }
@@ -1461,6 +1337,9 @@ void HearingAid::reset()
     paired_and_bonded = false;
     process_delay_ticks = 0;
     error_count = 0;
+    service_index = 0;
+    chars_index = cached_chars_index;
+    
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
         device_name.clear();
@@ -1471,6 +1350,7 @@ void HearingAid::reset()
         rop = {};
         side_str = "Unknown";
         services = {};
+        chars_index = 0;
     }
 }
 

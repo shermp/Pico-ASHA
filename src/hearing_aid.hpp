@@ -56,30 +56,20 @@ struct HearingAid
         DiscoverServices    = 1U <<  1,
         PairBond            = 1U <<  2,
         DataLength          = 1U <<  3,
-        DiscoverASHAChar    = 1U <<  4,
-        ReadROP             = 1U <<  5,
-        ReadPSM             = 1U <<  6,
-        DiscoverGAPChar     = 1U <<  7,
-        ReadDeviceName      = 1U <<  8,
-        DiscoverDISChar     = 1U <<  9,
-        ReadMfgName         = 1U << 10,
-        ReadModelNum        = 1U << 11,
-        ReadFWVers          = 1U << 12,
-        ReadSWVers          = 1U << 13,
-        DiscoverMFIChar     = 1U << 14,
-        ReadBattery         = 1U << 15,
-        ConnectL2CAP        = 1U << 16,
-        EnBattNotification  = 1U << 17,
-        EnASPNotification   = 1U << 18,
-        Finalize            = 1U << 19,
-        Audio               = 1U << 20,
+        DiscoverChars       = 1U <<  4,
+        ReadChars           = 1U <<  5,
+        ConnectL2CAP        = 1U <<  6,
+        EnBattNotification  = 1U <<  7,
+        EnASPNotification   = 1U <<  8,
+        Finalize            = 1U <<  9,
+        Audio               = 1U << 10,
         Disconnect          = 1U << 29,
         Done                = 1U << 30,
         ProcessBusy         = 1U << 31
     };
 
     enum AudioState : uint32_t {
-        AudioUnset               = 1U <<  0,
+        AudioUnset          = 1U <<  0,
         Ready               = 1U <<  1,
         Start               = 1U <<  2,
         Streaming           = 1U <<  3,
@@ -189,6 +179,33 @@ private:
         } mfi = {};
     } services = {};
 
+    std::array<gatt_client_service_t*, 4> service_arr = {
+        &services.gap.service,
+        &services.dis.service,
+        &services.asha.service,
+        &services.mfi.service
+    };
+    std::array<comm::EventType, 4> service_ev_arr = {
+        comm::EventType::DiscGAPChar, comm::EventType::DiscDISChar, comm::EventType::DiscASHAChar, comm::EventType::DiscMFIChar,
+    };
+    size_t service_index = 0;
+
+    std::array<gatt_client_characteristic_t*, 8> chars_arr = {
+        &services.gap.device_name,
+        &services.dis.manufacture_name,
+        &services.dis.model_num,
+        &services.dis.fw_vers,
+        &services.dis.sw_vers,
+        &services.asha.rop,
+        &services.asha.psm,
+        &services.mfi.battery,
+    };
+    std::array<comm::EventType, 8> chars_ev_arr = {
+        comm::EventType::DevNameRead, comm::EventType::MfgRead, comm::EventType::ModelRead, comm::EventType::FWRead,
+        comm::EventType::SWRead,      comm::EventType::ROPRead, comm::EventType::PSMRead,   comm::EventType::MfiBatteryRead,
+    };
+    size_t chars_index = 0;
+    constexpr static size_t cached_chars_index = 6;
     /* L2CAP credit management */
 
     uint16_t credits = 0;
