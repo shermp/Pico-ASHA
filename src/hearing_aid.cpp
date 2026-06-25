@@ -11,7 +11,7 @@ namespace asha
 /* Data length variables */
 static constexpr uint16_t pdu_len = 167u;
 
-static constexpr uint16_t max_tx_time = 1064;
+static constexpr uint16_t max_tx_time = (pdu_len + 14) * 8;
 
 static constexpr size_t ev_packet_str_size = sizeof comm::EventPacket::data.str;
 
@@ -549,7 +549,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
                 case ERROR_CODE_SUCCESS:
                     //LOG_INFO("%s: Pairing complete", ha->get_side_str());;
                     ha->paired_and_bonded = true;
-                    ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
+                    ha->process_state = ProcessState::DataLength;
                     add_event_to_buffer(ha->conn_id, EventPacket(EventType::PairAndBond));
                     break;
                 case ERROR_CODE_CONNECTION_TIMEOUT:
@@ -597,7 +597,7 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
                 case ERROR_CODE_SUCCESS:
                     //LOG_INFO("%s: Reencryption succeeded", ha->get_side_str());
                     ha->paired_and_bonded = true;
-                    ha->process_state = ha->cached ? ProcessState::ReadPSM : ProcessState::DiscoverASHAChar;
+                    ha->process_state = ProcessState::DataLength;
                     comm::add_event_to_buffer(ha->conn_id, EventPacket(EventType::PairAndBond));
                     break;
                 case ERROR_CODE_PIN_OR_KEY_MISSING:
