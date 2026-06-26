@@ -964,7 +964,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                 case ASPStatus::ok:
                     if (ha->audio_state == AudioState::Start) {
                         //LOG_INFO("%s: Audio start OK", ha->get_side_str());
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStart));
+                        // add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStart));
                         ha->audio_state = AudioState::Streaming;
                         asha_audio_set_encoding_enabled(true);
                         if (ha->other && ha->other->is_streaming()) {
@@ -973,7 +973,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                         ha->first_audio_send = true;
                     } else if (ha->audio_state == AudioState::Stop) {
                         //LOG_INFO("%s: Audio stop OK", ha->get_side_str());
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStop));
+                        // add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStop));
 
                         ha->stop_request_from_other = false;
                         ha->audio_state = AudioState::Ready;
@@ -1074,7 +1074,7 @@ bool HearingAid::process_audio()
                     int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
                         ha->curr_vol = v;
-                        short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
+                        // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
                         ha->send_volume(ha->curr_vol);
                     }
                     if (w_index == 0) {
