@@ -999,7 +999,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
     }
 }
 
-void HearingAid::process_audio()
+bool HearingAid::process_audio()
 {
     using namespace comm;
 
@@ -1014,6 +1014,8 @@ void HearingAid::process_audio()
     bool pcm_is_streaming = asha_audio_get_pcm_streaming_enabled();
 
     asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
+
+    bool enable_process_delay = false;
 
     for (auto ha : hearing_aids) {
         if (ha->process_state != ProcessState::Audio) { continue; }
@@ -1111,6 +1113,7 @@ void HearingAid::process_audio()
                         ha->audio_data = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
                         ++(ha->curr_read_index);
                         l2cap_request_can_send_now_event(ha->cid);
+                        enable_process_delay = true;
                     }
                 }
                 break;
@@ -1118,6 +1121,7 @@ void HearingAid::process_audio()
                 break;
         }
     }
+    return enable_process_delay;
 }
 
 /* Private methods */

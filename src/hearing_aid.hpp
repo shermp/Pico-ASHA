@@ -145,7 +145,7 @@ struct HearingAid
     static void handle_l2cap_cbm(PACKET_HANDLER_PARAMS);
     static void handle_notification_reg(PACKET_HANDLER_PARAMS);
     static void handle_gatt_notification(PACKET_HANDLER_PARAMS);
-    static void process_audio();
+    static bool process_audio();
 
 private:
     /* GATT structures */

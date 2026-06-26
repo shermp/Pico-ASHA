@@ -45,11 +45,9 @@ static gatt_client_notification_t notification_listener = {};
 
 static void hci_event_handler(PACKET_HANDLER_PARAMS);
 
-constexpr btstack_time_t ha_process_interval_ms = 2;
-static btstack_timer_source_t process_timer = {};
-static void process_timer_handler(btstack_timer_source_t * timer);
 
 constexpr btstack_time_t ha_audio_interval_ms = 1;
+static int process_delay = 0;
 static btstack_timer_source_t audio_timer = {};
 
 static hci_dump_t pa_hci_dump_impl = {
@@ -204,10 +202,21 @@ static void process_serial_cmds()
     }
 }
 
-static void process_timer_handler(btstack_timer_source_t* timer)
+static void audio_timer_handler(btstack_timer_source_t* timer)
 {
-    btstack_run_loop_set_timer(timer, ha_process_interval_ms);
+    btstack_run_loop_set_timer(timer, ha_audio_interval_ms);
     btstack_run_loop_add_timer(timer);
+
+    // First process audio
+    if (HearingAid::process_audio()) {
+        // if audio is sent to HA, delay other processing
+        process_delay = 5;
+    }
+
+    if (process_delay > 0) {
+        --process_delay;
+        return;
+    }
 
     process_serial_cmds();
     if (stdio_usb_connected()) {
@@ -223,14 +232,6 @@ static void process_timer_handler(btstack_timer_source_t* timer)
         comm::try_send_events();
     }
     HearingAid::process();
-}
-
-static void audio_timer_handler(btstack_timer_source_t* timer)
-{
-    btstack_run_loop_set_timer(timer, ha_audio_interval_ms);
-    btstack_run_loop_add_timer(timer);
-
-    HearingAid::process_audio();
 }
 
 static void auto_pair_timer_handler([[maybe_unused]] btstack_timer_source_t * timer)
@@ -249,10 +250,6 @@ void delay_start_timer_handler(btstack_timer_source_t *timer)
         btstack_run_loop_add_timer(timer);
         return;
     }
-    // Set the process timer handler
-    btstack_run_loop_set_timer_handler(&process_timer, &process_timer_handler);
-    btstack_run_loop_set_timer(&process_timer, ha_process_interval_ms);
-    btstack_run_loop_add_timer(&process_timer);
 
     // Set the audio timer handler
     btstack_run_loop_set_timer_handler(&audio_timer, &audio_timer_handler);
