@@ -16,14 +16,6 @@ Create an environment variable called `PICO_SDK_PATH` that points to the downloa
 
     As of Pico SDK 2.2.0, the BT firmware has been updated to support DLE. 
 
-
-Pico-ASHA requires TinyUSB 0.20.0, which is newer than the TinyUSB included in the Pico SDK. There are two options to obtain this:
-
-1. Update the TinyUSB submodule in the SDK:
-    `cd pico-sdk/lib/tinyusb`
-    `git pull && git checkout 0.20.0`
-2. Download/clone TinyUSB to a separate directory and pass `-DPICO_TINYUSB_PATH=<path>` to cmake.
-
 Build pico-asha
 
 ```sh
