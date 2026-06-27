@@ -43,6 +43,12 @@ namespace asha
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
     _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VENDOR, 5) )
 
+#if CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX == 16
+static uint16_t device_vers = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_settings.uac_version);
+#else
+static uint16_t device_vers = static_cast<uint16_t>(static_cast<uint16_t>(0x0500) | usb_settings.uac_version);
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -61,7 +67,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_settings.uac_version),
+    .bcdDevice          = device_vers,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
