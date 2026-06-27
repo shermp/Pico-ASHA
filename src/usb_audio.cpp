@@ -45,7 +45,7 @@ namespace asha
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 
-static uint32_t current_sample_rate  = 16000;
+static uint32_t current_sample_rate  = CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX * 1000;
 
 // Audio controls
 // Current states
@@ -295,7 +295,7 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 
 // List of supported sample rates for UAC2
-const uint32_t sample_rates[] = {16000};
+const uint32_t sample_rates[] = {CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_HS};
 
 #define N_SAMPLE_RATES TU_ARRAY_SIZE(sample_rates)
 
