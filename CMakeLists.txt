@@ -16,6 +16,20 @@ set(PICO_BOARD pico_w CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.13)
 
+# Get External projects here before importing the SDK
+Include(FetchContent)
+
+# TinyUSB 0.20.0
+FetchContent_Declare(
+  tinyusb
+  GIT_REPOSITORY https://github.com/hathach/tinyusb
+  GIT_TAG        3af1bec1a9161ee8dec29487831f7ac7ade9e189
+)
+FetchContent_MakeAvailable(tinyusb)
+
+SET(PICO_TINYUSB_PATH "${tinyusb_SOURCE_DIR}")
+
+
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_C_FLAGS_RELEASE "-O2")
 
@@ -43,8 +57,6 @@ message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
 if(PICO_SDK_VERSION_STRING VERSION_LESS "2.2.0")
   message( FATAL_ERROR "Pico SDK version must be 2.2.0 or greater" )
 endif()
-
-Include(FetchContent)
 
 FetchContent_Declare(
   etl

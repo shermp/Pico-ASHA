@@ -34,15 +34,6 @@ jobs:
                 ref: "${{ env.PICO_SDK_COMMIT_HASH }}"
                 fetch-depth: "0"
 
-            - name: Checkout TinyUSB
-              uses: actions/checkout@v6
-              with:
-                repository: hathach/tinyusb
-                path: tinyusb
-                submodules: recursive
-                ref: "${{ env.TINYUSB_TAG }}"
-                fetch-depth: "0"
-
             - name: Install dependencies
               run: |
                 sudo apt-get update && sudo apt-get -y install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
@@ -53,7 +44,6 @@ jobs:
                 cd pico-asha/build/${{ matrix.board }}
                 cmake \
                   -DPICO_SDK_PATH=${{github.workspace}}/pico-sdk \
-                  -DPICO_TINYUSB_PATH=${{github.workspace}}/tinyusb \
                   -DCMAKE_BUILD_TYPE=MinSizeRel \
                   -DPICO_BOARD=${{ matrix.board }} \
                   ../..
