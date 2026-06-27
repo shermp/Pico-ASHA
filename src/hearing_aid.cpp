@@ -112,8 +112,15 @@ void HearingAid::process()
             case DataLength:
                 ev_type = EventType::DLE;
                 //LOG_INFO("%s: Setting data length",  ha->get_side_str())
-                ha->set_process_busy();
+                // If the controller can't take the command yet, yield and retry on
+                // the next tick rather than spinning the run loop. Advance to
+                // discovery right after sending: the controller only emits
+                // HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE when the effective length
+                // actually changes, so an aid already at the requested size would
+                // never fire it and we'd stall waiting.
+                if (!hci_can_send_command_packet_now()) { break; }
                 ha->set_data_langth();
+                ha->process_state = DiscoverChars;
                 break;
             case DiscoverChars: {
                 ha->set_process_busy();
@@ -424,13 +431,14 @@ void HearingAid::on_data_len_set(hci_con_handle_t handle,
 {
     HearingAid* ha = get_by_con_handle(handle);
 
-    // The data length is automatically changed when DLE is enabled, so ignore that case
-    if (ha->process_state != (ProcessState::DataLength | ProcessState::ProcessBusy)) { return; }
-
+    // DLE changes are handled asynchronously: the DataLength process state issues
+    // the set-data-length command and advances to DiscoverChars itself, rather than
+    // waiting on this event (which the controller doesn't emit when the effective
+    // data length is unchanged). This handler is now informational only.
+    (void)ha;
     // LOG_INFO("%s: DL set to: RX Octets: %hu, RX Time: %hu us, TX Octets: %hu, TX Time: %hu us",
     //                     ha->get_side_str(),
-    //                     rx_octets, rx_time, tx_octets, tx_time);    
-    ha->process_state = ProcessState::DiscoverChars;
+    //                     rx_octets, rx_time, tx_octets, tx_time);
 }
 
 void HearingAid::delete_pair()
@@ -1236,12 +1244,7 @@ void HearingAid::unset_audio_busy()
 
 void HearingAid::set_data_langth()
 {
-    while (1) {
-        if (hci_can_send_command_packet_now()) {
-            hci_send_cmd(&hci_le_set_data_length, conn_handle, pdu_len, max_tx_time);
-            break;
-        }
-    }
+    hci_send_cmd(&hci_le_set_data_length, conn_handle, pdu_len, max_tx_time);
 }
 
 void HearingAid::send_acp_start()
