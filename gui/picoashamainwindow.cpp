@@ -17,7 +17,6 @@ static QString widgetNameFromConnID(uint16_t connID)
 PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    m_currPairDlg = nullptr;
     m_mainWidget = new QWidget;
     auto mainVBox = new QVBoxLayout;
 
@@ -38,6 +37,18 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     remoteHBox->addStretch(1);
     m_remoteFrame->setLayout(remoteHBox);
     mainVBox->addWidget(m_remoteFrame);
+
+    auto pairGroup = new QGroupBox("Device Pairing");
+    auto pairLayout = new QHBoxLayout;
+    m_adCombo = new QComboBox;
+    m_pairBtn = new QPushButton("Pair");
+    m_pairBtn->setEnabled(false);
+    pairLayout->addWidget(m_adCombo);
+    pairLayout->addWidget(m_pairBtn);
+    pairLayout->setStretch(0, 1);
+    pairLayout->setStretch(1, 0);
+    pairGroup->setLayout(pairLayout);
+    mainVBox->addWidget(pairGroup);
 
     auto cmdGroup = new QGroupBox("Send Commands");
     auto cmdLayout = new QHBoxLayout;
@@ -107,6 +118,19 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     usbGroup->setLayout(usbLayout);
     mainVBox->addWidget(usbGroup);
 
+    QObject::connect(m_pairBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
+        auto selection = m_adCombo->currentText();
+        if (selection != "") {
+            auto addrHex = selection.sliced(0, 17);
+            if (m_adMap.contains(addrHex)) {
+                auto a = m_adMap.value(addrHex);
+                emit pairWithAddress(a.addr, a.addr_type);
+                m_adMap.clear();
+                m_adCombo->clear();
+                m_pairBtn->setEnabled(false);
+            }
+        }
+    });
 
     QObject::connect(m_cmdRestartBtn, &QPushButton::clicked, this, &PicoAshaMainWindow::cmdRestartBtnClicked);
     QObject::connect(m_cmdConnAllowedBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
@@ -348,19 +372,15 @@ void PicoAshaMainWindow::setHciActionBtnStop(bool enabled)
 
 void PicoAshaMainWindow::onAdPacketReceived(const asha::comm::AdvertisingPacket &ad_pkt)
 {
-    if (!m_currPairDlg) {
-        m_currPairDlg = new PairDialog(this);
-        QObject::connect(m_currPairDlg, &PairDialog::addressSelected, this, &PicoAshaMainWindow::pairWithAddress);
-        QObject::connect(m_currPairDlg, &PairDialog::accepted, this, &PicoAshaMainWindow::onPairDialogAcceptedRejected);
-        m_currPairDlg->open();
-    }
-    m_currPairDlg->setAdPacket(ad_pkt);
-}
-
-void PicoAshaMainWindow::onPairDialogAcceptedRejected()
-{
-    m_currPairDlg->deleteLater();
-    m_currPairDlg = nullptr;
+    // if (!m_currPairDlg) {
+    //     m_currPairDlg = new PairDialog(this);
+    //     QObject::connect(m_currPairDlg, &PairDialog::addressSelected, this, &PicoAshaMainWindow::pairWithAddress);
+    //     QObject::connect(m_currPairDlg, &PairDialog::accepted, this, &PicoAshaMainWindow::onPairDialogAcceptedRejected);
+    //     QObject::connect(m_currPairDlg, &PairDialog::rejected, this, &PicoAshaMainWindow::onPairDialogAcceptedRejected);
+    //     m_currPairDlg->open();
+    // }
+    // m_currPairDlg->setAdPacket(ad_pkt);
+    setAdPacket(ad_pkt);
 }
 
 asha::comm::USBInfo PicoAshaMainWindow::fromUsbWidgets()
@@ -369,6 +389,49 @@ asha::comm::USBInfo PicoAshaMainWindow::fromUsbWidgets()
     auto min_vol = static_cast<int16_t>(m_USBVolMinSpin->value() * 96);
     auto max_vol = static_cast<int16_t>(m_USBVolMaxSpin->value() * 96);
     return {.uac_vers = uac_ver, .min_vol = min_vol, .max_vol = max_vol, .reserved = 0U};
+}
+
+void PicoAshaMainWindow::setAdPacket(const asha::comm::AdvertisingPacket &ad_pkt)
+{
+    QByteArray addr = QByteArray((const char*)ad_pkt.addr, sizeof(ad_pkt.addr));
+    QString addrStr = addr.toHex(':');
+    if (m_adMap.contains(addrStr)) {
+        QString name = ad_pkt.name;
+        bool updateList = false;
+        auto a = m_adMap.value(addrStr);
+        // if (a.rssi != ad_pkt.rssi) {
+        //     updateList = true;
+        //     a.rssi = ad_pkt.rssi;
+        // }
+        if (ad_pkt.is_ha && !a.is_ha) {
+            updateList = true;
+            a.is_ha = true;
+        }
+        if (a.name.isEmpty() && !name.isEmpty()) {
+            updateList = true;
+            a.name = ad_pkt.name;
+        }
+        if (updateList) {
+            auto index = m_adCombo->findText(addrStr, Qt::MatchStartsWith);
+            if (index >= 0) {
+                m_adCombo->setItemText(index, QString("%1 (%2)").arg(addrStr).arg(a.name));
+            }
+        }
+    } else {
+        AdDetails a;
+        a.addr = addr;
+        a.addr_type = ad_pkt.addr_type;
+        a.rssi = ad_pkt.rssi;
+        a.is_ha = ad_pkt.is_ha;
+        a.name = ad_pkt.name;
+        if (a.is_ha) {
+            m_adMap[addrStr] = a;
+            m_adCombo->addItem(QString("%1 (%2)").arg(addrStr).arg(a.name));
+        }
+    }
+    if (m_adCombo->count() > 0) {
+        m_pairBtn->setEnabled(true);
+    }
 }
 
 void PicoAshaMainWindow::onSerialConnected(bool connected)

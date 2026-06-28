@@ -68,6 +68,8 @@ private:
 
     QString m_errMsg;
 
+    bool m_pairReqested;
+
 signals:
 
     void paFirmwareVersChanged();

@@ -9,10 +9,18 @@
 #include <QList>
 #include <QComboBox>
 #include <QSpinBox>
+#include <QMap>
 
 #include "remotedevice.h"
-#include "pairdialog.h"
 #include "asha_comms.hpp"
+
+struct AdDetails {
+    QByteArray addr;
+    uint8_t addr_type;
+    uint8_t rssi;
+    bool is_ha;
+    QString name;
+};
 
 class PicoAshaMainWindow : public QMainWindow
 {
@@ -50,9 +58,6 @@ public:
 
     void onAdPacketReceived(asha::comm::AdvertisingPacket const& ad_pkt);
 
-public slots:
-    void onPairDialogAcceptedRejected();
-
 signals:
     void hciLogPathChanged(QString const& path);
     void hciLogActionBtnClicked();
@@ -70,6 +75,10 @@ private:
     QLabel* m_serialConnectedStatus;
     QList<RemoteDevice*> m_remotes;
 
+    QMap<QString, AdDetails> m_adMap;
+    QComboBox* m_adCombo;
+    QPushButton* m_pairBtn;
+
     QPushButton* m_cmdRestartBtn;
     QPushButton* m_cmdConnAllowedBtn;
     QPushButton* m_cmdStreamingEnabledBtn;
@@ -84,14 +93,14 @@ private:
     QPushButton* m_hciPathBtn;
     QLabel* m_hciPathLbl;
 
-    PairDialog* m_currPairDlg;
-
     bool m_serialConnected;
     bool m_connectionsAllowed;
     bool m_streamingEnabled;
 
     asha::comm::USBInfo m_usbInfo;
     asha::comm::USBInfo fromUsbWidgets();
+
+    void setAdPacket(asha::comm::AdvertisingPacket const& ad_pkt);
 };
 
 #endif // PICOASHAMAINWINDOW_H

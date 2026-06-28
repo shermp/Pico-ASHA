@@ -26,8 +26,8 @@ qt_add_executable(PicoASHAGui
     ../lib/nanocobs/cobs.c
     picoashamainwindow.h 
     picoashamainwindow.cpp
-    pairdialog.h 
-    pairdialog.cpp
+
+
 )
 
 target_include_directories(PicoASHAGui PUBLIC "${ASHA_COMM_INCLUDE_PATH}" "${ASHA_COMM_LIB_PATH}")
