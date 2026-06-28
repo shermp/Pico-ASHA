@@ -111,7 +111,7 @@ extern "C" {
 
 // 16bit data in 16bit slots
 #define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX      2
-#define CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX              16
+#define CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX              48
 
 // UAC1 Full-Speed endpoint size
 #define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_FS     (CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX * 1000)

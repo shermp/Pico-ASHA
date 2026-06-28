@@ -52,8 +52,13 @@ static uint32_t current_sample_rate  = CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX * 1000
 static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for master channel 0
 static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for master channel 0
 
-// Buffer for speaker data
-static int16_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2] = {};
+// Buffer for speaker data, can support up to 48KHz
+static int16_t spk_buf[48 * 2] = {};
+static int16_t spk_buf_16khz[ASHA_PCM_STEREO_PACKET_SIZE];
+
+constexpr int spk_data_size_16 = ASHA_PCM_STEREO_PACKET_SIZE * 2;
+constexpr int spk_data_size_48 = 48 * sizeof(int16_t) * 2;
+
 // Speaker data size received in the last frame
 static volatile int spk_data_size;
 
@@ -536,20 +541,32 @@ void audio_task(void)
     uint16_t s = spk_data_size;
     spk_data_size = 0;
     last_packet_time = now;
-    if (s == (ASHA_PCM_STEREO_PACKET_SIZE * 2)) {
+    int16_t* dest = spk_buf_16khz;
+    
+    if (s == spk_data_size_16 || s == spk_data_size_48) {
       tud_audio_read(spk_buf, s);
+      if (s == spk_data_size_48) {
+        for (std::size_t i = 0; i < (sizeof(spk_buf) / sizeof(*spk_buf)); i += (sizeof(*spk_buf) * 3)) {
+          *dest = spk_buf[i];
+          ++dest;
+          *dest = spk_buf[i + 1];
+          ++dest;
+        }
+      } else {
+        memcpy(dest, spk_buf, spk_data_size_16);
+      }
 
       asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
                                   mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
                                   mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
 
-      if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](int16_t i) {return i == 0; })) {
+      if (std::all_of(std::begin(spk_buf_16khz), std::end(spk_buf_16khz), [](int16_t i) {return i == 0; })) {
         ++silence_counter;
       } else {
         silence_counter = 0;
       }
       asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
-      asha_audio_encode_1ms_pcm(spk_buf);
+      asha_audio_encode_1ms_pcm(spk_buf_16khz);
     }
   } else {
     if (absolute_time_diff_us(last_packet_time, now) > 5000) {
