@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <numbers>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
@@ -179,7 +181,11 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     m_serialConnectedStatus = new QLabel();
     onSerialConnected(false);
 
+    m_encodeTimesLabel = new QLabel();
+    m_encodeTimes.reserve(1000);
+
     QStatusBar* mainStatusBar = new QStatusBar;
+    mainStatusBar->addPermanentWidget(m_encodeTimesLabel);
     mainStatusBar->addPermanentWidget(m_serialConnectedStatus);
     setStatusBar(mainStatusBar);
 }
@@ -355,6 +361,21 @@ void PicoAshaMainWindow::onAdPacketReceived(const asha::comm::AdvertisingPacket 
         m_currPairDlg->open();
     }
     m_currPairDlg->setAdPacket(ad_pkt);
+}
+
+void PicoAshaMainWindow::updateEncodeTimes(const int16_t *times, size_t count)
+{
+    for (size_t i = 0; i < count; ++i) {
+        m_encodeTimes.append(times[i]);
+    }
+    if (m_encodeTimes.size() >= 1000) {
+        auto min = *(std::min_element(m_encodeTimes.begin(), m_encodeTimes.end()));
+        auto max = *(std::max_element(m_encodeTimes.begin(), m_encodeTimes.end()));
+        auto avg = std::accumulate(m_encodeTimes.begin(), m_encodeTimes.end(), 0.0) / m_encodeTimes.size();
+
+        m_encodeTimesLabel->setText(QString("MIN: %1    AVG: %2    MAX %3").arg(min).arg(avg).arg(max));
+        m_encodeTimes.clear();
+    }
 }
 
 void PicoAshaMainWindow::onPairDialogAcceptedRejected()

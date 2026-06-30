@@ -50,6 +50,8 @@ public:
 
     void onAdPacketReceived(asha::comm::AdvertisingPacket const& ad_pkt);
 
+    void updateEncodeTimes(const int16_t*, size_t count);
+
 public slots:
     void onPairDialogAcceptedRejected();
 
@@ -68,6 +70,8 @@ private:
     QFrame* m_remoteFrame;
     QPlainTextEdit* m_logWidget;
     QLabel* m_serialConnectedStatus;
+    QLabel* m_encodeTimesLabel;
+    QList<int16_t> m_encodeTimes;
     QList<RemoteDevice*> m_remotes;
 
     QPushButton* m_cmdRestartBtn;

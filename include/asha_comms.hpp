@@ -92,6 +92,7 @@ namespace comm
         DiscMFIChar,
         MfiBatteryRead,
         MFIBatteryNotEnable,
+        G722EncTimings,
     };
 
     enum class CmdType : uint8_t {
@@ -208,6 +209,7 @@ namespace comm
             uint8_t rop[17];
             char    str[32];
             uint8_t battery_level;
+            int16_t encode_timings[10];
         } data = {};
 
         EventPacket();
