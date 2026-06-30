@@ -1,5 +1,6 @@
 #include <stdatomic.h>
 #include <string.h>
+#include <pico/time.h>
 #include <g722/g722_enc_dec.h>
 
 #include "asha_audio.h"
@@ -7,6 +8,7 @@
 struct AshaAudioEncBuffer {
     uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
     uint8_t r[ASHA_SDU_SIZE_BYTES_ALIGNED];
+    int16_t encode_times[20];
 };
 
 static atomic_bool pcm_streaming;
@@ -24,6 +26,7 @@ g722_encode_state_t enc_state_r;
 
 static struct AshaAudioEncBuffer enc_ring_buff[ASHA_G722_RING_SIZE];
 static unsigned int g_offset;
+static unsigned int enc_time_index;
 static uint8_t seq_num;
 
 static int16_t pcm_buff_l[ASHA_PCM_PACKET_SIZE];
@@ -51,6 +54,7 @@ void asha_audio_init()
     vol_r = ASHA_USB_VOL_MIN;
     g_offset = 1;
     seq_num = 0;
+    enc_time_index = 0;
     reset_encoders();
 }
 
@@ -62,6 +66,7 @@ uint32_t asha_audio_get_write_index()
 
 void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm)
 {
+    absolute_time_t start_time = get_absolute_time();
     bool enc_audio = encode_audio;
     uint32_t w_index = write_index;
     if (!enc_audio) return;
@@ -89,12 +94,16 @@ void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm)
         g722_encode(&enc_state_r, buff->r + g_offset, pcm_buff_r, ASHA_PCM_PACKET_SIZE);
     }
     g_offset += ASHA_G722_1MS_SIZE_BYTES;
+    int64_t time_diff = absolute_time_diff_us(start_time, get_absolute_time());
+    buff->encode_times[enc_time_index] = (int16_t)time_diff;
+    ++enc_time_index;
     if (g_offset >= ASHA_SDU_SIZE_BYTES) {
         buff->l[0] = seq_num;
         buff->r[0] = seq_num;
         ++seq_num;
         g_offset = 1;
         write_index += 1;
+        enc_time_index = 0;
     }
 }
 
@@ -102,6 +111,11 @@ uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index
 {
     struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(index)];
     return side == AudioLeft ? buff->l : buff->r;
+}
+
+int16_t* asha_audio_get_encoding_time_at_index(uint32_t index)
+{
+    return (&enc_ring_buff[ring_buff_index(index)])->encode_times;
 }
 
 void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol)

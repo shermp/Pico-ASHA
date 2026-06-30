@@ -69,6 +69,8 @@ void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm);
  */
 uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index);
 
+int16_t* asha_audio_get_encoding_time_at_index(uint32_t index);
+
 /**
  * Set the current volume, as provided by USB
  */

@@ -584,6 +584,9 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         }
         if (rem) rem->setCurrVolume(pkt.data.volume);
         break;
+    case EventType::G722EncTimings:
+        m_ui->updateEncodeTimes(pkt.data.encode_timings, 10);
+        break;
     }
 }
 
