@@ -1010,6 +1010,7 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
 bool HearingAid::process_audio()
 {
     using namespace comm;
+    bool send_enc_times = false;
 
     uint32_t w_index = asha_audio_get_write_index();
     int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioLeft);
@@ -1122,12 +1123,22 @@ bool HearingAid::process_audio()
                         ++(ha->curr_read_index);
                         l2cap_request_can_send_now_event(ha->cid);
                         enable_process_delay = true;
+                        send_enc_times = true;
                     }
                 }
                 break;
             default:
                 break;
         }
+    }
+    if (send_enc_times) {
+        auto enc_times = asha_audio_get_encoding_time_at_index(w_index == 0 ? 0 : w_index - 1);
+        EventPacket pkt1(EventType::G722EncTimings);
+        EventPacket pkt2(EventType::G722EncTimings);
+        memcpy(pkt1.data.encode_timings, enc_times, 20);
+        memcpy(pkt2.data.encode_timings, enc_times + 10, 20);
+        add_event_to_buffer(unset_conn_id, pkt1);
+        add_event_to_buffer(unset_conn_id, pkt2);
     }
     return enable_process_delay;
 }
