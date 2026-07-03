@@ -12,6 +12,9 @@ extern "C" {
 // Number of samples per ms
 #define ASHA_PCM_PACKET_SIZE 16u
 
+// Max number of samples per ms
+#define ASHA_PCM_MAX_SAMPLES 48u
+
 // Stereo packet is twice the size of mono
 #define ASHA_PCM_STEREO_PACKET_SIZE 32u
 
@@ -49,6 +52,11 @@ enum AshaAudioSide {
     AudioRight,
 };
 
+struct PCMStereoSample {
+    int16_t left;
+    int16_t right;
+};
+
 void asha_audio_init();
 
 /**
@@ -62,7 +70,7 @@ uint32_t asha_audio_get_write_index();
 /**
  * Encode 1ms of 16-bit 16kHz PCM stereo audio to G.722
  */
-void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm);
+void asha_audio_encode_1ms_pcm(struct PCMStereoSample* samples, uint16_t count);
 
 /**
  * Get encoded audio for side at index

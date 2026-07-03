@@ -1,9 +1,24 @@
 #include <stdatomic.h>
 #include <string.h>
 #include <pico/time.h>
+
+#include <dsp/filtering_functions.h>
+#include <dsp/support_functions.h>
+
 #include <g722/g722_enc_dec.h>
 
 #include "asha_audio.h"
+#include "asha_audio_coefficients.h"
+
+
+#define ASHA_BLOCK_SIZE 48
+
+static q15_t fir_c[ASHA_NUM_TAPS] ={};
+static q15_t p_state_l[ASHA_NUM_TAPS + ASHA_BLOCK_SIZE - 1];
+static q15_t p_state_r[ASHA_NUM_TAPS + ASHA_BLOCK_SIZE - 1];
+
+static arm_fir_decimate_instance_q15 fir_s_l = {};
+static arm_fir_decimate_instance_q15 fir_s_r = {};
 
 struct AshaAudioEncBuffer {
     uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
@@ -29,8 +44,11 @@ static unsigned int g_offset;
 static unsigned int enc_time_index;
 static uint8_t seq_num;
 
-static int16_t pcm_buff_l[ASHA_PCM_PACKET_SIZE];
-static int16_t pcm_buff_r[ASHA_PCM_PACKET_SIZE];
+static int16_t pcm_buff_l[ASHA_PCM_MAX_SAMPLES];
+static int16_t pcm_buff_r[ASHA_PCM_MAX_SAMPLES];
+
+static int16_t pcm_buff_16khz_l[ASHA_PCM_PACKET_SIZE];
+static int16_t pcm_buff_16khz_r[ASHA_PCM_PACKET_SIZE];
 
 static inline uint32_t ring_buff_index(const uint32_t index)
 {
@@ -41,6 +59,12 @@ static void reset_encoders()
 {
     g722_encode_init(&enc_state_l, 64000, G722_PACKED);
     g722_encode_init(&enc_state_r, 64000, G722_PACKED);
+}
+
+static void reset_decimators()
+{
+    arm_fir_decimate_init_q15(&fir_s_l, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_l, ASHA_BLOCK_SIZE);
+    arm_fir_decimate_init_q15(&fir_s_r, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_r, ASHA_BLOCK_SIZE);
 }
 
 void asha_audio_init()
@@ -56,6 +80,9 @@ void asha_audio_init()
     seq_num = 0;
     enc_time_index = 0;
     reset_encoders();
+    arm_float_to_q15(coefficients, fir_c, ASHA_NUM_TAPS);
+    reset_decimators();
+
 }
 
 uint32_t asha_audio_get_write_index()
@@ -64,7 +91,7 @@ uint32_t asha_audio_get_write_index()
     return wi;
 }
 
-void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm)
+void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 {
     absolute_time_t start_time = get_absolute_time();
     bool enc_audio = encode_audio;
@@ -72,27 +99,45 @@ void asha_audio_encode_1ms_pcm(int16_t *stereo_pcm)
     if (!enc_audio) return;
     int buff_index = 0;
     struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(w_index)];
+
+    // Separate interleaved stereo samples to separate channels
     bool mono = encode_mono;
     if (mono) {
         int16_t val;
-        for (unsigned int i = 0; i < ASHA_PCM_STEREO_PACKET_SIZE; i += 2) {
-            val = (int16_t)(((int32_t)stereo_pcm[i] + (int32_t)stereo_pcm[i + 1]) / 2);
+        for (unsigned int i = 0; i < count; ++i) {
+            val = (int16_t)(((int32_t)samples[i].left + (int32_t)samples[i].right) / 2);
             pcm_buff_l[buff_index] = val;
             pcm_buff_r[buff_index] = val;
             ++buff_index;
-        }
-        //g722_encode(&enc_state_l, g_ring_buff[ring_buff_index(w_index)].l.data() + g_offset, pcm_buff.l.data(), pcm_buff.l.size());
-        g722_encode(&enc_state_l, buff->l + g_offset, pcm_buff_l, ASHA_PCM_PACKET_SIZE);
-        memcpy(buff->r + g_offset, buff->l + g_offset, ASHA_G722_1MS_SIZE_BYTES);
+        }       
     } else {
-        for (unsigned int i = 0; i < ASHA_PCM_STEREO_PACKET_SIZE; i += 2) {
-            pcm_buff_l[buff_index] = stereo_pcm[i];
-            pcm_buff_r[buff_index] = stereo_pcm[i + 1];
+        for (unsigned int i = 0; i < count; ++i) {
+            pcm_buff_l[buff_index] = samples[i].left;
+            pcm_buff_r[buff_index] = samples[i].right;
             ++buff_index;
         }
-        g722_encode(&enc_state_l, buff->l + g_offset, pcm_buff_l, ASHA_PCM_PACKET_SIZE);
-        g722_encode(&enc_state_r, buff->r + g_offset, pcm_buff_r, ASHA_PCM_PACKET_SIZE);
     }
+    int16_t* pcm_l = NULL;
+    int16_t* pcm_r = NULL;
+    if (count == ASHA_PCM_MAX_SAMPLES) {
+        arm_fir_decimate_q15(&fir_s_l, pcm_buff_l, pcm_buff_16khz_l, ASHA_BLOCK_SIZE);
+        if (!mono) {
+            arm_fir_decimate_q15(&fir_s_r, pcm_buff_r, pcm_buff_16khz_r, ASHA_BLOCK_SIZE);
+        }
+        pcm_l = pcm_buff_16khz_l;
+        pcm_r = pcm_buff_16khz_r;
+    } else {
+        pcm_l = pcm_buff_l;
+        pcm_r = pcm_buff_r;
+    }
+
+    g722_encode(&enc_state_l, buff->l + g_offset, pcm_l, ASHA_PCM_PACKET_SIZE);
+    if (mono) {
+        memcpy(buff->r + g_offset, buff->l + g_offset, ASHA_G722_1MS_SIZE_BYTES);
+    } else {
+        g722_encode(&enc_state_r, buff->r + g_offset, pcm_r, ASHA_PCM_PACKET_SIZE);
+    }
+    
     g_offset += ASHA_G722_1MS_SIZE_BYTES;
     int64_t time_diff = absolute_time_diff_us(start_time, get_absolute_time());
     buff->encode_times[enc_time_index] = (int16_t)time_diff;
