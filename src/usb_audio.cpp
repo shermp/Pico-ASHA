@@ -306,7 +306,7 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 
 // List of supported sample rates for UAC2
-const uint32_t sample_rates[] = {CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_HS};
+const uint32_t sample_rates[] = {16000, 48000};
 
 #define N_SAMPLE_RATES TU_ARRAY_SIZE(sample_rates)
 
