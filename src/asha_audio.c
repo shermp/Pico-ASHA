@@ -1,6 +1,9 @@
 #include <stdatomic.h>
 #include <string.h>
+
+#ifdef PICO_ASHA_ENC_STATS
 #include <pico/time.h>
+#endif
 
 #include <dsp/filtering_functions.h>
 #include <dsp/support_functions.h>
@@ -23,7 +26,9 @@ static arm_fir_decimate_instance_q15 fir_s_r = {};
 struct AshaAudioEncBuffer {
     uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
     uint8_t r[ASHA_SDU_SIZE_BYTES_ALIGNED];
+#ifdef PICO_ASHA_ENC_STATS
     int16_t encode_times[20];
+#endif
 };
 
 static atomic_bool pcm_streaming;
@@ -93,7 +98,9 @@ uint32_t asha_audio_get_write_index()
 
 void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 {
+#ifdef PICO_ASHA_ENC_STATS
     absolute_time_t start_time = get_absolute_time();
+#endif
     bool enc_audio = encode_audio;
     uint32_t w_index = write_index;
     if (!enc_audio) return;
@@ -139,9 +146,11 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     }
     
     g_offset += ASHA_G722_1MS_SIZE_BYTES;
+#ifdef PICO_ASHA_ENC_STATS
     int64_t time_diff = absolute_time_diff_us(start_time, get_absolute_time());
     buff->encode_times[enc_time_index] = (int16_t)time_diff;
     ++enc_time_index;
+#endif
     if (g_offset >= ASHA_SDU_SIZE_BYTES) {
         buff->l[0] = seq_num;
         buff->r[0] = seq_num;
@@ -158,10 +167,12 @@ uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index
     return side == AudioLeft ? buff->l : buff->r;
 }
 
+#ifdef PICO_ASHA_ENC_STATS
 int16_t* asha_audio_get_encoding_time_at_index(uint32_t index)
 {
     return (&enc_ring_buff[ring_buff_index(index)])->encode_times;
 }
+#endif
 
 void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol)
 {

@@ -77,7 +77,9 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample* samples, uint16_t count);
  */
 uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index);
 
+#ifdef PICO_ASHA_ENC_STATS
 int16_t* asha_audio_get_encoding_time_at_index(uint32_t index);
+#endif
 
 /**
  * Set the current volume, as provided by USB
