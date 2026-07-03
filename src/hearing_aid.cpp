@@ -4,6 +4,7 @@
 #include "hearing_aid.hpp"
 #include "asha_uuid.hpp"
 #include "bt_status_err.hpp"
+#include "usb_common.hpp"
 
 namespace asha
 {
@@ -1017,9 +1018,15 @@ bool HearingAid::process_audio()
     int16_t usb_vol_r = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioRight);
 
     // Dividing the USB volume by ASHA_USB_VOL_RES gives a volume that
-    // matches the ASHA volume
-    int8_t vol_l = usb_vol_l == ASHA_USB_VOL_MUTE ? volume_mute : (int8_t)(usb_vol_l / ASHA_USB_VOL_RES);
-    int8_t vol_r = usb_vol_r == ASHA_USB_VOL_MUTE ? volume_mute : (int8_t)(usb_vol_r / ASHA_USB_VOL_RES);
+    // matches the ASHA volume. Volume is clamped to the min/max volume
+    // set in runtime settings
+    auto min_vol = usb_settings.min_vol;
+    auto max_vol = usb_settings.max_vol;
+    int8_t vol_l = (usb_vol_l == ASHA_USB_VOL_MUTE) ? volume_mute 
+                                                    : (int8_t)(std::clamp(usb_vol_l, min_vol, max_vol) / ASHA_USB_VOL_RES);
+    int8_t vol_r = (usb_vol_r == ASHA_USB_VOL_MUTE) ? volume_mute 
+                                                    : (int8_t)(std::clamp(usb_vol_r, min_vol, max_vol) / ASHA_USB_VOL_RES);
+    
     bool pcm_is_streaming = asha_audio_get_pcm_streaming_enabled();
 
     asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
