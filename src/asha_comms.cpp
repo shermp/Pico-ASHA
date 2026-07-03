@@ -58,7 +58,7 @@ namespace comm
 
     static uint8_t cobs_enc_buff[COBS_TINYFRAME_SAFE_BUFFER_SIZE];
 
-    static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 100> event_buff;
+    static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 200> event_buff;
 
     static etl::vector<uint8_t, cmd_buff_size> cmd_buff_enc;
 
