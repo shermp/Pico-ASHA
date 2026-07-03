@@ -1011,7 +1011,9 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
 bool HearingAid::process_audio()
 {
     using namespace comm;
+#ifdef PICO_ASHA_ENC_STATS
     bool send_enc_times = false;
+#endif
 
     uint32_t w_index = asha_audio_get_write_index();
     int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioLeft);
@@ -1130,7 +1132,9 @@ bool HearingAid::process_audio()
                         ++(ha->curr_read_index);
                         l2cap_request_can_send_now_event(ha->cid);
                         enable_process_delay = true;
+#ifdef PICO_ASHA_ENC_STATS
                         send_enc_times = true;
+#endif
                     }
                 }
                 break;
@@ -1138,6 +1142,7 @@ bool HearingAid::process_audio()
                 break;
         }
     }
+#ifdef PICO_ASHA_ENC_STATS
     if (send_enc_times) {
         auto enc_times = asha_audio_get_encoding_time_at_index(w_index == 0 ? 0 : w_index - 1);
         EventPacket pkt1(EventType::G722EncTimings);
@@ -1147,6 +1152,7 @@ bool HearingAid::process_audio()
         add_event_to_buffer(unset_conn_id, pkt1);
         add_event_to_buffer(unset_conn_id, pkt2);
     }
+#endif
     return enable_process_delay;
 }
 
