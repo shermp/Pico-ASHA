@@ -120,9 +120,9 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     int16_t* pcm_l = NULL;
     int16_t* pcm_r = NULL;
     if (count == ASHA_PCM_MAX_SAMPLES) {
-        arm_fir_decimate_q15(&fir_s_l, pcm_buff_l, pcm_buff_16khz_l, ASHA_BLOCK_SIZE);
+        arm_fir_decimate_fast_q15(&fir_s_l, pcm_buff_l, pcm_buff_16khz_l, ASHA_BLOCK_SIZE);
         if (!mono) {
-            arm_fir_decimate_q15(&fir_s_r, pcm_buff_r, pcm_buff_16khz_r, ASHA_BLOCK_SIZE);
+            arm_fir_decimate_fast_q15(&fir_s_r, pcm_buff_r, pcm_buff_16khz_r, ASHA_BLOCK_SIZE);
         }
         pcm_l = pcm_buff_16khz_l;
         pcm_r = pcm_buff_16khz_r;
