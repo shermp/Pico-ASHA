@@ -235,6 +235,9 @@ void HearingAid::on_serial_host_connected()
     if (audio_streaming_enabled) {
         intro_flags |= IntroFlags::streaming_enabled;
     }
+    if (runtime_settings.get_streaming_mode() == StreamingMode::Continuous) {
+        intro_flags |= IntroFlags::continuous_streaming;
+    }
     send_intro_packet((int8_t)num_connected(), intro_flags);
     USBInfo usb_info = {
         .uac_vers = usb_settings.uac_version,
@@ -306,6 +309,10 @@ void HearingAid::set_connections_allowed(bool allowed)
 void HearingAid::set_audio_streaming_enabled(bool enabled)
 {
     audio_streaming_enabled = enabled;
+    asha_audio_set_output_streaming_enabled(enabled);
+    if (!enabled) {
+        asha_audio_reset_streaming_session();
+    }
 }
 
 void HearingAid::set_auto_pair_enabled(bool enabled)
@@ -416,6 +423,9 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     set_other_side_ptrs();
     ha->reset();
     int num_c = num_connected();
+    if (num_c == 0) {
+        asha_audio_reset_streaming_session();
+    }
     if (num_c == 1) {
         led_mgr.set_led_pattern(one_connected);
     } else {
@@ -1365,11 +1375,17 @@ void HearingAid::reset()
     other = nullptr;
     psm = 0;
     credits = 0;
+    zero_credits_cooldown = 0;
+    ready_stuck_ticks = 0;
     paired_and_bonded = false;
     process_delay_ticks = 0;
     error_count = 0;
     service_index = 0;
     chars_index = cached_chars_index;
+    curr_read_index = 0;
+    first_audio_send = false;
+    audio_data = nullptr;
+    stop_request_from_other = false;
     
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));

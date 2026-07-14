@@ -25,9 +25,11 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <stdio.h>
 #include <string.h>
 
+#include <pico/assert.h>
 #include <pico/time.h>
 
 #include <dsp/support_functions.h>
@@ -76,6 +78,19 @@ static uint32_t silence_counter = 0ul;
 // The silence_counter threshold by wish to signal streaming stopped
 static constexpr uint32_t silence_timeout = 10'000ul;
 
+// Continuous mode is paced from a 1 ms repeating timer. The callback only
+// publishes one pending tick; missed ticks are deliberately coalesced so the
+// encoder never catches up by generating frames faster than real time.
+static std::atomic_bool continuous_audio_tick = false;
+static repeating_timer_t continuous_audio_timer = {};
+static bool continuous_streaming_started = false;
+static bool continuous_frame_pending = false;
+static bool real_audio_playing = false;
+static bool previous_continuous_mode = false;
+static uint16_t continuous_sample_count = ASHA_PCM_PACKET_SIZE;
+static PCMStereoSample continuous_pcm[ASHA_PCM_MAX_SAMPLES] = {};
+static PCMStereoSample silent_pcm[ASHA_PCM_MAX_SAMPLES] = {};
+
 USBSettings usb_settings = {};
 
 USBSettings::operator bool() const
@@ -89,6 +104,22 @@ USBSettings::operator bool() const
 void audio_task(void);
 void serial_task(void);
 
+static bool continuous_audio_timer_cb([[maybe_unused]] repeating_timer_t* timer)
+{
+  continuous_audio_tick.store(true, std::memory_order_relaxed);
+  return true;
+}
+
+static void reset_usb_streaming_state()
+{
+  spk_data_size = 0;
+  continuous_streaming_started = false;
+  continuous_frame_pending = false;
+  real_audio_playing = false;
+  continuous_audio_tick.store(false, std::memory_order_relaxed);
+  asha_audio_reset_streaming_session();
+}
+
 void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
                            [[maybe_unused]] bool dtr, 
                            [[maybe_unused]] bool rts)
@@ -100,6 +131,8 @@ void usb_main(void)
   TU_LOG1("Headset running\n");
   // int err = 0;
   // srs = speex_resampler_init(2, 48000, 16000, 0, &err);
+  hard_assert(add_repeating_timer_us(-1000, continuous_audio_timer_cb, nullptr,
+                                     &continuous_audio_timer));
   while (1)
   {
     tud_task(); // TinyUSB device task
@@ -114,11 +147,13 @@ void usb_main(void)
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
+  reset_usb_streaming_state();
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
+  reset_usb_streaming_state();
 }
 
 // Invoked when usb bus is suspended
@@ -127,6 +162,7 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void)remote_wakeup_en;
+  reset_usb_streaming_state();
 }
 
 // Invoked when usb bus is resumed
@@ -543,6 +579,38 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 void audio_task(void)
 {
   absolute_time_t now = get_absolute_time();
+
+  if (asha_audio_take_streaming_session_reset()) {
+    continuous_streaming_started = false;
+    continuous_frame_pending = false;
+    real_audio_playing = false;
+    continuous_audio_tick.store(false, std::memory_order_relaxed);
+  }
+
+  if (real_audio_playing && absolute_time_diff_us(last_packet_time, now) > 5000) {
+    real_audio_playing = false;
+  }
+
+  bool continuous_mode = asha_audio_get_continuous_streaming_enabled();
+  bool output_streaming_enabled = asha_audio_get_output_streaming_enabled();
+  if (previous_continuous_mode && !continuous_mode) {
+    continuous_streaming_started = false;
+    continuous_frame_pending = false;
+    if (!real_audio_playing) {
+      // A mode change to Eco while paused should take the normal ASHA stop
+      // path immediately and remain stopped until non-zero USB audio returns.
+      silence_counter = silence_timeout;
+      asha_audio_set_pcm_streaming_enabled(false);
+    }
+  }
+  previous_continuous_mode = continuous_mode;
+
+  if (continuous_mode && !output_streaming_enabled) {
+    continuous_streaming_started = false;
+    continuous_frame_pending = false;
+    asha_audio_set_pcm_streaming_enabled(false);
+  }
+
   if (spk_data_size) {
     uint16_t s = spk_data_size;
     spk_data_size = 0;
@@ -550,24 +618,57 @@ void audio_task(void)
     
     if (s == spk_data_size_16 || s == spk_data_size_48) {
       tud_audio_read(spk_buf, s);
+      uint16_t sample_count = s == spk_data_size_16 ? 16u : 48u;
       
       asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
                                   mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
                                   mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
 
-      if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
-        ++silence_counter;
+      if (continuous_mode) {
+        real_audio_playing = !std::all_of(spk_buf, spk_buf + sample_count,
+          [](PCMStereoSample sample) { return sample.left == 0 && sample.right == 0; });
+        if (real_audio_playing && output_streaming_enabled) {
+          continuous_streaming_started = true;
+        }
+        asha_audio_set_pcm_streaming_enabled(
+          output_streaming_enabled && continuous_streaming_started);
+
+        if (continuous_streaming_started && output_streaming_enabled) {
+          memcpy(continuous_pcm, spk_buf, s);
+          continuous_sample_count = sample_count;
+          continuous_frame_pending = true;
+        }
       } else {
-        silence_counter = 0;
+        if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
+          ++silence_counter;
+        } else {
+          silence_counter = 0;
+        }
+        asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
+        asha_audio_encode_1ms_pcm(spk_buf, sample_count);
       }
-      asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
-      asha_audio_encode_1ms_pcm(spk_buf, s == spk_data_size_16 ? 16u : 48u);
     }
   } else {
-    if (absolute_time_diff_us(last_packet_time, now) > 5000) {
+    if (!continuous_mode && absolute_time_diff_us(last_packet_time, now) > 5000) {
       asha_audio_set_pcm_streaming_enabled(false);
       last_packet_time = now;
     }
+  }
+
+  if (continuous_mode && output_streaming_enabled && continuous_streaming_started
+      && continuous_audio_tick.exchange(false, std::memory_order_relaxed)) {
+    if (continuous_frame_pending) {
+      asha_audio_encode_1ms_pcm(continuous_pcm, continuous_sample_count);
+      continuous_frame_pending = false;
+    } else {
+      uint16_t sample_count = current_sample_rate == 48000
+                                ? ASHA_PCM_MAX_SAMPLES
+                                : ASHA_PCM_PACKET_SIZE;
+      asha_audio_encode_1ms_pcm(silent_pcm, sample_count);
+    }
+  } else if (!continuous_mode || !output_streaming_enabled
+             || !continuous_streaming_started) {
+    continuous_audio_tick.store(false, std::memory_order_relaxed);
   }
 }
 

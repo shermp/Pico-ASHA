@@ -38,7 +38,10 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
     QObject::connect(m_ui, &PicoAshaMainWindow::hciLogActionBtnClicked, this, &PicoAshaComm::onHciLogActionBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRestartBtnClicked, this, &PicoAshaComm::onCmdRestartBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdConnAllowedBtnClicked, this, &PicoAshaComm::onCmdConnAllowedBtnClicked);
-    QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked, this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::cmdStreamingEnabledBtnClicked,
+                     this, &PicoAshaComm::onCmdStreamingEnabledBtnClicked);
+    QObject::connect(m_ui, &PicoAshaMainWindow::streamingModeChanged,
+                     this, &PicoAshaComm::onStreamingModeChanged);
     QObject::connect(m_ui, &PicoAshaMainWindow::cmdRemoveBondBtnClicked, this, &PicoAshaComm::onCmdRemoveBondBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::usbSettingsBtnClicked, this, &PicoAshaComm::onUsbSettingsBtnClicked);
     QObject::connect(m_ui, &PicoAshaMainWindow::pairWithAddress, this, &PicoAshaComm::onPairWithAddress);
@@ -239,6 +242,21 @@ void PicoAshaComm::onCmdStreamingEnabledBtnClicked(bool enabled)
     }
 }
 
+void PicoAshaComm::onStreamingModeChanged(asha::comm::StreamingMode mode)
+{
+    using namespace asha::comm;
+    bool res = sendCommandPacket(
+        {
+            .cmd = Command::StreamingMode,
+            .cmd_status = CmdStatus::CmdOk,
+            .data = {.streaming_mode = mode}
+        }
+        );
+    if (res) {
+        m_ui->setStreamingMode(mode);
+    }
+}
+
 void PicoAshaComm::onCmdRemoveBondBtnClicked()
 {
     using namespace asha::comm;
@@ -331,6 +349,9 @@ void PicoAshaComm::handleDecodedData(QByteArray const& decoded)
         m_ui->setPicoAshaVerStr(paFirmwareVers());
         m_ui->setConnectionsAllowed(intro.test_flag(IntroFlags::conn_allowed));
         m_ui->setAudioStreamingEnabled(intro.test_flag(IntroFlags::streaming_enabled));
+        m_ui->setStreamingMode(intro.test_flag(IntroFlags::continuous_streaming)
+                                 ? StreamingMode::Continuous
+                                 : StreamingMode::Eco);
         m_ui->setCmdBtnsEnabled(true);
         break;
     }

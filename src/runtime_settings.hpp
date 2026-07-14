@@ -7,6 +7,7 @@
 #include <btstack_tlv.h>
 
 #include "asha_audio.h"
+#include "asha_comms.hpp"
 #include "usb_common.hpp"
 
 namespace asha
@@ -26,10 +27,12 @@ struct RuntimeSettings
     bool get_hci_dump_enabled();
     bool get_full_set_paired();
     USBSettings get_usb_settings();
+    comm::StreamingMode get_streaming_mode();
 
     bool set_hci_dump_enabled(bool is_enabled);
     bool set_full_set_paired(bool have_full_set);
     bool set_usb_settings(USBSettings const& settings);
+    bool set_streaming_mode(comm::StreamingMode mode);
 
     // Store a pending setting in watchdog scratch registers so it can be
     // written to TLV after the watchdog reboot, avoiding a race between the
@@ -45,6 +48,7 @@ private:
         HCIDump = str_to_tag("PAHC"),
         FullSetPaired = str_to_tag("PAFS"),
         USBSetting = str_to_tag("PAUS"),
+        StreamingMode = str_to_tag("PASM"),
     };
 
     // used to store remote device in TLV
@@ -56,6 +60,7 @@ private:
     bool hci_dump_enabled = false;
     bool full_set_paired = false;
     USBSettings usb_settings = {};
+    comm::StreamingMode streaming_mode = comm::StreamingMode::Eco;
 
     mutex_t mtx = {};
 

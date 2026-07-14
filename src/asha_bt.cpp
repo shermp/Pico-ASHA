@@ -194,6 +194,22 @@ static void process_serial_cmds()
                     }
                 }
                 break;
+            case Command::StreamingMode:
+                {
+                    auto mode = cmd_pkt.data.streaming_mode;
+                    if (!valid_streaming_mode(mode)) {
+                        cmd_pkt.cmd_status = CmdStatus::CmdError;
+                        break;
+                    }
+                    if (mode != runtime_settings.get_streaming_mode()
+                        && !runtime_settings.set_streaming_mode(mode)) {
+                        cmd_pkt.cmd_status = CmdStatus::CmdError;
+                        break;
+                    }
+                    asha_audio_set_continuous_streaming_enabled(
+                        mode == StreamingMode::Continuous);
+                }
+                break;
             default:
                 cmd_pkt.cmd_status = CmdStatus::CmdError;
                 break;

@@ -50,6 +50,8 @@ extern "C" int main()
         sleep_ms(50);
     }
 
+    asha_audio_set_continuous_streaming_enabled(
+        runtime_settings.get_streaming_mode() == comm::StreamingMode::Continuous);
     usb_settings = runtime_settings.get_usb_settings();
 
     // Init TinyUSB before stdio init

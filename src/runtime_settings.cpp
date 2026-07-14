@@ -50,6 +50,14 @@ USBSettings RuntimeSettings::get_usb_settings()
     return settings;
 }
 
+comm::StreamingMode RuntimeSettings::get_streaming_mode()
+{
+    mutex_enter_blocking(&mtx);
+    comm::StreamingMode mode = streaming_mode;
+    mutex_exit(&mtx);
+    return mode;
+}
+
 RuntimeSettings::operator bool()
 {
     mutex_enter_blocking(&mtx);
@@ -74,6 +82,10 @@ void RuntimeSettings::get_settings()
         if (!usb_settings) {
             usb_settings = USBSettings();
         }
+    }
+    if (!get_tlv_tag(Tag::StreamingMode, streaming_mode)
+        || !comm::valid_streaming_mode(streaming_mode)) {
+        streaming_mode = comm::StreamingMode::Eco;
     }
     got_settings = true;
 }
@@ -109,6 +121,20 @@ bool RuntimeSettings::set_usb_settings(USBSettings const &settings)
     if (settings && settings != usb_settings) {
         usb_settings = settings;
         res = store_tlv_tag(Tag::USBSetting, usb_settings);
+    }
+    mutex_exit(&mtx);
+    return res;
+}
+
+bool RuntimeSettings::set_streaming_mode(comm::StreamingMode mode)
+{
+    bool res = false;
+    mutex_enter_blocking(&mtx);
+    if (comm::valid_streaming_mode(mode) && mode != streaming_mode) {
+        res = store_tlv_tag(Tag::StreamingMode, mode);
+        if (res) {
+            streaming_mode = mode;
+        }
     }
     mutex_exit(&mtx);
     return res;
