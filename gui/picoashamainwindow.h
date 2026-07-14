@@ -5,6 +5,7 @@
 #include <QFrame>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QLabel>
 #include <QList>
 #include <QComboBox>
@@ -42,6 +43,7 @@ public:
     void setPicoAshaVerStr(QString const& version);
     void setConnectionsAllowed(bool allowed);
     void setAudioStreamingEnabled(bool enabled);
+    void setStreamingMode(asha::comm::StreamingMode mode);
     void setUSBInfo(asha::comm::USBInfo const& usb_info);
     void setUSBSettingsBtnState();
 
@@ -61,6 +63,7 @@ signals:
     void cmdRestartBtnClicked();
     void cmdConnAllowedBtnClicked(bool allowed);
     void cmdStreamingEnabledBtnClicked(bool enabled);
+    void streamingModeChanged(asha::comm::StreamingMode mode);
     void cmdRemoveBondBtnClicked();
     void usbSettingsBtnClicked(asha::comm::USBInfo const& usb_info);
     void pairWithAddress(QByteArray const& addr, uint8_t addr_type);
@@ -79,6 +82,9 @@ private:
     QPushButton* m_cmdStreamingEnabledBtn;
     QPushButton* m_cmdRemoveBondBtn;
 
+    QRadioButton* m_streamingEcoRadio;
+    QRadioButton* m_streamingContinuousRadio;
+
     QComboBox*   m_USBUacVersCombo;
     QSpinBox*    m_USBVolMinSpin;
     QSpinBox*    m_USBVolMaxSpin;
@@ -93,6 +99,7 @@ private:
     bool m_serialConnected;
     bool m_connectionsAllowed;
     bool m_streamingEnabled;
+    asha::comm::StreamingMode m_streamingMode = asha::comm::StreamingMode::Eco;
 
     asha::comm::USBInfo m_usbInfo;
     asha::comm::USBInfo fromUsbWidgets();

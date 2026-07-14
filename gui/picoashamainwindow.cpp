@@ -73,6 +73,26 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     cmdGroup->setLayout(cmdLayout);
     mainVBox->addWidget(cmdGroup);
 
+    auto streamingModeGroup = new QGroupBox("Streaming mode");
+    auto streamingModeLayout = new QHBoxLayout;
+    streamingModeLayout->addStretch();
+
+    m_streamingEcoRadio = new QRadioButton("Eco");
+    m_streamingEcoRadio->setChecked(true);
+    streamingModeLayout->addWidget(m_streamingEcoRadio);
+
+    m_streamingContinuousRadio = new QRadioButton("Continuous");
+    streamingModeLayout->addWidget(m_streamingContinuousRadio);
+
+    auto continuousWarning = new QLabel(
+        "Continuous streaming increases hearing processor battery usage.");
+    continuousWarning->setWordWrap(true);
+    streamingModeLayout->addWidget(continuousWarning);
+    streamingModeLayout->addStretch();
+
+    streamingModeGroup->setLayout(streamingModeLayout);
+    mainVBox->addWidget(streamingModeGroup);
+
     auto usbGroup = new QGroupBox("USB Settings");
     auto usbLayout = new QHBoxLayout;
     usbLayout->addStretch();
@@ -116,6 +136,12 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     });
     QObject::connect(m_cmdStreamingEnabledBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
         emit cmdStreamingEnabledBtnClicked(!m_streamingEnabled);
+    });
+    QObject::connect(m_streamingEcoRadio, &QRadioButton::clicked, this, [this]() {
+        emit streamingModeChanged(asha::comm::StreamingMode::Eco);
+    });
+    QObject::connect(m_streamingContinuousRadio, &QRadioButton::clicked, this, [this]() {
+        emit streamingModeChanged(asha::comm::StreamingMode::Continuous);
     });
     QObject::connect(m_cmdRemoveBondBtn, &QPushButton::clicked, this, [=, this](bool clicked) {
         auto ans = QMessageBox::question(this, this->windowTitle(), "Are you sure you want to unpair connected hearing aids?");
@@ -318,6 +344,16 @@ void PicoAshaMainWindow::setAudioStreamingEnabled(bool enabled)
     }
 }
 
+void PicoAshaMainWindow::setStreamingMode(asha::comm::StreamingMode mode)
+{
+    if (!asha::comm::valid_streaming_mode(mode)) {
+        mode = asha::comm::StreamingMode::Eco;
+    }
+    m_streamingMode = mode;
+    m_streamingEcoRadio->setChecked(mode == asha::comm::StreamingMode::Eco);
+    m_streamingContinuousRadio->setChecked(mode == asha::comm::StreamingMode::Continuous);
+}
+
 void PicoAshaMainWindow::setUSBInfo(const asha::comm::USBInfo &usb_info)
 {
     m_usbInfo = usb_info;
@@ -410,6 +446,8 @@ void PicoAshaMainWindow::setCmdBtnsEnabled(bool enabled)
     m_cmdConnAllowedBtn->setEnabled(enabled);
     m_cmdStreamingEnabledBtn->setEnabled(enabled);
     m_cmdRemoveBondBtn->setEnabled(enabled);
+    m_streamingEcoRadio->setEnabled(enabled);
+    m_streamingContinuousRadio->setEnabled(enabled);
 }
 
 void PicoAshaMainWindow::setUSBWidgetsEnabled(bool enabled)

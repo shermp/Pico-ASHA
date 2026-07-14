@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdarg>
 #include <cstdint>
 
 namespace asha
@@ -16,10 +17,18 @@ namespace comm
         constexpr uint16_t streaming_enabled = 1 << 1u;
         // UAC1: bit 0, UAC2: bit 1
         constexpr uint16_t uac_version = 1 << 2u;
+        // Eco: bit 0, Continuous: bit 1
+        constexpr uint16_t continuous_streaming = 1 << 3u;
     }
 
     enum class CSide : uint8_t {Left = 0, Right = 1, Unset = 2};
     enum class CMode : uint8_t {Mono = 0, Binaural = 1, Unset = 2};
+    enum class StreamingMode : uint8_t {Eco = 0, Continuous = 1};
+
+    constexpr bool valid_streaming_mode(StreamingMode mode)
+    {
+        return mode == StreamingMode::Eco || mode == StreamingMode::Continuous;
+    }
 
     enum class Type : uint8_t
     {
@@ -109,6 +118,7 @@ namespace comm
         IntroPacket,
         PairBond,
         USBSettings,
+        StreamingMode,
     };
 
     enum class CmdStatus : uint8_t
@@ -247,6 +257,7 @@ namespace comm
             bool      enable_hci;
             bool      allow_connect;
             bool      audio_streaming_enabled;
+            StreamingMode streaming_mode;
             struct {
                 uint8_t addr[6];
                 uint8_t addr_type;

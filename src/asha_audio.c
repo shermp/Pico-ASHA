@@ -34,6 +34,9 @@ struct AshaAudioEncBuffer {
 static atomic_bool pcm_streaming;
 static atomic_bool encode_audio;
 static atomic_bool encode_mono;
+static atomic_bool continuous_streaming;
+static atomic_bool output_streaming_enabled;
+static atomic_bool streaming_session_reset;
 
 static atomic_uint_fast32_t write_index;
 
@@ -78,6 +81,9 @@ void asha_audio_init()
     pcm_streaming = false;
     encode_audio = false;
     encode_mono = false;
+    continuous_streaming = false;
+    output_streaming_enabled = true;
+    streaming_session_reset = false;
     write_index = 0u;
     vol_l = ASHA_USB_VOL_MIN;
     vol_r = ASHA_USB_VOL_MIN;
@@ -228,4 +234,38 @@ bool asha_audio_get_pcm_streaming_enabled()
 {
     bool pcm = pcm_streaming;
     return pcm;
+}
+
+void asha_audio_set_continuous_streaming_enabled(bool enabled)
+{
+    continuous_streaming = enabled;
+}
+
+bool asha_audio_get_continuous_streaming_enabled()
+{
+    bool enabled = continuous_streaming;
+    return enabled;
+}
+
+void asha_audio_set_output_streaming_enabled(bool enabled)
+{
+    output_streaming_enabled = enabled;
+}
+
+bool asha_audio_get_output_streaming_enabled()
+{
+    bool enabled = output_streaming_enabled;
+    return enabled;
+}
+
+void asha_audio_reset_streaming_session()
+{
+    pcm_streaming = false;
+    encode_audio = false;
+    streaming_session_reset = true;
+}
+
+bool asha_audio_take_streaming_session_reset()
+{
+    return atomic_exchange(&streaming_session_reset, false);
 }

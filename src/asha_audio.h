@@ -123,6 +123,36 @@ void asha_audio_set_pcm_streaming_enabled(bool enabled);
  */
 bool asha_audio_get_pcm_streaming_enabled();
 
+/**
+ * Selects whether USB audio gaps should be filled for continuous streaming.
+ */
+void asha_audio_set_continuous_streaming_enabled(bool enabled);
+
+/**
+ * Gets whether continuous streaming mode is selected.
+ */
+bool asha_audio_get_continuous_streaming_enabled();
+
+/**
+ * Shares the explicit audio-streaming enable state with the USB audio core.
+ */
+void asha_audio_set_output_streaming_enabled(bool enabled);
+
+/**
+ * Gets the explicit audio-streaming enable state.
+ */
+bool asha_audio_get_output_streaming_enabled();
+
+/**
+ * Stops encoding and asks the USB audio core to reset its streaming latch.
+ */
+void asha_audio_reset_streaming_session();
+
+/**
+ * Consumes a pending streaming-session reset request on the USB audio core.
+ */
+bool asha_audio_take_streaming_session_reset();
+
 #ifdef __cplusplus
 }
 #endif
