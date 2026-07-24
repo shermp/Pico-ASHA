@@ -550,6 +550,10 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 
 static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] void *user_data)
 {
+  // Always get the current USB volume
+  asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
+                              mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
+                              mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
   if (spk_data_size) {
     uint16_t s = spk_data_size;
     spk_data_size = 0;
@@ -557,10 +561,6 @@ static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] v
     if (s == spk_data_size_16 || s == spk_data_size_48) {
       tud_audio_read(spk_buf, s);
       
-      asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
-                                  mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
-                                  mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
-
       if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
         ++silence_counter;
       } else {
