@@ -60,14 +60,13 @@ static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for
 // Buffer for speaker data, can support up to 48KHz
 static PCMStereoSample spk_buf[ASHA_PCM_MAX_SAMPLES] = {};
 
+static PCMStereoSample silence_buff[ASHA_PCM_PACKET_SIZE] = {0};
+
 constexpr uint16_t spk_data_size_16 = ASHA_PCM_STEREO_PACKET_SIZE * 2;
 constexpr uint16_t spk_data_size_48 = ASHA_PCM_MAX_SAMPLES * sizeof(int16_t) * 2;
 
 // Speaker data size received in the last frame
 static volatile int spk_data_size;
-
-// Last time a packet was recieved, used to detect when a host stops sending audio
-static absolute_time_t last_packet_time = 0;
 
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
@@ -86,8 +85,10 @@ USBSettings::operator bool() const
           && (max_vol >= min_vol);
 }
 
-void audio_task(void);
-void serial_task(void);
+// Alarms and timers
+static alarm_pool_t* audio_pool = nullptr;
+static int64_t audio_alarm_cb(alarm_id_t id, void *user_data);
+static volatile alarm_id_t audio_alarm_id = 0;
 
 void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
                            [[maybe_unused]] bool dtr, 
@@ -99,11 +100,11 @@ void usb_main(void)
 {
   TU_LOG1("Headset running\n");
   // int err = 0;
-  // srs = speex_resampler_init(2, 48000, 16000, 0, &err);
+  audio_pool = alarm_pool_create_with_unused_hardware_alarm(4);
+
   while (1)
   {
     tud_task(); // TinyUSB device task
-    audio_task();
   }
 }
 
@@ -533,6 +534,13 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
   (void)cur_alt_setting;
 
   spk_data_size = n_bytes_received;
+  // The audio alarm should only be allowe to repeat if this ISR handler is not invoked
+  if (audio_alarm_id > 0) {
+    alarm_pool_cancel_alarm(audio_pool, audio_alarm_id);
+  }
+  // Wait 100us before actually handling the audio. This should account for any clock
+  // drift when canceling the alarm above
+  audio_alarm_id = alarm_pool_add_alarm_in_us(audio_pool, 100, &audio_alarm_cb, nullptr, false);
   return true;
 }
 
@@ -540,13 +548,11 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 // AUDIO Task
 //--------------------------------------------------------------------+
 
-void audio_task(void)
+static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] void *user_data)
 {
-  absolute_time_t now = get_absolute_time();
   if (spk_data_size) {
     uint16_t s = spk_data_size;
     spk_data_size = 0;
-    last_packet_time = now;
     
     if (s == spk_data_size_16 || s == spk_data_size_48) {
       tud_audio_read(spk_buf, s);
@@ -564,11 +570,12 @@ void audio_task(void)
       asha_audio_encode_1ms_pcm(spk_buf, s == spk_data_size_16 ? 16u : 48u);
     }
   } else {
-    if (absolute_time_diff_us(last_packet_time, now) > 5000) {
       asha_audio_set_pcm_streaming_enabled(false);
-      last_packet_time = now;
-    }
+      // Continue encoding silence
+      asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
   }
+  // Schedule this alarm to fire in 1ms from the last scheduled time
+  return -1000;
 }
 
 } // namespace asha
