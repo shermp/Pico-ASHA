@@ -86,9 +86,14 @@ USBSettings::operator bool() const
 }
 
 // Alarms and timers
+
+constexpr uint64_t audio_alarm_delay_us = 100u;
+
 static alarm_pool_t* audio_pool = nullptr;
 static int64_t audio_alarm_cb(alarm_id_t id, void *user_data);
 static volatile alarm_id_t audio_alarm_id = 0;
+
+static volatile absolute_time_t last_audio_isr = 0;
 
 void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
                            [[maybe_unused]] bool dtr, 
@@ -533,14 +538,12 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
   (void)ep_out;
   (void)cur_alt_setting;
 
+  last_audio_isr = get_absolute_time();
   spk_data_size = n_bytes_received;
-  // The audio alarm should only be allowe to repeat if this ISR handler is not invoked
-  if (audio_alarm_id > 0) {
-    alarm_pool_cancel_alarm(audio_pool, audio_alarm_id);
+  if (audio_alarm_id <= 0) {
+    absolute_time_t alarm_time = delayed_by_us(last_audio_isr, audio_alarm_delay_us); 
+    audio_alarm_id = alarm_pool_add_alarm_at(audio_pool, alarm_time, &audio_alarm_cb, nullptr, false);
   }
-  // Wait 100us before actually handling the audio. This should account for any clock
-  // drift when canceling the alarm above
-  audio_alarm_id = alarm_pool_add_alarm_in_us(audio_pool, 100, &audio_alarm_cb, nullptr, false);
   return true;
 }
 
@@ -550,6 +553,18 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 
 static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] void *user_data)
 {
+  absolute_time_t now = get_absolute_time();
+  absolute_time_t last = last_audio_isr;
+  int64_t diff = absolute_time_diff_us(last, now);
+
+  int64_t next_delay = -1000;
+
+  // Sync callback to audio_alarm_delay_us after last audio RX ISR if possible
+  if (diff < 1000) {
+    absolute_time_t next = delayed_by_us(last, (audio_alarm_delay_us + 1000));
+    // reverse the order to get a negative delay
+    next_delay = absolute_time_diff_us(next, now);
+  }
   // Always get the current USB volume
   asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
                               mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
@@ -575,7 +590,7 @@ static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] v
       asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
   }
   // Schedule this alarm to fire in 1ms from the last scheduled time
-  return -1000;
+  return next_delay;
 }
 
 } // namespace asha
