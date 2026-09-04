@@ -52,6 +52,29 @@ namespace asha
 
 static uint32_t current_sample_rate  = CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX * 1000;
 
+constexpr uint8_t audio_channel_count = CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1;
+
+static bool supported_sample_rate(uint32_t rate)
+{
+  return rate == 16'000u || rate == 48'000u;
+}
+
+static uint16_t samples_per_frame(uint32_t rate)
+{
+  return rate == 16'000u ? ASHA_PCM_PACKET_SIZE :
+         rate == 48'000u ? ASHA_PCM_MAX_SAMPLES : 0u;
+}
+
+static uint16_t bytes_per_frame(uint32_t rate)
+{
+  return samples_per_frame(rate) * sizeof(PCMStereoSample);
+}
+
+static bool valid_audio_channel(uint8_t channel)
+{
+  return channel < audio_channel_count;
+}
+
 // Audio controls
 // Current states
 static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for master channel 0
@@ -64,9 +87,6 @@ static PCMStereoSample silence_buff[ASHA_PCM_PACKET_SIZE] = {0};
 
 constexpr uint16_t spk_data_size_16 = ASHA_PCM_STEREO_PACKET_SIZE * 2;
 constexpr uint16_t spk_data_size_48 = ASHA_PCM_MAX_SAMPLES * sizeof(int16_t) * 2;
-
-// Speaker data size received in the last frame
-static volatile int spk_data_size;
 
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
@@ -92,8 +112,6 @@ constexpr uint64_t audio_alarm_delay_us = 100u;
 static alarm_pool_t* audio_pool = nullptr;
 static int64_t audio_alarm_cb(alarm_id_t id, void *user_data);
 static volatile alarm_id_t audio_alarm_id = 0;
-
-static volatile absolute_time_t last_audio_isr = 0;
 
 void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
                            [[maybe_unused]] bool dtr, 
@@ -467,6 +485,20 @@ extern "C" bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t cons
   return true;
 }
 
+// The ASHA encoder consumes audio using the Pico clock, so report FIFO-level
+// feedback to let the USB host match that clock instead of drifting into an
+// underrun or overrun.
+extern "C" void tud_audio_feedback_params_cb(uint8_t func_id,
+                                              uint8_t alt_itf,
+                                              audio_feedback_params_t *feedback_param) {
+  (void)func_id;
+  (void)alt_itf;
+
+  feedback_param->method = AUDIO_FEEDBACK_METHOD_FIFO_COUNT;
+  feedback_param->sample_freq = current_sample_rate;
+  feedback_param->fifo_count.fifo_threshold = 4u * bytes_per_frame(current_sample_rate);
+}
+
 // Invoked when audio class specific set request received for an EP
 extern "C" bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *pBuff) {
   (void) rhport;
@@ -538,11 +570,9 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
   (void)ep_out;
   (void)cur_alt_setting;
 
-  last_audio_isr = get_absolute_time();
-  spk_data_size = n_bytes_received;
-  if (audio_alarm_id <= 0) {
-    absolute_time_t alarm_time = delayed_by_us(last_audio_isr, audio_alarm_delay_us); 
-    audio_alarm_id = alarm_pool_add_alarm_at(audio_pool, alarm_time, &audio_alarm_cb, nullptr, false);
+  if ((n_bytes_received == spk_data_size_16 || n_bytes_received == spk_data_size_48)
+      && audio_alarm_id <= 0 && audio_pool) {
+    audio_alarm_id = alarm_pool_add_alarm_in_us(audio_pool, audio_alarm_delay_us, &audio_alarm_cb, nullptr, false);
   }
   return true;
 }
@@ -553,44 +583,35 @@ extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
 
 static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] void *user_data)
 {
-  absolute_time_t now = get_absolute_time();
-  absolute_time_t last = last_audio_isr;
-  int64_t diff = absolute_time_diff_us(last, now);
-
-  int64_t next_delay = -1000;
-
-  // Sync callback to audio_alarm_delay_us after last audio RX ISR if possible
-  if (diff < 1000) {
-    absolute_time_t next = delayed_by_us(last, (audio_alarm_delay_us + 1000));
-    // reverse the order to get a negative delay
-    next_delay = absolute_time_diff_us(next, now);
-  }
   // Always get the current USB volume
   asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
                               mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
                               mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
-  if (spk_data_size) {
-    uint16_t s = spk_data_size;
-    spk_data_size = 0;
-    
-    if (s == spk_data_size_16 || s == spk_data_size_48) {
-      tud_audio_read(spk_buf, s);
-      
-      if (std::all_of(std::begin(spk_buf), std::end(spk_buf), [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
+
+  uint16_t const samples = samples_per_frame(current_sample_rate);
+  uint16_t const frame_bytes = bytes_per_frame(current_sample_rate);
+  if (samples && tud_audio_available() >= frame_bytes) {
+    uint16_t const bytes_read = tud_audio_read(spk_buf, frame_bytes);
+    if (bytes_read == frame_bytes) {
+      if (std::all_of(spk_buf, spk_buf + samples, [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
         ++silence_counter;
       } else {
         silence_counter = 0;
       }
       asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
-      asha_audio_encode_1ms_pcm(spk_buf, s == spk_data_size_16 ? 16u : 48u);
+      asha_audio_encode_1ms_pcm(spk_buf, samples);
+    } else {
+      asha_audio_set_pcm_streaming_enabled(false);
+      asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
     }
   } else {
-      asha_audio_set_pcm_streaming_enabled(false);
-      // Continue encoding silence
-      asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
+    asha_audio_set_pcm_streaming_enabled(false);
+    // Continue encoding silence
+    asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
   }
-  // Schedule this alarm to fire in 1ms from the last scheduled time
-  return next_delay;
+  // Stay locked to the local encoder clock; FIFO-count feedback controls the
+  // host rate and retains a jitter cushion between the two clocks.
+  return -1000;
 }
 
 } // namespace asha

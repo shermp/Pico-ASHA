@@ -122,15 +122,17 @@ extern "C" {
 
 #define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX          TU_MAX(CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_FS, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_HS)
 
-// AUDIO_FEEDBACK_METHOD_FIFO_COUNT needs buffer size >= 4* EP size to work correctly
-// Example read FIFO every 1ms (8 HS frames), so buffer size should be 8 times larger for HS device
-#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ       CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX
+// FIFO-count feedback needs several frames of headroom.  The audio alarm drains
+// one full-speed frame per millisecond; retaining eight maximum-size frames lets
+// the driver hold four frames as its feedback target and absorb USB jitter.
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ       (8 * CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX)
 
 // Enable OUT EP
 #define CFG_TUD_AUDIO_ENABLE_EP_OUT                 1
 
-// Enable feedback EP
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP            0
+// The ASHA encoder is clocked locally, so this USB sink is asynchronous and
+// must report feedback to keep the host's clock from drifting into the FIFO.
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP            1
 
 // CDC buffer sizes
 #define CFG_TUD_CDC_RX_BUFSIZE  (256)
