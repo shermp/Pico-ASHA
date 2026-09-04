@@ -229,6 +229,7 @@ static bool audio10_set_req_entity(tusb_control_request_t const *p_request, uint
 
   // If request is for our feature unit
   if (entityID == UAC1_ENTITY_FEATURE_UNIT) {
+    TU_VERIFY(valid_audio_channel(channelNum));
     switch (ctrlSel) {
       case AUDIO10_FU_CTRL_MUTE:
         switch (p_request->bRequest) {
@@ -276,6 +277,7 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 
   // If request is for our feature unit
   if (entityID == UAC1_ENTITY_FEATURE_UNIT) {
+    TU_VERIFY(valid_audio_channel(channelNum));
     switch (ctrlSel) {
       case AUDIO10_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
@@ -395,6 +397,7 @@ static bool audio20_clock_set_request(audio20_control_request_t const *request, 
 
 static bool audio20_feature_unit_get_request(uint8_t rhport, audio20_control_request_t const *request) {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_FEATURE_UNIT);
+  TU_VERIFY(valid_audio_channel(request->bChannelNumber));
 
   if (request->bControlSelector == AUDIO20_FU_CTRL_MUTE && request->bRequest == AUDIO20_CS_REQ_CUR) {
     audio20_control_cur_1_t mute1 = {.bCur = mute[request->bChannelNumber]};
@@ -425,6 +428,7 @@ static bool audio20_feature_unit_get_request(uint8_t rhport, audio20_control_req
 static bool audio20_feature_unit_set_request(audio20_control_request_t const *request, uint8_t const *buf) {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_FEATURE_UNIT);
   TU_VERIFY(request->bRequest == AUDIO20_CS_REQ_CUR);
+  TU_VERIFY(valid_audio_channel(request->bChannelNumber));
 
   if (request->bControlSelector == AUDIO20_FU_CTRL_MUTE) {
     TU_VERIFY(request->wLength == sizeof(audio20_control_cur_1_t));
