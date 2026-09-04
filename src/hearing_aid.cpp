@@ -419,6 +419,10 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     // }
     EventPacket ev_pkt(EventType::RemoteDisconnected, StatusType::ATTStatus, status, reason);
     add_event_to_buffer(ha->conn_id, ev_pkt);
+    if (!ha->other || !ha->other->is_streaming()) {
+        asha_audio_set_encoding_enabled(false);
+        asha_audio_request_stream_reset();
+    }
     if (ha->other && ha->other->is_streaming()) {
         ha->other->send_acp_status(ACPStatus::other_disconnected);
     }
@@ -491,6 +495,9 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_JUST_WORKS_REQUEST:
             handle = sm_event_just_works_request_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
             short_log(ha->conn_id, "%s", "Just Works Req");
             //LOG_INFO("%s: Just Works requested", ha->get_side_str());
             sm_just_works_confirm(handle);
@@ -499,6 +506,9 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_PAIRING_STARTED:
             handle = sm_event_pairing_started_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
             short_log(ha->conn_id, "%s", "Pairing started");
             //LOG_INFO("%s: Pairing started", ha->get_side_str());
             break;
@@ -506,6 +516,9 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_PAIRING_COMPLETE: {
             handle = sm_event_pairing_complete_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
             att_status = sm_event_pairing_complete_get_status(packet);
             reason = sm_event_pairing_complete_get_reason(packet);
 
@@ -547,6 +560,9 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
         case SM_EVENT_REENCRYPTION_STARTED:
             handle = sm_event_reencryption_started_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
             short_log(ha->conn_id, "%s", "Reencryption started");
             //LOG_INFO("%s: Reencryption started", ha->get_side_str());
             break;
@@ -555,6 +571,9 @@ void HearingAid::handle_sm(PACKET_HANDLER_PARAMS)
             handle = sm_event_reencryption_complete_get_handle(packet);
             att_status = sm_event_reencryption_complete_get_status(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
 
             EventPacket ev_pkt(EventType::PairAndBond, StatusType::SMStatus, att_status);
 
@@ -602,6 +621,9 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
         case GATT_EVENT_SERVICE_QUERY_RESULT: {
             handle = gatt_event_service_query_result_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
 
             gatt_event_service_query_result_get_service(packet, &s);
             if (AshaUUID::service == s.uuid128 || AshaUUID::service16 == s.uuid16) {
@@ -626,6 +648,9 @@ void HearingAid::handle_service_discovery(PACKET_HANDLER_PARAMS)
             handle = gatt_event_query_complete_get_handle(packet);
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
 
             if (att_status != ATT_ERROR_SUCCESS) {
                 //LOG_ERROR("%s: Error discovering services with status: %s", ha->get_side_str(), att_err_str(att_status));
@@ -659,6 +684,9 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT: {
             handle = gatt_event_characteristic_query_result_get_handle(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
             gatt_event_characteristic_query_result_get_characteristic(packet, &c);
 
             if (AshaUUID::readOnlyProps == c.uuid128) {
@@ -711,6 +739,9 @@ void HearingAid::handle_char_discovery(PACKET_HANDLER_PARAMS)
             handle = gatt_event_query_complete_get_handle(packet);
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
 
             if (att_status != ATT_ERROR_SUCCESS) {
                 auto ev_type = ha->service_ev_arr[ha->service_index - 1];
@@ -748,6 +779,9 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
             val_len = gatt_event_characteristic_value_query_result_get_value_length(packet);
             val = gatt_event_characteristic_value_query_result_get_value(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
 
             if (val_handle == ha->services.asha.rop.value_handle) {
                 //LOG_INFO("%s: ROP characteristic read", ha->get_side_str());
@@ -785,6 +819,9 @@ void HearingAid::handle_char_read(PACKET_HANDLER_PARAMS)
             handle = gatt_event_query_complete_get_handle(packet);
             att_status = gatt_event_query_complete_get_att_status(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                return;
+            }
 
             auto ev_type = ha->chars_ev_arr[ha->chars_index - 1];
 
@@ -888,6 +925,9 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             handle = l2cap_event_cbm_channel_opened_get_handle(packet);
             bt_status = l2cap_event_cbm_channel_opened_get_status(packet);
             ha = get_by_con_handle(handle);
+            if (!ha) {
+                break;
+            }
             if (bt_status != ATT_ERROR_SUCCESS) {
                 //LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::L2CapStatus, bt_status));
@@ -906,11 +946,17 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
         case L2CAP_EVENT_CAN_SEND_NOW:
             cid = l2cap_event_can_send_now_get_local_cid(packet);
             ha = get_by_cid(cid);
+            if (!ha || !ha->audio_data) {
+                break;
+            }
             l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
             break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
             ha = get_by_cid(cid);
+            if (!ha) {
+                break;
+            }
             ha->unset_audio_busy();
             break;
         default:
@@ -933,6 +979,9 @@ void HearingAid::handle_notification_reg(PACKET_HANDLER_PARAMS)
     handle = gatt_event_query_complete_get_handle(packet);
     att_status = gatt_event_query_complete_get_att_status(packet);
     ha = get_by_con_handle(handle);
+    if (!ha) {
+        return;
+    }
 
     switch (ha->process_state) {
         case EnASPNotification | ProcessBusy:
@@ -975,6 +1024,9 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
         handle = gatt_event_notification_get_handle(packet);
         val_handle = gatt_event_notification_get_value_handle(packet);
         ha = get_by_con_handle(handle);
+        if (!ha) {
+            return;
+        }
         if (val_handle == ha->services.asha.asp.value_handle) {
             asp_status = (int8_t)gatt_event_notification_get_value(packet)[0];
             EventPacket err_ev_pkt(EventType::ASPError);
