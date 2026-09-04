@@ -99,6 +99,12 @@ int16_t asha_audio_get_curr_usb_vol(enum AshaAudioSide side);
 void asha_audio_set_encoding_enabled(bool enabled);
 
 /**
+ * Discard any partial SDU and reset the codec/filter state before the next
+ * encoded frame. This request is consumed by the PCM producer on core 0.
+ */
+void asha_audio_request_stream_reset();
+
+/**
  * Get current encoding status
  */
 bool asha_audio_get_encoding_enabled();

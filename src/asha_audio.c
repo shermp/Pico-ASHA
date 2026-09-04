@@ -34,6 +34,8 @@ struct AshaAudioEncBuffer {
 static atomic_bool pcm_streaming;
 static atomic_bool encode_audio;
 static atomic_bool encode_mono;
+static atomic_bool requested_encode_mono;
+static atomic_bool stream_reset_pending;
 
 static atomic_uint_fast32_t write_index;
 
@@ -68,8 +70,20 @@ static void reset_encoders()
 
 static void reset_decimators()
 {
+    memset(p_state_l, 0, sizeof(p_state_l));
+    memset(p_state_r, 0, sizeof(p_state_r));
     arm_fir_decimate_init_q15(&fir_s_l, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_l, ASHA_BLOCK_SIZE);
     arm_fir_decimate_init_q15(&fir_s_r, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_r, ASHA_BLOCK_SIZE);
+}
+
+static void reset_stream_encoder()
+{
+    reset_encoders();
+    reset_decimators();
+    g_offset = 1;
+    seq_num = 0;
+    enc_time_index = 0;
+    encode_mono = requested_encode_mono;
 }
 
 void asha_audio_init()
@@ -78,15 +92,13 @@ void asha_audio_init()
     pcm_streaming = false;
     encode_audio = false;
     encode_mono = false;
+    requested_encode_mono = false;
+    stream_reset_pending = false;
     write_index = 0u;
     vol_l = ASHA_USB_VOL_MIN;
     vol_r = ASHA_USB_VOL_MIN;
-    g_offset = 1;
-    seq_num = 0;
-    enc_time_index = 0;
-    reset_encoders();
     arm_float_to_q15(coefficients, fir_c, ASHA_NUM_TAPS);
-    reset_decimators();
+    reset_stream_encoder();
 
 }
 
@@ -101,11 +113,30 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 #ifdef PICO_ASHA_ENC_STATS
     absolute_time_t start_time = get_absolute_time();
 #endif
+    if (atomic_exchange(&stream_reset_pending, false)) {
+        // The hearing aid resets its decoder after an ACP stop/start. Reset on
+        // this producer core so no partial SDU or stale predictor state leaks
+        // into the next stream.
+        reset_stream_encoder();
+    }
+
     bool enc_audio = encode_audio;
     uint32_t w_index = write_index;
     if (!enc_audio) return;
     int buff_index = 0;
     struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(w_index)];
+
+    // A mode change must not split an SDU. When enabling the independent right
+    // channel, its G.722 state must start clean for the newly starting aid.
+    if (g_offset == 1) {
+        bool requested_mono = requested_encode_mono;
+        if (encode_mono != requested_mono) {
+            encode_mono = requested_mono;
+            if (!requested_mono) {
+                g722_encode_init(&enc_state_r, 64000, G722_PACKED);
+            }
+        }
+    }
 
     // Separate interleaved stereo samples to separate channels
     bool mono = encode_mono;
@@ -202,6 +233,11 @@ void asha_audio_set_encoding_enabled(bool enabled)
     encode_audio = enabled;
 }
 
+void asha_audio_request_stream_reset()
+{
+    stream_reset_pending = true;
+}
+
 bool asha_audio_get_encoding_enabled()
 {
     bool enabled = encode_audio;
@@ -210,7 +246,7 @@ bool asha_audio_get_encoding_enabled()
 
 void asha_audio_set_encode_mono(bool mono)
 {
-    encode_mono = mono;
+    requested_encode_mono = mono;
 }
 
 bool asha_audio_get_encode_mono()
