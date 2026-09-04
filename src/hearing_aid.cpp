@@ -410,6 +410,11 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
 {
     using namespace comm;
     HearingAid* ha = get_by_con_handle(handle);
+    if (!ha) {
+        // A connection can be rejected after both slots are occupied. Its
+        // disconnect event has no corresponding slot to reset.
+        return;
+    }
     // if (ha->process_state == ProcessState::Disconnect) {
     //     LOG_INFO("%s: Disconnected", ha->get_side_str());
     // } else {
@@ -893,13 +898,21 @@ void HearingAid::handle_acp_write(PACKET_HANDLER_PARAMS)
         handle = gatt_event_query_complete_get_handle(packet);
         att_status = gatt_event_query_complete_get_att_status(packet);
         ha = get_by_con_handle(handle);
+        if (!ha) {
+            return;
+        }
 
         EventType ev_type = ha->audio_state == AudioState::Start ? EventType::ACPStart 
                                                                  : EventType::ACPStop;
         if (att_status != ATT_ERROR_SUCCESS) {
             //LOG_ERROR("%s: ACP write failed with status: %s", ha->get_side_str(), att_err_str(att_status));
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::ATTStatus, att_status));
+            bool const was_stopping = ha->audio_state == AudioState::Stop;
             ha->audio_state = AudioState::Ready;
+            if (was_stopping && (!ha->other || !ha->other->is_streaming())) {
+                asha_audio_set_encoding_enabled(false);
+                asha_audio_request_stream_reset();
+            }
         } else {
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type));
             if (ha->audio_state == AudioState::Stop) {
@@ -1037,7 +1050,13 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
                     if (ha->audio_state == AudioState::Start) {
                         //LOG_INFO("%s: Audio start OK", ha->get_side_str());
                         add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStart));
+                        bool const other_streaming = ha->other && ha->other->is_streaming();
                         ha->audio_state = AudioState::Streaming;
+                        ha->audio_start_index = asha_audio_get_write_index() + (other_streaming ? 1u : 0u);
+                        asha_audio_set_encode_mono(!other_streaming);
+                        if (!other_streaming) {
+                            asha_audio_request_stream_reset();
+                        }
                         asha_audio_set_encoding_enabled(true);
                         if (ha->other && ha->other->is_streaming()) {
                             ha->other->send_acp_status(ACPStatus::other_connected);
@@ -1049,6 +1068,10 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
 
                         ha->stop_request_from_other = false;
                         ha->audio_state = AudioState::Ready;
+                        if (!ha->other || !ha->other->is_streaming()) {
+                            asha_audio_set_encoding_enabled(false);
+                            asha_audio_request_stream_reset();
+                        }
                     }
                     break;
                 case ASPStatus::unkown_command:
@@ -1143,6 +1166,7 @@ bool HearingAid::process_audio()
             case AudioState::Streaming:
                 if (!audio_streaming_enabled || !pcm_is_streaming) {
                     asha_audio_set_encoding_enabled(false);
+                    asha_audio_request_stream_reset();
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
                     short_log(ha->conn_id, "PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
@@ -1162,6 +1186,11 @@ bool HearingAid::process_audio()
                         break;
                     }
                     if (ha->first_audio_send) {
+                        if (w_index <= ha->audio_start_index) {
+                            // Wait for an SDU made after this aid's decoder
+                            // reset and any mono/stereo transition.
+                            break;
+                        }
                         ha->curr_read_index = w_index - 1;
                         ha->first_audio_send = false;
                     }
@@ -1433,6 +1462,10 @@ void HearingAid::reset()
     error_count = 0;
     service_index = 0;
     chars_index = cached_chars_index;
+    curr_read_index = 0U;
+    audio_start_index = 0U;
+    first_audio_send = false;
+    audio_data = nullptr;
     
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
