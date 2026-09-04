@@ -175,7 +175,11 @@ static bool audio10_set_req_ep(tusb_control_request_t const *p_request, uint8_t 
         // Request uses 3 bytes
         TU_VERIFY(p_request->wLength == 3);
 
-        current_sample_rate = tu_unaligned_read32(pBuff) & 0x00FFFFFF;
+        uint32_t const rate = (uint32_t)pBuff[0]
+                            | ((uint32_t)pBuff[1] << 8)
+                            | ((uint32_t)pBuff[2] << 16);
+        TU_VERIFY(supported_sample_rate(rate));
+        current_sample_rate = rate;
 
         
         TU_LOG2("EP set current freq: %" PRIu32 "\r\n", current_sample_rate);
@@ -375,7 +379,9 @@ static bool audio20_clock_set_request(audio20_control_request_t const *request, 
   if (request->bControlSelector == AUDIO20_CS_CTRL_SAM_FREQ) {
     TU_VERIFY(request->wLength == sizeof(audio20_control_cur_4_t));
 
-    current_sample_rate = (uint32_t) ((audio20_control_cur_4_t const *) buf)->bCur;
+    uint32_t const rate = tu_le32toh((uint32_t) ((audio20_control_cur_4_t const *) buf)->bCur);
+    TU_VERIFY(supported_sample_rate(rate));
+    current_sample_rate = rate;
 
     TU_LOG1("Clock set current freq: %" PRIu32 "\r\n", current_sample_rate);
 
