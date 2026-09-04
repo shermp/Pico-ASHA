@@ -85,6 +85,8 @@ void HearingAid::process()
 
     for (auto ha : hearing_aids) {
         uint8_t res = ERROR_CODE_SUCCESS;
+        bool advanced_service_index = false;
+        bool advanced_char_index = false;
         if (!ha->is_connected()) { continue; }
         if (ha->process_delay_ticks > 0) {
             --ha->process_delay_ticks;
@@ -126,6 +128,7 @@ void HearingAid::process()
             case DiscoverChars: {
                 ha->set_process_busy();
                 auto i = ha->service_index++; // Yes, the post-increment is on purpose
+                advanced_service_index = true;
                 auto s = ha->service_arr[i];
                 ev_type = ha->service_ev_arr[i];
                 res = gatt_client_discover_characteristics_for_service(&HearingAid::handle_char_discovery, ha->conn_handle, s);
@@ -134,6 +137,7 @@ void HearingAid::process()
             case ReadChars: {
                 ha->set_process_busy();
                 auto i = ha->chars_index++; // Yes, the post-increment is on purpose
+                advanced_char_index = true;
                 auto c = ha->chars_arr[i];
                 ev_type = ha->chars_ev_arr[i];
                 res = gatt_client_read_value_of_characteristic(&HearingAid::handle_char_read, ha->conn_handle, c);
@@ -190,6 +194,13 @@ void HearingAid::process()
                 break;
         }
         if (res != ERROR_CODE_SUCCESS) {
+            if (advanced_service_index) {
+                // A failed call produces no completion callback. Keep the
+                // index on the same item for the delayed retry.
+                --ha->service_index;
+            } else if (advanced_char_index) {
+                --ha->chars_index;
+            }
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::BtstackStatus, res));
             //LOG_ERROR("%s: BTStack error: %s", ha->get_side_str(), bt_err_str(res));
             ha->unset_process_busy();
