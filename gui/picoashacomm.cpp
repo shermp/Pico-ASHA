@@ -45,10 +45,21 @@ PicoAshaComm::PicoAshaComm(QObject *parent)
 
     connect_timer.start(timer_interval);
 
+    m_logFile.setFileName("pico-asha.log");
+    m_logOpened = m_logFile.open(QFile::WriteOnly | QFile::Truncate);
+    if (m_logOpened) {
+        m_logStream.setDevice(&m_logFile);
+    }
+
 }
 
 PicoAshaComm::~PicoAshaComm()
 {
+    if (m_logOpened) {
+        m_logOpened = false;
+        m_logStream.flush();
+        m_logFile.close();
+    }
     closeSerial();
     delete m_ui;
 }
@@ -671,6 +682,9 @@ QString PicoAshaComm::logHeader(const asha::comm::HeaderPacket header)
 bool PicoAshaComm::appendLog(const QString &logLine)
 {
     m_ui->appendLog(logLine);
+    if (m_logOpened) {
+        m_logStream << logLine << "\n";
+    }
     return true;
 }
 
