@@ -7,6 +7,7 @@
 #include <QSerialPort>
 #include <QString>
 #include <QStringListModel>
+#include <QTextStream>
 #include <QTimer>
 #include <QUrl>
 
@@ -55,6 +56,9 @@ private:
     PicoAshaMainWindow* m_ui;
 
     QFile m_hciLogFile;
+    QFile m_logFile;
+    bool m_logOpened;
+    QTextStream m_logStream;
 
     bool m_serialConnected;
 
