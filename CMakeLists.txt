@@ -43,6 +43,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ENABLE_AUDIO_ENC_STATS "Enable audio downsampling and encoding statistics" OFF)
+option(ENABLE_L2CAP_TX_TRACE "Emit per-SDU L2CAP transmit handshake diagnostics" OFF)
 
 # Drop data immediately when the CDC TX buffer is full rather than stalling
 # core 1; DEADLOCK_TIMEOUT caps the mutex-wait as a secondary safety net.
@@ -95,6 +96,10 @@ target_include_directories(pico_asha PUBLIC src/ lib/ include/)
 if (ENABLE_AUDIO_ENC_STATS)
   list(APPEND pico_asha_defines "PICO_ASHA_ENC_STATS=1")
 endif(ENABLE_AUDIO_ENC_STATS)
+
+if (ENABLE_L2CAP_TX_TRACE)
+  list(APPEND pico_asha_defines "PICO_ASHA_L2CAP_TX_TRACE=1")
+endif(ENABLE_L2CAP_TX_TRACE)
 
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}")
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_MINOR}")

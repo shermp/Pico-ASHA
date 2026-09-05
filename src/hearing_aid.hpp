@@ -17,9 +17,24 @@ constexpr int ha_process_delay_ticks = 500;
 
 // How long the audio loop is allowed to sit in Ready with the host
 // actively delivering audio but L2CAP credits stuck below the start
-// gate, before forcing a BLE reconnect to recover. Audio loop ticks
+// gate, before recreating the L2CAP CoC to recover. Audio loop ticks
 // at 1 ms, so this is 3 seconds.
 constexpr uint32_t ready_stuck_timeout_ticks = 3000;
+
+// A queued ASHA SDU must be accepted and handed to the controller promptly.
+// The audio loop runs every millisecond; 120 ms is several connection events
+// but short enough to recover before a hearing aid's no-audio watchdog fires.
+constexpr uint32_t audio_tx_stuck_timeout_ticks = 120;
+
+// A hearing aid can remain in its streaming state even when the encoder has
+// stopped producing SDUs. Detect that separately from a pending L2CAP send so
+// the stream can be stopped cleanly before the aid's no-audio watchdog drops
+// the ACL connection. The audio loop runs every millisecond.
+constexpr uint32_t audio_sdu_gap_timeout_ticks = 500;
+
+// If a controlled CoC close does not complete, fall back to reconnecting the
+// BLE link rather than leaving the aid without a usable audio transport.
+constexpr uint32_t l2cap_close_stuck_timeout_ticks = 1000;
 
 enum class Side  {Left = 0, Right = 1};
 enum class Mode  {Mono = 0, Binaural = 1};
@@ -63,6 +78,7 @@ struct HearingAid
         EnASPNotification   = 1U <<  8,
         Finalize            = 1U <<  9,
         Audio               = 1U << 10,
+        CloseL2CAP          = 1U << 11,
         Disconnect          = 1U << 29,
         Done                = 1U << 30,
         ProcessBusy         = 1U << 31
@@ -224,7 +240,13 @@ private:
     uint32_t curr_read_index = 0U;
     uint32_t audio_start_index = 0U;
     bool first_audio_send = false;
+    // BTstack only retains a pointer to an outgoing SDU. Keep a per-aid copy
+    // while the L2CAP send is pending so the encoder ring cannot overwrite it.
+    std::array<uint8_t, ASHA_SDU_SIZE_BYTES> audio_tx_buffer = {};
     uint8_t* audio_data = nullptr;
+    uint32_t audio_tx_pending_ticks = 0U;
+    uint32_t audio_sdu_gap_ticks = 0U;
+    uint32_t l2cap_close_ticks = 0U;
 
     bool stop_request_from_other = false;
 
@@ -248,6 +270,7 @@ private:
     void assign_next_conn_id();
     bool is_connected();
     bool is_streaming();
+    bool is_audio_busy();
     void set_process_busy();
     void unset_process_busy();
     void set_audio_busy();
@@ -257,6 +280,7 @@ private:
     void send_acp_stop();
     void send_acp_status(uint8_t status);
     void send_volume(int8_t volume);
+    void close_l2cap_for_recovery();
     void disconnect();
     void reset();
     const char* get_side_str();
