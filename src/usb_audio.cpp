@@ -95,6 +95,13 @@ static uint32_t silence_counter = 0ul;
 // The silence_counter threshold by wish to signal streaming stopped
 static constexpr uint32_t silence_timeout = 10'000ul;
 
+// A single empty FIFO check is normal when the USB and local audio clocks
+// straddle each other.  Treat only a sustained lack of complete USB frames as
+// the host having stopped audio, rather than stopping an ASHA stream on a
+// momentary underrun.
+static constexpr int64_t audio_packet_timeout_us = 5'000;
+static absolute_time_t last_pcm_packet_time = 0;
+
 USBSettings usb_settings = {};
 
 USBSettings::operator bool() const
@@ -600,25 +607,34 @@ static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] v
 
   uint16_t const samples = samples_per_frame(current_sample_rate);
   uint16_t const frame_bytes = bytes_per_frame(current_sample_rate);
+  absolute_time_t const now = get_absolute_time();
   if (samples && tud_audio_available() >= frame_bytes) {
     uint16_t const bytes_read = tud_audio_read(spk_buf, frame_bytes);
     if (bytes_read == frame_bytes) {
+      last_pcm_packet_time = now;
       if (std::all_of(spk_buf, spk_buf + samples, [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
-        ++silence_counter;
+        if (silence_counter < silence_timeout) {
+          ++silence_counter;
+        }
       } else {
         silence_counter = 0;
       }
       asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
       asha_audio_encode_1ms_pcm(spk_buf, samples);
-    } else {
-      asha_audio_set_pcm_streaming_enabled(false);
-      asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
+      // Stay locked to the local encoder clock; FIFO-count feedback controls
+      // the host rate and retains a jitter cushion between the two clocks.
+      return -1000;
     }
-  } else {
-    asha_audio_set_pcm_streaming_enabled(false);
-    // Continue encoding silence
-    asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
   }
+
+  if (absolute_time_diff_us(last_pcm_packet_time, now) >= audio_packet_timeout_us) {
+    // A new run of zero PCM after the host restarts should get its own full
+    // silence interval, rather than inheriting the previous stream's count.
+    silence_counter = 0;
+    asha_audio_set_pcm_streaming_enabled(false);
+  }
+  // Continue encoding silence while the USB FIFO catches up or the host stops.
+  asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
   // Stay locked to the local encoder clock; FIFO-count feedback controls the
   // host rate and retains a jitter cushion between the two clocks.
   return -1000;
