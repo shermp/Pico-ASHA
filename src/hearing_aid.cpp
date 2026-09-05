@@ -959,10 +959,32 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
         case L2CAP_EVENT_CAN_SEND_NOW:
             cid = l2cap_event_can_send_now_get_local_cid(packet);
             ha = get_by_cid(cid);
-            if (!ha || !ha->audio_data) {
+            // A can-send notification can be delivered after an ACP stop or
+            // disconnect. Only transmit the SDU for the active request.
+            if (!ha || !ha->is_streaming() || !ha->is_audio_busy() || !ha->audio_data) {
+                if (ha) {
+                    short_log(ha->conn_id, "%s", "Ignoring stale L2CAP Tx ready");
+                }
                 break;
             }
-            l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
+#ifdef PICO_ASHA_L2CAP_TX_TRACE
+            short_log(ha->conn_id, "L2CAP Tx ready Cr:%u", (unsigned)ha->credits);
+            short_log(ha->conn_id, "L2CAP Tx send S:%u", (unsigned)ha->audio_data[0]);
+#endif
+            bt_status = l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
+            if (bt_status != ERROR_CODE_SUCCESS) {
+                short_log(ha->conn_id, "L2CAP Tx send err: 0x%02X Cr:%u",
+                          (unsigned)bt_status, (unsigned)ha->credits);
+                ha->audio_data = nullptr;
+                ha->audio_tx_pending_ticks = 0;
+                ha->unset_audio_busy();
+                // Recover the audio transport without dropping the BLE link.
+                ha->close_l2cap_for_recovery();
+                break;
+            }
+            // Do not consume the encoder-ring entry until BTstack has
+            // accepted the SDU for this channel.
+            ++ha->curr_read_index;
             break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
@@ -970,7 +992,31 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             if (!ha) {
                 break;
             }
+#ifdef PICO_ASHA_L2CAP_TX_TRACE
+            short_log(ha->conn_id, "%s", "L2CAP Tx sent");
+#endif
+            ha->audio_data = nullptr;
+            ha->audio_tx_pending_ticks = 0;
+            ha->audio_sdu_gap_ticks = 0;
             ha->unset_audio_busy();
+            break;
+        case L2CAP_EVENT_CHANNEL_CLOSED:
+            cid = l2cap_event_channel_closed_get_local_cid(packet);
+            ha = get_by_cid(cid);
+            if (!ha) {
+                break;
+            }
+            add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPDiscon));
+            ha->cid = 0U;
+            ha->credits = 0U;
+            ha->audio_data = nullptr;
+            ha->audio_tx_pending_ticks = 0U;
+            ha->audio_sdu_gap_ticks = 0U;
+            ha->l2cap_close_ticks = 0U;
+            ha->audio_state = AudioState::AudioUnset;
+            // Keep the ACL connection, then create a fresh CoC with the
+            // existing PSM and service discovery data.
+            ha->process_state = ProcessState::ConnectL2CAP;
             break;
         default:
             break;
@@ -1122,11 +1168,18 @@ bool HearingAid::process_audio()
     bool enable_process_delay = false;
 
     for (auto ha : hearing_aids) {
+        if (ha->process_state == ProcessState::CloseL2CAP) {
+            if (++ha->l2cap_close_ticks >= l2cap_close_stuck_timeout_ticks) {
+                short_log(ha->conn_id, "%s", "L2CAP close timeout, reconnecting");
+                ha->disconnect();
+            }
+            continue;
+        }
         if (ha->process_state != ProcessState::Audio) { continue; }
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
-                // After a zero-credits stop, wait up to the cooldown window for
+                // After a zero-credit stop, wait up to the cooldown window for
                 // credits to fully replenish before restarting; starting at low
                 // credit counts immediately re-drains and produces audible
                 // cycling. Falls through on timeout so we don't deadlock on aids
@@ -1156,11 +1209,25 @@ bool HearingAid::process_audio()
                     // a reconnect once the stuck timeout elapses.
                     if (++ha->ready_stuck_ticks >= ready_stuck_timeout_ticks) {
                         ha->ready_stuck_ticks = 0;
-                        short_log(ha->conn_id, "%s", "Ready state stuck, reconnecting");
-                        ha->disconnect();
+                        short_log(ha->conn_id, "%s", "Ready state stuck, recreating L2CAP");
+                        ha->close_l2cap_for_recovery();
                     }
                 } else {
                     ha->ready_stuck_ticks = 0;
+                }
+                break;
+            case AudioState::Streaming | AudioState::AudioBusy:
+                // The normal Streaming branch intentionally does not queue a
+                // second SDU while BTstack owns the first one. Without this
+                // watchdog, a missing CAN_SEND_NOW or PACKET_SENT event leaves
+                // the aid in streaming mode with no further audio indefinitely.
+                if (++ha->audio_tx_pending_ticks >= audio_tx_stuck_timeout_ticks) {
+                    short_log(ha->conn_id, "L2CAP Tx timeout: %lums Cr:%u",
+                              (unsigned long)ha->audio_tx_pending_ticks,
+                              (unsigned)ha->credits);
+                    ha->audio_data = nullptr;
+                    ha->audio_tx_pending_ticks = 0;
+                    ha->close_l2cap_for_recovery();
                 }
                 break;
             case AudioState::Streaming:
@@ -1175,6 +1242,23 @@ bool HearingAid::process_audio()
                     short_log(ha->conn_id, "%s", "Stop requested from other");
                     ha->send_acp_stop();
                 } else {
+                    // Healthy streaming produces and hands an ASHA SDU to the
+                    // controller about every 10 ms. If no completed send occurs
+                    // for a sustained interval, credits alone cannot reveal the
+                    // failure: there may simply be no fresh encoded frame to
+                    // schedule. Stop cleanly so the hearing aid does not time
+                    // out and disconnect while it is left in streaming state.
+                    if (++ha->audio_sdu_gap_ticks >= audio_sdu_gap_timeout_ticks) {
+                        short_log(ha->conn_id, "Audio Tx gap: %lums Cr:%u",
+                                  (unsigned long)ha->audio_sdu_gap_ticks,
+                                  (unsigned)ha->credits);
+                        ha->audio_sdu_gap_ticks = 0U;
+                        if (ha->other && ha->other->is_streaming()) {
+                            ha->other->stop_request_from_other = true;
+                        }
+                        ha->send_acp_stop();
+                        break;
+                    }
                     // Send volume update if volume has changed
                     int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
@@ -1216,13 +1300,28 @@ bool HearingAid::process_audio()
                             break;
                         }
 
-                        ha->set_audio_busy();
-
                         enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
                                                                                      : AshaAudioSide::AudioRight;
-                        ha->audio_data = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
-                        ++(ha->curr_read_index);
-                        l2cap_request_can_send_now_event(ha->cid);
+                        auto const* encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
+                        memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
+                        ha->audio_data = ha->audio_tx_buffer.data();
+                        ha->audio_tx_pending_ticks = 0;
+                        ha->set_audio_busy();
+
+#ifdef PICO_ASHA_L2CAP_TX_TRACE
+                        short_log(ha->conn_id, "L2CAP Tx req S:%u Cr:%u",
+                                  (unsigned)ha->audio_data[0], (unsigned)ha->credits);
+#endif
+                        uint8_t const tx_request_status = l2cap_request_can_send_now_event(ha->cid);
+                        if (tx_request_status != ERROR_CODE_SUCCESS) {
+                            short_log(ha->conn_id, "L2CAP Tx request err: 0x%02X Cr:%u",
+                                      (unsigned)tx_request_status, (unsigned)ha->credits);
+                            ha->audio_data = nullptr;
+                            ha->audio_tx_pending_ticks = 0;
+                            ha->unset_audio_busy();
+                            ha->close_l2cap_for_recovery();
+                            break;
+                        }
                         enable_process_delay = true;
 #ifdef PICO_ASHA_ENC_STATS
                         send_enc_times = true;
@@ -1338,6 +1437,11 @@ bool HearingAid::is_streaming()
             audio_state == (AudioState::Streaming | AudioState::AudioBusy);
 }
 
+bool HearingAid::is_audio_busy()
+{
+    return (audio_state & AudioState::AudioBusy) != 0U;
+}
+
 void HearingAid::set_process_busy()
 {
     process_state |= ProcessState::ProcessBusy;
@@ -1368,6 +1472,7 @@ void HearingAid::send_acp_start()
     using namespace comm;
 
     audio_state = AudioState::Start;
+    audio_sdu_gap_ticks = 0U;
     acp_cmd_packet[0] = ACPOpCode::start; // Opcode
     acp_cmd_packet[1] = 1u; // G.722 codec at 16KHz
     acp_cmd_packet[2] = 0u; // Unkown audio type
@@ -1391,6 +1496,7 @@ void HearingAid::send_acp_stop()
     using namespace comm;
 
     audio_state = AudioState::Stop;
+    audio_sdu_gap_ticks = 0U;
     acp_cmd_packet[0] = ACPOpCode::stop;
     uint8_t res = gatt_client_write_value_of_characteristic(&HearingAid::handle_acp_write,
                                                             conn_handle,
@@ -1439,6 +1545,31 @@ void HearingAid::send_volume(int8_t volume)
     }
 }
 
+void HearingAid::close_l2cap_for_recovery()
+{
+    using namespace comm;
+
+    // Stop scheduling audio immediately. The old CoC may still hold a pointer
+    // to audio_tx_buffer until its close completes, so leave that storage in
+    // place and only reset its bookkeeping.
+    audio_state = AudioState::AudioUnset;
+    audio_data = nullptr;
+    audio_tx_pending_ticks = 0U;
+    audio_sdu_gap_ticks = 0U;
+    l2cap_close_ticks = 0U;
+    process_state = ProcessState::CloseL2CAP;
+
+    uint8_t const result = l2cap_disconnect(cid);
+    if (result == ERROR_CODE_SUCCESS) {
+        return;
+    }
+
+    // The channel no longer exists or cannot be closed locally. In that case,
+    // the ACL reconnect is the only recovery path.
+    short_log(conn_id, "L2CAP close err: 0x%02X", (unsigned)result);
+    disconnect();
+}
+
 void HearingAid::disconnect()
 {
     //LOG_INFO("%s: Disconnect requested", get_side_str());
@@ -1466,6 +1597,9 @@ void HearingAid::reset()
     audio_start_index = 0U;
     first_audio_send = false;
     audio_data = nullptr;
+    audio_tx_pending_ticks = 0U;
+    audio_sdu_gap_ticks = 0U;
+    l2cap_close_ticks = 0U;
     
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
