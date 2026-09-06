@@ -649,6 +649,7 @@ bool PicoAshaComm::checkError(const asha::comm::HeaderPacket header, const asha:
         default:
             status = "";
         }
+        break;
     case StatusType::StatusSuccess:
         break;
     }
