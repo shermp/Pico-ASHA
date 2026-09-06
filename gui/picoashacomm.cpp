@@ -435,7 +435,7 @@ void PicoAshaComm::handleEventPacket(asha::comm::HeaderPacket const header, asha
         break;
     }
     case EventType::RemoteDisconnected:
-        checkError(header, pkt, "RemoteDisonnected");
+        checkError(header, pkt, "RemoteDisconnected");
         qDebug() << "Removing Conn ID: " << header.conn_id;
         if (rem) {
             auto props = rem->cachedProps();

@@ -16,7 +16,7 @@ your hearing aid fails to work, and I might be able to get it working.
 ### Can I use Pico ASHA and my Android phone at the same time?
 
 Probably not. You will most likely need to disconnect your hearing devices
-and/or disable bluetooth on your phone before using Pico ASHA.
+and/or disable Bluetooth on your phone before using Pico ASHA.
 
 ### Should I use this?
 

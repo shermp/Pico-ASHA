@@ -85,7 +85,7 @@ PicoAshaMainWindow::PicoAshaMainWindow(QWidget *parent)
     m_USBUacVersCombo->addItem("UAC2", QVariant(2u));
     m_USBUacVersCombo->setToolTip("Change USB Audio Class version.\n"
                                "Most people should stick with UAC2, however UAC1 may be compatible "
-                               "With older operating systems such as Windows XP - 8.\n"
+                               "with older operating systems such as Windows XP - 8.\n"
                                "This setting will persist, allowing you to set it on one device, "
                                "then plug it into an older device that only supports UAC1.");
     usbLayout->addWidget(m_USBUacVersCombo);
@@ -373,7 +373,7 @@ void PicoAshaMainWindow::updateEncodeTimes(const int16_t *times, size_t count)
         auto max = *(std::max_element(m_encodeTimes.begin(), m_encodeTimes.end()));
         auto avg = std::accumulate(m_encodeTimes.begin(), m_encodeTimes.end(), 0.0) / m_encodeTimes.size();
 
-        m_encodeTimesLabel->setText(QString("MIN: %1    AVG: %2    MAX %3").arg(min).arg(avg).arg(max));
+        m_encodeTimesLabel->setText(QString("MIN: %1    AVG: %2    MAX: %3").arg(min).arg(avg).arg(max));
         m_encodeTimes.clear();
     }
 }

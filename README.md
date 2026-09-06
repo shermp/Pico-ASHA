@@ -6,7 +6,7 @@ Visit the [website](https://shermp.github.io/Pico-ASHA) for documentation.
 
 ## Status
 
-**This project is in Beta** Currently, it is possible to discover and stream audio to Oticon hearing aids.
+**This project is in Beta.** Currently, it is possible to discover and stream audio to several hearing aid models, see the device status table below for details.
 
 ### Device Status
 

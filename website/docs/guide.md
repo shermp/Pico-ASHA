@@ -3,20 +3,20 @@
 ## Get microcontroller
 
 To get started with Pico ASHA, you will need a [Raspberry Pi Pico W or Pico 2W](https://www.raspberrypi.com/products/raspberry-pi-pico/) microcontroller, 
-and a micro USB cable to connect it to a computer.
+and a Micro-USB cable to connect it to a computer.
 
 These microcontrollers are cheap to purchase, and readily available.
 
 !!! Warning
 
     There are unofficial clone "Pico" devices in the market. These may use a different 
-    bluetooth chip, and WILL NOT work with Pico ASHA.
+    Bluetooth chip, and WILL NOT work with Pico ASHA.
 
     Pico ASHA only supports the official Raspberry Pi Pico boards at this time.
 
 ## Download Pico ASHA firmware and software
 
-Go do the [Download](download.md) page to download firmware and the GUI application.
+Go to the [Download](download.md) page to download firmware and the GUI application.
     
 ## First start with GUI
 
@@ -39,13 +39,13 @@ To get started using the GUI, follow the following steps:
 1. Unzip the GUI application somewhere, and launch `PicoASHAGui.exe` from the `bin` folder. It should look like:
    ![GUI not connected](screenshots/0.3.0/GUI-Not-Connected.png)
 
-2. Plug the micro usb cable into the Pico, then press and hold the button labeled `BOOTSEL` while plugging 
+2. Plug the Micro-USB cable into the Pico, then press and hold the button labeled `BOOTSEL` while plugging 
    the other end of the cable into your computer. A 'USB drive' should appear in your file explorer
 
 3. Copy the `UF2` file for your Pico version onto the 'USB Drive' in step `2.`. The 'USB Drive' will vanish. 
-   The GUI should show a green `connected :: <version>` label in the bottom right corner
+   The GUI should show a green `Connected :: <version>` label in the bottom right corner
 
-4. Put your hearing device into its bluetooth pairing mode. Consult the documentation for your hearing 
+4. Put your hearing device into its Bluetooth pairing mode. Consult the documentation for your hearing 
    device if you do not know how to do this.
 
 5. The GUI should automatically show a pairing dialog listing the hearing devices it has found:
@@ -71,24 +71,24 @@ To get started using the GUI, follow the following steps:
 
 To get started without the GUI, follow the following steps:
 
-2. Plug the micro usb cable into the Pico, then press and hold the button labeled `BOOTSEL` while plugging 
+1. Plug the Micro-USB cable into the Pico, then press and hold the button labeled `BOOTSEL` while plugging 
    the other end of the cable into your computer. A 'USB drive' should appear in your file explorer
 
-3. Copy the `UF2` file for your Pico version onto the 'USB Drive' in step `2.`. The 'USB Drive' will vanish
+2. Copy the `UF2` file for your Pico version onto the 'USB Drive' in step `2.`. The 'USB Drive' will vanish
 
-4. After approximately 10 seconds, the automatic pairing process begins. The LED should be flashing
+3. After approximately 10 seconds, the automatic pairing process begins. The LED should be flashing
 
-5. Put your hearing device into its bluetooth pairing mode. Consult the documentation for your hearing 
+4. Put your hearing device into its Bluetooth pairing mode. Consult the documentation for your hearing 
    device if you do not know how to do this. It is recommended you only pair one at a time
 
-6. If you have a binaural set of hearing devices, the LED will start flashing faster when one device 
+5. If you have a binaural set of hearing devices, the LED will start flashing faster when one device 
    has connected. It will turn solid when both hearing devices are connected
 
-7. Once a full hearing device set has been paired, you will not have to do this again
+6. Once a full hearing device set has been paired, you will not have to do this again
 
 ## Streaming audio
 
-Once paired, streaming audio is incredibly simple. Just select `Pico-ASHA Adapter` from your list of output 
+Once paired, streaming audio is incredibly simple. Just select `Pico-ASHA adapter` from your list of output 
 sound devices in your OS. The OS volume control should be able to control the streaming audio volume 
 in your hearing device.
 
@@ -113,7 +113,7 @@ When connected to Pico ASHA which is connected to hearing devices, the GUI looks
 
 ### Top section
 
-The top section shows some details about the connected hearing devices such as address, name, make, model 
+The top section shows some details about the connected hearing devices such as address, name, make, model, 
 etc. It also shows the current streaming volume as well as the battery level (out of 10).
 
 This section is purely informational.
@@ -122,10 +122,10 @@ This section is purely informational.
 
 You can currently send a few useful commands:
 
-- **Stop/Start Audio**: Allows to start and stop audio streaming. Mostly useful to restart the 
+- **Stop/Start Audio**: Allows you to start and stop audio streaming. Mostly useful to restart the 
 audio stream if it goes out of sync.
 
-- **Enable/Disable Connections**: Allows to disconnect the hearing devices from Pico ASHA so 
+- **Enable/Disable Connections**: Allows you to disconnect the hearing devices from Pico ASHA so 
 they can be connected to another device such as an Android phone.
 
 - **Restart**: If something goes wrong, maybe restarting Pico ASHA will fix it?
@@ -136,17 +136,17 @@ the pairing process again, potentially with a different set of hearing devices.
 ### USB Settings (from version 0.3.0)
 
 - **USB Audio Class version**: Select which version of the USB Audio Class to use. The default 
-is to use UAC2. If you want to use Pico-ASHA with an older operating system such as Windows XP - 8 
+is to use UAC2. If you want to use Pico-ASHA with an older operating system such as Windows XP - 8, 
 you can switch to UAC1. Tested working on Windows XP (although the serial connection for the GUI 
 does not work).
 
 - **Volume management**: It may be useful to restrict the USB volume range to prevent Pico-ASHA from getting too quiet or 
 loud. The valid range is -127 (minimum) to 0 (maximum).
 
-      * **Minimum Volume**: Select the minimum USB volume that Pico-ASHA reports to OS. Must be lower 
+      * **Minimum Volume**: Select the minimum USB volume that Pico-ASHA reports to the OS. Must be lower 
 than the maximum value.
 
-      * **Maximum Volume**: Select the maximum USB volume that Pico-ASHA reports to OS. Must be greater 
+      * **Maximum Volume**: Select the maximum USB volume that Pico-ASHA reports to the OS. Must be greater 
 than the minimum value.
 
 !!! Note
@@ -154,7 +154,7 @@ than the minimum value.
     Windows can get confused when changing the volume range. It is recommended to restart Windows once you have decided on a range to use.
 
 - **Update button**: Allows saving the changed USB Audio Class version and volume range to Pico-ASHA.
-Changes persist accross connections.
+Changes persist across connections.
 
 ### HCI Logging
 
@@ -162,7 +162,7 @@ Changes persist accross connections.
     
     You only need to do this if requested.
 
-If are having difficulties connecting your hearing devices, I may ask that you enable HCI logging 
+If you are having difficulties connecting your hearing devices, I may ask that you enable HCI logging 
 to provide more detailed diagnostic information.
 
 - **Browse...**: Click this button to choose an HCI log file to create
