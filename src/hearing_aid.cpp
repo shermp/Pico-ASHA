@@ -1587,7 +1587,11 @@ void HearingAid::reset()
     audio_state = AudioState::AudioUnset;
     other = nullptr;
     psm = 0;
+    battery_level = 0;
+    curr_vol = -128;
     credits = 0;
+    zero_credits_cooldown = 0;
+    ready_stuck_ticks = 0;
     paired_and_bonded = false;
     process_delay_ticks = 0;
     error_count = 0;
@@ -1600,13 +1604,15 @@ void HearingAid::reset()
     audio_tx_pending_ticks = 0U;
     audio_sdu_gap_ticks = 0U;
     l2cap_close_ticks = 0U;
-    
+    stop_request_from_other = false;
+
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));
         device_name.clear();
         manufacturer.clear();
         model.clear();
         fw_vers.clear();
+        sw_vers.clear();
 
         rop = {};
         side_str = "Unknown";
