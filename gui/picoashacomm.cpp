@@ -292,6 +292,11 @@ void PicoAshaComm::onPairWithAddress(const QByteArray &addr, uint8_t addr_type)
 template<typename T>
 bool assert_packet_size(size_t dec_size, const char* pkt_type, T const& pkt)
 {
+    if (dec_size < sizeof(asha::comm::HeaderPacket)) {
+        qDebug() << pkt_type << ": Size mismatch! Decoded size is "
+                 << dec_size << ", which is too small for a header";
+        return false;
+    }
     size_t dec_pkt_size = dec_size - sizeof(asha::comm::HeaderPacket);
     if (dec_pkt_size < sizeof pkt) {
         qDebug() << pkt_type << ": Size mismatch! Decoded size is "
