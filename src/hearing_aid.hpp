@@ -207,18 +207,18 @@ private:
     size_t service_index = 0;
 
     std::array<gatt_client_characteristic_t*, 8> chars_arr = {
+        &services.asha.rop,
         &services.gap.device_name,
         &services.dis.manufacture_name,
         &services.dis.model_num,
         &services.dis.fw_vers,
         &services.dis.sw_vers,
-        &services.asha.rop,
         &services.asha.psm,
         &services.mfi.battery,
     };
     std::array<comm::EventType, 8> chars_ev_arr = {
-        comm::EventType::DevNameRead, comm::EventType::MfgRead, comm::EventType::ModelRead, comm::EventType::FWRead,
-        comm::EventType::SWRead,      comm::EventType::ROPRead, comm::EventType::PSMRead,   comm::EventType::MfiBatteryRead,
+        comm::EventType::ROPRead, comm::EventType::DevNameRead, comm::EventType::MfgRead, comm::EventType::ModelRead,
+        comm::EventType::FWRead,  comm::EventType::SWRead,      comm::EventType::PSMRead, comm::EventType::MfiBatteryRead,
     };
     size_t chars_index = 0;
     constexpr static size_t cached_chars_index = 6;
