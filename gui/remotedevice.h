@@ -28,9 +28,9 @@ public:
         QString modelName;
         QString fwVersion;
         QString swVersion;
-        Side side;
-        Mode mode;
-        bool g24kHZ;
+        Side side = SideUnset;
+        Mode mode = ModeUnset;
+        bool g24kHZ = false;
     };
 
     struct LabelPair {

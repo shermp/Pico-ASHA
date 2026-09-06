@@ -64,7 +64,7 @@ void RemoteDevice::setConnID(uint16_t connID)
 
 void RemoteDevice::setHCIHandle(uint16_t hciHandle)
 {
-    m_hciConnHandleLabel.setText(QString("0x%1").arg((int)hciHandle, 2, 16));
+    m_hciConnHandleLabel.setText(QString("0x%1").arg((int)hciHandle, 2, 16, QChar('0')));
 }
 
 void RemoteDevice::setAddr(const uint8_t *addr)
@@ -81,12 +81,12 @@ void RemoteDevice::setPairedBonded(bool paired)
 
 void RemoteDevice::setPsm(uint16_t psm)
 {
-    m_psmLabel.setText(QString("0x%1").arg((int)psm, 2, 16));
+    m_psmLabel.setText(QString("0x%1").arg((int)psm, 2, 16, QChar('0')));
 }
 
 void RemoteDevice::setL2CID(uint16_t cid)
 {
-    m_l2CIDLabel.setText(QString("0x%1").arg((int)cid, 2, 16));
+    m_l2CIDLabel.setText(QString("0x%1").arg((int)cid, 2, 16, QChar('0')));
 }
 
 void RemoteDevice::setDeviceName(QString const& deviceName)
@@ -187,7 +187,7 @@ void RemoteDevice::setDefaultValues()
     m_fwVersionLabel.setText("");
     m_swVersionLabel.setText("");
     m_modeLabel.setText("Unknown");
-    m_g72224Label.setText("No");
+    m_g72224Label.setText("Unsupported");
     m_psmLabel.setText("0x00");
     m_l2CIDLabel.setText("0x00");
     m_audioStreamingLabel.setText("No");
