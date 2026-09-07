@@ -3,6 +3,7 @@ nav:
   - index.md
   - download.md
   - guide.md
+  - Web UI: web-ui-guide.md
   - development.md
   - faq.md
   - status.md
