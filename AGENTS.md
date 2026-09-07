@@ -6,7 +6,8 @@
 - Firmware written in C/C++20 using the Pico C/C++ SDK. Uses TinyUSB for USB audio and Bluekitchen BTStack for bluetooth.
 - Firmware source in `src/` directory.
 - Adapter can be interfaced over USB CDC serial connection. Protocol documented in `include/asha_comms.cpp`.
-- Qt Application exists in `gui/` directory to interface with adapter.
+- Qt Application exists in `gui/` directory to interface with adapter. It is deprecated in favour of the new Web UI.
+- A Web UI application exists in `website/docs/web-ui`. It is a completely static site using no build tooling. It uses Lit, Pico CSS, Material Design Icons.
 - Website/documentation is written using `mkdocs` in the `website/` directory. Documentation is published to Github Pages.
 
 ## Tooling
