@@ -64,6 +64,14 @@ export class AdapterState {
     return this.snapshot;
   }
 
+  updateIntro(changes) {
+    if (!this.snapshot.intro) {
+      return this.snapshot;
+    }
+    this.snapshot = this.makeSnapshot({ intro: Object.freeze({ ...this.snapshot.intro, ...changes }) });
+    return this.snapshot;
+  }
+
   cacheRemote(remote) {
     if (!remote.address || remote.address === "00:00:00:00:00:00") {
       return;

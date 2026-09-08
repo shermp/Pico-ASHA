@@ -191,13 +191,13 @@ export class PicoAshaApp extends LitElement {
 
   async changeAudio(enabled) {
     if (await this.sendCommand(Command.AudioStreaming, { enabled }, {}, enabled ? "Audio streaming enabled" : "Audio streaming disabled")) {
-      this.adapter = Object.freeze({ ...this.adapter, intro: Object.freeze({ ...this.adapter.intro, audioStreamingEnabled: enabled }) });
+      this.adapter = this.store.updateIntro({ audioStreamingEnabled: enabled });
     }
   }
 
   async changeConnections(enabled) {
     if (await this.sendCommand(Command.AllowConnect, { enabled }, {}, enabled ? "New connections enabled" : "New connections disabled")) {
-      this.adapter = Object.freeze({ ...this.adapter, intro: Object.freeze({ ...this.adapter.intro, connectionsAllowed: enabled }) });
+      this.adapter = this.store.updateIntro({ connectionsAllowed: enabled });
     }
   }
 
