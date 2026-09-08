@@ -56,10 +56,21 @@ export class RemoteCard extends LitElement {
         height: 3.1rem;
         flex: 0 0 auto;
         place-items: center;
-        border: 1px solid var(--app-border);
+        border: 1px solid transparent;
         border-radius: 50%;
-        background: var(--app-panel-soft);
-        color: var(--app-accent);
+        color: #ffffff;
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .aid.left {
+        background: #1e70d1;
+        border-color: #1e70d1;
+      }
+
+      .aid.right {
+        background: #c83737;
+        border-color: #c83737;
       }
 
       h2,
@@ -77,13 +88,6 @@ export class RemoteCard extends LitElement {
       p,
       small {
         color: var(--app-muted);
-      }
-
-      .side {
-        margin-top: 0.15rem;
-        font-size: 0.78rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
       }
 
       .connected {
@@ -181,6 +185,8 @@ export class RemoteCard extends LitElement {
     }
 
     const remote = this.remote;
+    const sideInitial = this.side === "Right" ? "R" : "L";
+    const sideClass = sideInitial === "L" ? "left" : "right";
     const volume = remote.muted ? "Muted" : `${volumeToDb(remote.volume)} dB`;
     return html`
       <article class="panel">
@@ -188,10 +194,9 @@ export class RemoteCard extends LitElement {
         <div class="body">
           <div class="top">
             <div class="identity">
-              <span class="aid">${icon("hearing")}</span>
+              <span class="aid ${sideClass}" role="img" aria-label="${this.side} hearing aid">${sideInitial}</span>
               <div>
                 <h2>${remote.name || "Unnamed hearing aid"}</h2>
-                <p class="side">${this.side} channel</p>
               </div>
             </div>
             <span class="connected" title="Connected">${icon("bluetooth_connected")}</span>
