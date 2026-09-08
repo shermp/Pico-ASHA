@@ -509,6 +509,23 @@ test("Unexpected disconnect schedules authorized-port reconnect", async () => {
   await controller.disconnect();
 });
 
+test("Failed automatic reconnect remains in a cancellable reconnecting state", async () => {
+  const timers = [];
+  const statuses = [];
+  const serial = { getPorts: async () => [], addEventListener() {}, removeEventListener() {} };
+  const controller = new SerialController({
+    serial,
+    onStatus: (status) => statuses.push(status),
+    setTimer: (body) => { timers.push(body); return timers.length; },
+    clearTimer: () => {},
+  });
+  controller.manualDisconnect = false;
+  controller.scheduleReconnect();
+  await timers[0]();
+  assert(statuses.at(-1).phase === "reconnecting");
+  await controller.disconnect();
+});
+
 test("Restart command failures clear intent unless a disconnect was observed", async () => {
   const port = new MockPort();
   const serial = { addEventListener() {}, removeEventListener() {} };
