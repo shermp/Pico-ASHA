@@ -72,6 +72,12 @@ export class AdapterState {
     return this.snapshot;
   }
 
+  clearAdverts() {
+    this.advertMap.clear();
+    this.snapshot = this.makeSnapshot();
+    return this.snapshot;
+  }
+
   cacheRemote(remote) {
     if (!remote.address || remote.address === "00:00:00:00:00:00") {
       return;
