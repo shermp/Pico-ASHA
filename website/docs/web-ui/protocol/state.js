@@ -2,6 +2,12 @@ import { EventType, PacketType, StatusType } from "./constants.js";
 import { parseROP } from "./codec.js";
 
 const cacheFields = ["name", "manufacturer", "model", "firmware", "software", "side", "sideValue", "mode", "modeValue", "audioFormat"];
+// Matches the codec value sent by HearingAid::send_acp_start().
+const SELECTED_FIRMWARE_CODEC = 1;
+const codecFormats = Object.freeze({
+  1: "G.722 @ 16 kHz",
+  2: "G.722 @ 24 kHz",
+});
 
 function remoteSkeleton(connectionId, address = "00:00:00:00:00:00") {
   return {
@@ -25,7 +31,7 @@ function remoteSkeleton(connectionId, address = "00:00:00:00:00:00") {
     volume: -128,
     muted: true,
     battery: 0,
-    audioFormat: "Unknown",
+    audioFormat: codecFormats[SELECTED_FIRMWARE_CODEC] ?? "Unknown",
   };
 }
 
@@ -166,7 +172,7 @@ export class AdapterState {
       case EventType.PairAndBond: updates.paired = true; break;
       case EventType.ROPRead: {
         const rop = parseROP(event.rop);
-        Object.assign(updates, rop, { audioFormat: rop.supportsG72224 ? "G.722 @ 24 kHz" : "G.722 @ 16 kHz" });
+        Object.assign(updates, rop, { audioFormat: codecFormats[SELECTED_FIRMWARE_CODEC] ?? "Unknown" });
         break;
       }
       case EventType.PSMRead: updates.psm = event.psm; break;
