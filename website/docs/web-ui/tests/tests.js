@@ -641,11 +641,16 @@ test("App reports failed restart commands unless the controller observed a resta
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
-test("App header emits composed connection events with accessible names", async () => {
+test("App header emits connection events and shows firmware/UAC together", async () => {
   const element = document.createElement("app-header"); document.querySelector("#fixtures").append(element); await element.updateComplete;
   let received = false; element.addEventListener("adapter-connect", () => { received = true; });
   const button = element.renderRoot.querySelector('[aria-label="Connect adapter"]'); button.click();
-  assert(received && button.title === "Connect adapter"); element.remove();
+  assert(received && button.title === "Connect adapter");
+  element.connection = { phase: "ready", label: "Firmware 1.8.2" };
+  element.uacVersion = 2;
+  await element.updateComplete;
+  assert(element.renderRoot.textContent.includes("Firmware 1.8.2 · UAC2"));
+  element.remove();
 });
 
 test("Remote card reacts to immutable state and presents battery/volume/streaming", async () => {

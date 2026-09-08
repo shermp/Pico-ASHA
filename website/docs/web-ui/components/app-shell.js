@@ -322,10 +322,13 @@ export class PicoAshaApp extends LitElement {
         @pairing-close=${this.handlePairingClose}
         @log-copy=${this.copyLog} @log-download=${this.downloadLog} @log-clear=${() => { this.logEntries = []; }}
       >
-        <app-header .connection=${this.connection}></app-header>
+        <app-header
+          .connection=${this.connection}
+          .uacVersion=${this.adapter.usbInfo?.uacVersion ?? this.adapter.intro?.uacVersion ?? null}
+        ></app-header>
         ${this.supportMessage ? html`<p class="notice">${this.supportMessage}</p>` : ""}
         <remote-grid .remotes=${this.adapter.remotes}></remote-grid>
-        <p class="intro">${this.adapter.intro ? `Firmware ${this.adapter.intro.version} · UAC${this.adapter.usbInfo?.uacVersion ?? this.adapter.intro.uacVersion}` : "Use the cable button to grant this page access to your Pico-ASHA adapter."}</p>
+        ${!this.adapter.intro ? html`<p class="intro">Use the cable button to grant this page access to your Pico-ASHA adapter.</p>` : ""}
         <settings-dialog .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .candidateCount=${this.adapter.adverts.length} .hci=${this.hci} .busy=${this.busy}></settings-dialog>
         <pairing-dialog .candidates=${this.adapter.adverts} .busy=${this.busy}></pairing-dialog>
         <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>

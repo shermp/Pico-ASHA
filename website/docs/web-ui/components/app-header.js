@@ -5,6 +5,7 @@ import { icon } from "./icon.js";
 export class AppHeader extends LitElement {
   static properties = {
     connection: { type: Object },
+    uacVersion: { type: Number },
   };
 
   static styles = [
@@ -83,6 +84,7 @@ export class AppHeader extends LitElement {
   constructor() {
     super();
     this.connection = { phase: "idle", label: "Adapter disconnected" };
+    this.uacVersion = null;
   }
 
   emit(name) {
@@ -93,6 +95,7 @@ export class AppHeader extends LitElement {
     const ready = this.connection.phase === "ready";
     const canDisconnect = ready || this.connection.phase === "reconnecting";
     const busy = ["connecting", "disconnecting"].includes(this.connection.phase);
+    const uacLabel = ready && Number.isFinite(this.uacVersion) ? ` · UAC${this.uacVersion}` : "";
     return html`
       <header class="panel">
         <div class="brand">
@@ -105,7 +108,7 @@ export class AppHeader extends LitElement {
         <div class="actions">
           <div class="status" role="status" aria-live="polite">
             <span class="dot ${ready ? "ready" : ""}"></span>
-            <span>${this.connection.label}</span>
+            <span>${this.connection.label}${uacLabel}</span>
           </div>
           <button
             class="icon-button"
