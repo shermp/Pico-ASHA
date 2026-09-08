@@ -653,7 +653,13 @@ test("Remote card reacts to immutable state and presents battery/volume/streamin
   assert(element.renderRoot.textContent.includes("No left hearing aid"));
   element.remote = Object.freeze({ side: "Left", name: "Test Aid", streaming: true, muted: false, volume: -12, battery: 9, paired: true }); await element.updateComplete;
   const text = element.renderRoot.textContent;
-  assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-4.5 dB") && text.includes("9/10")); element.remove();
+  const leftBadge = element.renderRoot.querySelector(".aid");
+  assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-4.5 dB") && text.includes("9/10"));
+  assert(leftBadge.textContent.trim() === "L" && leftBadge.classList.contains("left") && !text.includes("Left channel"));
+  element.side = "Right"; await element.updateComplete;
+  const rightBadge = element.renderRoot.querySelector(".aid");
+  assert(rightBadge.textContent.trim() === "R" && rightBadge.classList.contains("right") && rightBadge.getAttribute("aria-label") === "Right hearing aid");
+  element.remove();
 });
 
 test("Remote volume levels convert from protocol units to dB", () => {
