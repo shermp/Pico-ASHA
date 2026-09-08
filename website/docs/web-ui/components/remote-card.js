@@ -2,6 +2,12 @@ import { LitElement, css, html } from "../vendor/lit-core.min.js";
 import { componentStyles } from "./component-styles.js";
 import { icon } from "./icon.js";
 
+const VOLUME_DB_STEP = 0.375;
+
+export function volumeToDb(volume) {
+  return volume * VOLUME_DB_STEP;
+}
+
 export class RemoteCard extends LitElement {
   static properties = {
     remote: { type: Object },
@@ -175,7 +181,7 @@ export class RemoteCard extends LitElement {
     }
 
     const remote = this.remote;
-    const volume = remote.muted ? "Muted" : `${remote.volume} dB`;
+    const volume = remote.muted ? "Muted" : `${volumeToDb(remote.volume)} dB`;
     return html`
       <article class="panel">
         <div class="edge"></div>
