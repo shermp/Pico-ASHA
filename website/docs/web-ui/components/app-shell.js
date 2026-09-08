@@ -236,14 +236,18 @@ export class PicoAshaApp extends LitElement {
     this.renderRoot.querySelector("pairing-dialog")?.show();
   }
 
-  handlePairingClose() {
-    this.autoPairDismissed = true;
-    this.adapter = this.store.clearAdverts();
+  handlePairingClose(event) {
+    const dismissed = event?.detail?.dismissed ?? true;
+    this.autoPairDismissed = dismissed;
+    if (dismissed) {
+      this.adapter = this.store.clearAdverts();
+    }
   }
 
   async pairCandidate(candidate) {
     if (await this.sendCommand(Command.PairBond, candidate, {}, `Pairing with ${candidate.name || candidate.address}…`)) {
-      this.renderRoot.querySelector("pairing-dialog")?.close();
+      this.adapter = this.store.removeAdvert(candidate.address);
+      this.renderRoot.querySelector("pairing-dialog")?.close({ dismissed: false });
     }
   }
 
