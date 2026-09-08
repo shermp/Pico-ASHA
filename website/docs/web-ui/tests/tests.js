@@ -693,16 +693,74 @@ test("Remote volume levels convert from protocol units to dB", () => {
 
 test("Settings form keeps visible labels and emits a composed USB event", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element); element.ready = true; await element.updateComplete;
-  equal([...element.renderRoot.querySelectorAll("label")].map((label) => label.textContent.trim().split(/\s{2,}|\n/)[0]), ["USB Audio ClassUAC1UAC2", "Minimum volume (dB)", "Maximum volume (dB)"]);
+  const labels = [...element.renderRoot.querySelectorAll("label, legend")];
+  assert(labels[0].textContent.includes("USB Audio Class") && labels[1].querySelector("span").textContent === "Volume range");
   let detail; element.addEventListener("usb-update", (event) => { detail = event.detail; });
   element.renderRoot.querySelector("form").dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
   equal(detail, { uacVersion: 2, minimumDb: -60, maximumDb: 0 }); element.remove();
+});
+
+test("USB volume uses a dual slider that preserves ordered bounds and submitted values", async () => {
+  const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element); element.ready = true; await element.updateComplete;
+  const sliders = [...element.renderRoot.querySelectorAll('input[type="range"]')];
+  equal(sliders.map((slider) => slider.getAttribute("aria-label")), ["Minimum volume", "Maximum volume"]);
+  equal(sliders.map((slider) => [Number(slider.min), Number(slider.max)]), [[-127, 0], [-127, 0]]);
+  sliders[0].value = "-20"; sliders[0].dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  sliders[1].value = "-10"; sliders[1].dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  equal([element.minimumDb, element.maximumDb], [-20, -10]);
+  equal([...element.renderRoot.querySelectorAll("output")].map((output) => output.textContent), ["-20", "-10"]);
+  assert(!element.renderRoot.querySelector(".range-field").textContent.includes("dB"));
+  sliders[0].value = "0"; sliders[0].dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  equal([element.minimumDb, element.maximumDb], [-11, -10]);
+  sliders[1].value = "-127"; sliders[1].dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  equal([element.minimumDb, element.maximumDb], [-11, -10]);
+  let detail; element.addEventListener("usb-update", (event) => { detail = event.detail; });
+  element.renderRoot.querySelector("form").dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }));
+  equal(detail, { uacVersion: 2, minimumDb: -11, maximumDb: -10 }); element.remove();
+});
+
+test("USB save is enabled only while device settings have been changed", async () => {
+  const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
+  element.ready = true;
+  element.usbInfo = { uacVersion: 2, minimumDb: -60, maximumDb: 0 };
+  await element.updateComplete;
+  const save = element.renderRoot.querySelector('[aria-label="Save USB settings"]');
+  const uac = element.renderRoot.querySelector("select");
+  const minimum = element.renderRoot.querySelector('[aria-label="Minimum volume"]');
+  assert(save.disabled);
+  uac.value = "1"; uac.dispatchEvent(new Event("change", { bubbles: true })); await element.updateComplete;
+  assert(!save.disabled);
+  uac.value = "2"; uac.dispatchEvent(new Event("change", { bubbles: true })); await element.updateComplete;
+  assert(save.disabled);
+  minimum.value = "-61"; minimum.dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  assert(!save.disabled);
+  minimum.value = "-60"; minimum.dispatchEvent(new InputEvent("input", { bubbles: true })); await element.updateComplete;
+  assert(save.disabled);
+  element.usbInfo = null; await element.updateComplete;
+  assert(save.disabled);
+  element.remove();
 });
 
 test("Settings dialog exposes disabled states until the adapter is ready", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element); await element.updateComplete;
   assert([...element.renderRoot.querySelectorAll("button")].some((button) => button.disabled)); element.ready = true; await element.updateComplete;
   assert(!element.renderRoot.querySelector("button.control-button").disabled); element.remove();
+});
+
+test("Every settings dialog button is icon-only with a native tooltip and accessible name", async () => {
+  const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
+  element.ready = true; element.intro = { audioStreamingEnabled: false, connectionsAllowed: false };
+  element.remotes = [{ name: "Test Aid", address: "01:02:03:04:05:06", side: "Left", paired: true }];
+  await element.updateComplete;
+  const buttons = [...element.renderRoot.querySelectorAll("button")];
+  assert(buttons.length === 10);
+  for (const button of buttons) {
+    assert(button.title && button.getAttribute("aria-label"));
+    assert(button.children.length === 1 && button.firstElementChild.classList.contains("material-symbols-outlined"));
+  }
+  assert(element.renderRoot.querySelector('[aria-label="Pair device"] .material-symbols-outlined').textContent === "hearing");
+  assert(!element.renderRoot.querySelector("footer"));
+  element.remove();
 });
 
 test("Pairing dialog emits candidate selection from keyboard-operable buttons", async () => {
