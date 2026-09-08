@@ -273,6 +273,21 @@ test("Closing pairing clears stale nearby-device candidates", () => {
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
+test("Pairing one hearing aid allows the next advertisement to reopen pairing", async () => {
+  const app = new PicoAshaApp(); document.querySelector("#fixtures").append(app); await app.updateComplete;
+  app.sendCommand = async () => true;
+  const first = { kind: "advert", isHearingAid: true, name: "Left Aid", address: "01:02:03:04:05:06", addressType: 1, rssi: -45 };
+  app.handlePacket(first); await app.updateComplete; await Promise.resolve();
+  const dialog = app.renderRoot.querySelector("pairing-dialog");
+  assert(dialog.open);
+  await app.pairCandidate(first); await app.updateComplete;
+  assert(!dialog.open && !app.autoPairDismissed && app.adapter.adverts.length === 0);
+  const second = { kind: "advert", isHearingAid: true, name: "Right Aid", address: "11:12:13:14:15:16", addressType: 1, rssi: -48 };
+  app.handlePacket(second); await app.updateComplete; await Promise.resolve();
+  assert(dialog.open && app.adapter.adverts.length === 1 && app.adapter.adverts[0].address === second.address);
+  dialog.close(); app.remove();
+});
+
 test("Remote event updates battery, volume, streaming, PSM, and L2CAP", () => {
   const store = new AdapterState();
   store.apply(decodePacket(makeRemote()));

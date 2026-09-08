@@ -23,7 +23,10 @@ export class PairingDialog extends LitElement {
   constructor() { super(); this.candidates = []; this.busy = false; }
   get open() { return Boolean(this.renderRoot.querySelector("dialog")?.open); }
   show() { const dialog = this.renderRoot.querySelector("dialog"); if (!dialog.open) { dialog.showModal(); } }
-  close() { this.renderRoot.querySelector("dialog")?.close(); this.dispatchEvent(new CustomEvent("pairing-close", { bubbles: true, composed: true })); }
+  close({ dismissed = true } = {}) {
+    this.renderRoot.querySelector("dialog")?.close();
+    this.dispatchEvent(new CustomEvent("pairing-close", { detail: { dismissed }, bubbles: true, composed: true }));
+  }
   select(candidate) { this.dispatchEvent(new CustomEvent("pairing-select", { detail: { candidate }, bubbles: true, composed: true })); }
 
   render() {
