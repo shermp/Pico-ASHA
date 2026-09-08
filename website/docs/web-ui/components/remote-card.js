@@ -8,6 +8,31 @@ export function volumeToDb(volume) {
   return volume * VOLUME_DB_STEP;
 }
 
+export function batteryIcon(level) {
+  if (!Number.isFinite(level)) {
+    return "battery_unknown";
+  }
+  const clampedLevel = Math.min(Math.max(Math.round(level), 0), 10);
+  if (clampedLevel === 10) {
+    return "battery_full";
+  }
+  return `battery_${Math.ceil((clampedLevel * 6) / 9)}_bar`;
+}
+
+export function batteryColor(level) {
+  if (!Number.isFinite(level)) {
+    return "unknown";
+  }
+  const clampedLevel = Math.min(Math.max(Math.round(level), 0), 10);
+  if (clampedLevel <= 2) {
+    return "low";
+  }
+  if (clampedLevel <= 5) {
+    return "medium";
+  }
+  return "high";
+}
+
 export class RemoteCard extends LitElement {
   static properties = {
     remote: { type: Object },
@@ -119,6 +144,18 @@ export class RemoteCard extends LitElement {
         text-overflow: ellipsis;
       }
 
+      .battery.low {
+        color: var(--pico-del-color, #c83737);
+      }
+
+      .battery.medium {
+        color: #ba7a00;
+      }
+
+      .battery.high {
+        color: var(--app-success);
+      }
+
       details {
         margin-top: 1rem;
         border-top: 1px solid var(--app-border);
@@ -188,6 +225,8 @@ export class RemoteCard extends LitElement {
     const sideInitial = this.side === "Right" ? "R" : "L";
     const sideClass = sideInitial === "L" ? "left" : "right";
     const volume = remote.muted ? "Muted" : `${volumeToDb(remote.volume)} dB`;
+    const batteryGlyph = batteryIcon(remote.battery);
+    const batteryTone = batteryColor(remote.battery);
     return html`
       <article class="panel">
         <div class="edge"></div>
@@ -204,7 +243,7 @@ export class RemoteCard extends LitElement {
           <div class="metrics">
             <div class="metric">${icon(remote.streaming ? "graphic_eq" : "stop")}<strong>${remote.streaming ? "Streaming" : "Idle"}</strong></div>
             <div class="metric">${icon(remote.muted ? "volume_off" : "volume_up")}<strong>${volume}</strong></div>
-            <div class="metric">${icon("battery_full")}<strong>${remote.battery ?? "—"}${remote.battery == null ? "" : "/10"}</strong></div>
+            <div class="metric"><span class="battery ${batteryTone}">${icon(batteryGlyph)}</span><strong>${remote.battery ?? "—"}${remote.battery == null ? "" : "/10"}</strong></div>
           </div>
           <details>
             <summary>Technical details</summary>
