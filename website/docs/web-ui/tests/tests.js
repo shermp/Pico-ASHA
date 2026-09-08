@@ -11,6 +11,7 @@ import "../components/app-header.js";
 import "../components/pairing-dialog.js";
 import "../components/remote-card.js";
 import "../components/settings-dialog.js";
+import { PicoAshaApp } from "../components/app-shell.js";
 
 const tests = [];
 const test = (name, body) => tests.push({ name, body });
@@ -508,6 +509,25 @@ test("Unexpected disconnect schedules authorized-port reconnect", async () => {
   await controller.disconnect();
 });
 
+test("Restart command failures clear intent unless a disconnect was observed", async () => {
+  const port = new MockPort();
+  const serial = { addEventListener() {}, removeEventListener() {} };
+  const controller = new SerialController({ serial, ...noTimers() });
+  controller.port = port;
+  const rejected = controller.sendCommand(Command.Restart, {}, { expectRestart: true });
+  controller.tracker.accept({ command: Command.Restart, accepted: false });
+  let error;
+  try { await rejected; } catch (caught) { error = caught; }
+  assert(error instanceof CommandRejectedError && !controller.restartExpected && !controller.restartObserved);
+
+  controller.port = port;
+  const restarting = controller.sendCommand(Command.Restart, {}, { expectRestart: true });
+  await controller.handleUnexpectedDisconnect();
+  try { await restarting; } catch {}
+  assert(controller.restartExpected && controller.restartObserved);
+  controller.dispose();
+});
+
 test("Capability messaging covers insecure pages and unavailable/policy-disabled API", () => {
   assert(webSerialSupportMessage({ serial: {}, secure: false, hostname: "example.com" }).includes("HTTPS"));
   const unavailable = webSerialSupportMessage({ serial: undefined, secure: true, hostname: "example.com" });
@@ -554,6 +574,29 @@ test("HCI capture stops and preserves a downloadable blob at its size cap", () =
 test("HCI download fallback reports blocked document creation", () => {
   const capture = new HciCapture(); capture.start(); capture.stop();
   assert(!capture.download(null, null));
+});
+
+test("App reports failed restart commands unless the controller observed a restart", async () => {
+  const app = new PicoAshaApp();
+  const originalController = app.controller;
+  const errors = [];
+  app.handleError = (error) => errors.push(error);
+  app.controller = {
+    restartExpected: false,
+    restartObserved: false,
+    sendCommand: async () => {
+      app.controller.restartExpected = true;
+      throw new Error("Command rejected");
+    },
+  };
+  assert(!await app.sendRestartingCommand(Command.Restart));
+  assert(errors.length === 1);
+
+  app.controller.restartObserved = true;
+  assert(await app.sendRestartingCommand(Command.Restart));
+  assert(errors.length === 1);
+  originalController.dispose();
+  globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
 test("App header emits composed connection events with accessible names", async () => {

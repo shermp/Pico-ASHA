@@ -165,6 +165,7 @@ export class PicoAshaApp extends LitElement {
         await new Promise((resolve) => setTimeout(resolve, 500));
         if (this.controller.ready) {
           this.controller.restartExpected = false;
+          this.controller.restartObserved = false;
           this.addLog("Setting was already active; no adapter restart was needed");
         }
       }
@@ -174,7 +175,7 @@ export class PicoAshaApp extends LitElement {
       }
       return true;
     } catch (error) {
-      if (options.expectRestart && this.controller.restartExpected) {
+      if (options.expectRestart && this.controller.restartObserved) {
         this.addLog("Adapter restart detected; waiting to reconnect");
         return true;
       }
