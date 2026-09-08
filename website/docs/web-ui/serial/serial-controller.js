@@ -51,6 +51,8 @@ export class SerialController {
     this.closing = false;
     this.ready = false;
     this.restartExpected = false;
+    // A restart is confirmed only after the active port disconnects.
+    this.restartObserved = false;
     this.introTimer = null;
     this.reconnectTimer = null;
     this.tracker = new CommandResponseTracker({ setTimer, clearTimer });
@@ -152,6 +154,7 @@ export class SerialController {
     this.introTimer = null;
     this.ready = true;
     this.restartExpected = false;
+    this.restartObserved = false;
     this.setStatus("ready", version ? `Firmware ${version}` : "Adapter connected");
   }
 
@@ -203,6 +206,7 @@ export class SerialController {
     }
     if (options.expectRestart) {
       this.restartExpected = true;
+      this.restartObserved = false;
     }
     const response = this.tracker.expect(command);
     const packet = encodeCommandPacket(command, data, {
@@ -213,9 +217,20 @@ export class SerialController {
       await this.enqueueWrite(framePacket(packet));
     } catch (error) {
       this.tracker.cancel(command, error);
+      await response.catch(() => {});
+      if (options.expectRestart && !this.restartObserved) {
+        this.restartExpected = false;
+      }
       throw error;
     }
-    return response;
+    try {
+      return await response;
+    } catch (error) {
+      if (options.expectRestart && !this.restartObserved) {
+        this.restartExpected = false;
+      }
+      throw error;
+    }
   }
 
   enqueueWrite(bytes) {
@@ -237,6 +252,10 @@ export class SerialController {
   async disconnect({ manual = true } = {}) {
     this.manualDisconnect = manual;
     this.clearReconnect();
+    if (manual) {
+      this.restartExpected = false;
+      this.restartObserved = false;
+    }
     await this.closePort();
     this.setStatus("idle", manual ? "Adapter disconnected" : "Adapter unavailable");
   }
@@ -271,6 +290,9 @@ export class SerialController {
       return;
     }
     const shouldReconnect = !this.manualDisconnect;
+    if (this.restartExpected) {
+      this.restartObserved = true;
+    }
     await this.closePort();
     if (shouldReconnect) {
       this.setStatus("reconnecting", "Waiting for adapter…");
