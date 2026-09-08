@@ -281,6 +281,14 @@ test("Intro and USB packets drive immutable adapter settings", () => {
   equal([snapshot.intro.connectionsAllowed, snapshot.intro.audioStreamingEnabled, snapshot.usbInfo.uacVersion], [true, true, 1]);
 });
 
+test("Runtime control changes persist when later packets refresh the snapshot", () => {
+  const store = new AdapterState();
+  store.apply(decodePacket(makeIntro()));
+  store.updateIntro({ audioStreamingEnabled: false, connectionsAllowed: false });
+  store.apply(decodePacket(makeEvent(EventType.ShortLog)));
+  equal([store.snapshot.intro.audioStreamingEnabled, store.snapshot.intro.connectionsAllowed], [false, false]);
+});
+
 test("Encoder timing publishes min/average/max after 1,000 samples", () => {
   const store = new AdapterState();
   for (let batch = 0; batch < 100; batch += 1) {
