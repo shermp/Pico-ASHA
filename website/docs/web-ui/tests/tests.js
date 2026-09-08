@@ -246,6 +246,12 @@ test("Remote snapshots are left/right ordered and immutable", () => {
   assert(Object.isFrozen(snapshot) && Object.isFrozen(snapshot.remotes) && Object.isFrozen(snapshot.remotes[0]));
 });
 
+test("Remote info uses the selected firmware codec before properties are read", () => {
+  const store = new AdapterState();
+  const snapshot = store.apply(decodePacket(makeRemote()));
+  equal(snapshot.remotes[0].audioFormat, "G.722 @ 16 kHz");
+});
+
 test("Remote identity cache survives temporary disconnect", () => {
   const store = new AdapterState();
   store.apply(decodePacket(makeRemote()));
@@ -281,6 +287,16 @@ test("Remote event updates battery, volume, streaming, PSM, and L2CAP", () => {
   }
   const remote = store.snapshot.remotes[0];
   equal([remote.battery, remote.volume, remote.muted, remote.streaming, remote.psm, remote.l2capCid], [6, -128, true, false, 0x31, 0x88]);
+});
+
+test("Remote active format follows the selected firmware codec", () => {
+  const store = new AdapterState();
+  store.apply(decodePacket(makeRemote()));
+  const bytes = makeEvent(EventType.ROPRead);
+  const view = new DataView(bytes.buffer);
+  view.setUint16(27, 0x0006, true);
+  const snapshot = store.apply(decodePacket(bytes));
+  equal([snapshot.remotes[0].supportsG72216, snapshot.remotes[0].supportsG72224, snapshot.remotes[0].audioFormat], [true, true, "G.722 @ 16 kHz"]);
 });
 
 test("Intro and USB packets drive immutable adapter settings", () => {
