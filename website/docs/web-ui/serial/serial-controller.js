@@ -75,7 +75,8 @@ export class SerialController {
     }
     this.manualDisconnect = false;
     this.clearReconnect();
-    this.setStatus("connecting", "Selecting adapter…");
+    const reconnecting = !requestPort;
+    this.setStatus(reconnecting ? "reconnecting" : "connecting", reconnecting ? "Waiting for adapter…" : "Selecting adapter…");
 
     const authorized = (await this.serial.getPorts()).find((port) => portMatches(port) && portIsConnected(port));
     let port = authorized;
@@ -89,7 +90,7 @@ export class SerialController {
       throw new Error("The selected serial device is not a Pico-ASHA adapter");
     }
     try {
-      await this.open(port);
+      await this.open(port, { reconnecting });
     } catch (error) {
       const retryCachedPort = Boolean(authorized) && requestPort && error.operation === "open" && error.name === "NetworkError";
       if (!retryCachedPort) {
@@ -110,12 +111,13 @@ export class SerialController {
     return port;
   }
 
-  async open(port) {
+  async open(port, { reconnecting = false } = {}) {
     this.port = port;
     this.closing = false;
     this.ready = false;
     this.decoder.reset();
-    this.setStatus(this.restartExpected ? "reconnecting" : "connecting", this.restartExpected ? "Adapter restarting…" : "Opening adapter…");
+    const restarting = reconnecting || this.restartExpected;
+    this.setStatus(restarting ? "reconnecting" : "connecting", this.restartExpected ? "Adapter restarting…" : "Opening adapter…");
     try {
       await port.open(SERIAL_OPTIONS);
     } catch (error) {
@@ -309,6 +311,9 @@ export class SerialController {
       try {
         await this.connect({ requestPort: false });
       } catch {
+        if (!this.manualDisconnect) {
+          this.setStatus("reconnecting", "Waiting for adapter…");
+        }
         this.scheduleReconnect();
       }
     }, RECONNECT_DELAY_MS);
