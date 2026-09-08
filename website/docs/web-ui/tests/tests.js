@@ -9,7 +9,7 @@ import { SerialController } from "../serial/serial-controller.js";
 import "../components/adapter-log.js";
 import "../components/app-header.js";
 import "../components/pairing-dialog.js";
-import { volumeToDb } from "../components/remote-card.js";
+import { batteryColor, batteryIcon, volumeToDb } from "../components/remote-card.js";
 import "../components/settings-dialog.js";
 import { PicoAshaApp } from "../components/app-shell.js";
 
@@ -654,12 +654,32 @@ test("Remote card reacts to immutable state and presents battery/volume/streamin
   element.remote = Object.freeze({ side: "Left", name: "Test Aid", streaming: true, muted: false, volume: -12, battery: 9, paired: true }); await element.updateComplete;
   const text = element.renderRoot.textContent;
   const leftBadge = element.renderRoot.querySelector(".aid");
+  const battery = element.renderRoot.querySelector(".battery");
   assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-4.5 dB") && text.includes("9/10"));
   assert(leftBadge.textContent.trim() === "L" && leftBadge.classList.contains("left") && !text.includes("Left channel"));
+  assert(battery.textContent === "battery_6_bar" && battery.classList.contains("high"));
+  element.remote = Object.freeze({ ...element.remote, battery: 4 }); await element.updateComplete;
+  assert(element.renderRoot.querySelector(".battery").textContent === "battery_3_bar" && element.renderRoot.querySelector(".battery").classList.contains("medium"));
+  element.remote = Object.freeze({ ...element.remote, battery: 1 }); await element.updateComplete;
+  assert(element.renderRoot.querySelector(".battery").textContent === "battery_1_bar" && element.renderRoot.querySelector(".battery").classList.contains("low"));
   element.side = "Right"; await element.updateComplete;
   const rightBadge = element.renderRoot.querySelector(".aid");
   assert(rightBadge.textContent.trim() === "R" && rightBadge.classList.contains("right") && rightBadge.getAttribute("aria-label") === "Right hearing aid");
   element.remove();
+});
+
+test("Battery indicators map protocol readings to discrete Material glyphs", () => {
+  equal(
+    [batteryIcon(-1), batteryIcon(0), batteryIcon(1), batteryIcon(2), batteryIcon(5), batteryIcon(9), batteryIcon(10), batteryIcon(12), batteryIcon(null)],
+    ["battery_0_bar", "battery_0_bar", "battery_1_bar", "battery_2_bar", "battery_4_bar", "battery_6_bar", "battery_full", "battery_full", "battery_unknown"]
+  );
+});
+
+test("Battery indicator colours follow the requested level thresholds", () => {
+  equal(
+    [batteryColor(-1), batteryColor(0), batteryColor(1), batteryColor(2), batteryColor(4), batteryColor(5), batteryColor(10), batteryColor(12), batteryColor(null)],
+    ["low", "low", "low", "low", "medium", "medium", "high", "high", "unknown"]
+  );
 });
 
 test("Remote volume levels convert from protocol units to dB", () => {
