@@ -9,7 +9,7 @@ import { SerialController } from "../serial/serial-controller.js";
 import "../components/adapter-log.js";
 import "../components/app-header.js";
 import "../components/pairing-dialog.js";
-import "../components/remote-card.js";
+import { volumeToDb } from "../components/remote-card.js";
 import "../components/settings-dialog.js";
 import { PicoAshaApp } from "../components/app-shell.js";
 
@@ -628,7 +628,11 @@ test("Remote card reacts to immutable state and presents battery/volume/streamin
   assert(element.renderRoot.textContent.includes("No left hearing aid"));
   element.remote = Object.freeze({ side: "Left", name: "Test Aid", streaming: true, muted: false, volume: -12, battery: 9, paired: true }); await element.updateComplete;
   const text = element.renderRoot.textContent;
-  assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-12 dB") && text.includes("9/10")); element.remove();
+  assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-4.5 dB") && text.includes("9/10")); element.remove();
+});
+
+test("Remote volume levels convert from protocol units to dB", () => {
+  equal([-128, -127, 0].map(volumeToDb), [-48, -47.625, 0]);
 });
 
 test("Settings form keeps visible labels and emits a composed USB event", async () => {
