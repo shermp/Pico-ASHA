@@ -258,6 +258,15 @@ test("Remote identity cache survives temporary disconnect", () => {
   equal([snapshot.remotes[0].name, snapshot.remotes[0].manufacturer, snapshot.remotes[0].hciHandle], ["Demo Aid", "Demo Make", 0x7777]);
 });
 
+test("Closing pairing clears stale nearby-device candidates", () => {
+  const app = new PicoAshaApp();
+  app.adapter = app.store.apply({ kind: "advert", isHearingAid: true, address: "01:02:03:04:05:06", rssi: -50 });
+  app.handlePairingClose();
+  equal(app.adapter.adverts, []);
+  app.controller.dispose();
+  globalThis.removeEventListener("beforeunload", app.beforeUnload);
+});
+
 test("Remote event updates battery, volume, streaming, PSM, and L2CAP", () => {
   const store = new AdapterState();
   store.apply(decodePacket(makeRemote()));

@@ -236,6 +236,11 @@ export class PicoAshaApp extends LitElement {
     this.renderRoot.querySelector("pairing-dialog")?.show();
   }
 
+  handlePairingClose() {
+    this.autoPairDismissed = true;
+    this.adapter = this.store.clearAdverts();
+  }
+
   async pairCandidate(candidate) {
     if (await this.sendCommand(Command.PairBond, candidate, {}, `Pairing with ${candidate.name || candidate.address}…`)) {
       this.renderRoot.querySelector("pairing-dialog")?.close();
@@ -314,7 +319,7 @@ export class PicoAshaApp extends LitElement {
         @usb-update=${(event) => this.updateUSB(event.detail)}
         @hci-start=${this.startCapture} @hci-stop=${this.stopCapture} @hci-download=${this.downloadCapture}
         @pairing-select=${(event) => this.pairCandidate(event.detail.candidate)}
-        @pairing-close=${() => { this.autoPairDismissed = true; }}
+        @pairing-close=${this.handlePairingClose}
         @log-copy=${this.copyLog} @log-download=${this.downloadLog} @log-clear=${() => { this.logEntries = []; }}
       >
         <app-header .connection=${this.connection}></app-header>
