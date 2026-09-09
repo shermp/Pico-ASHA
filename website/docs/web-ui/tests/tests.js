@@ -273,18 +273,27 @@ test("Closing pairing clears stale nearby-device candidates", () => {
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
-test("Pairing one hearing aid allows the next advertisement to reopen pairing", async () => {
+test("Pairing advertisements notify the main-page button without auto-opening", async () => {
   const app = new PicoAshaApp(); document.querySelector("#fixtures").append(app); await app.updateComplete;
+  app.connection = { phase: "ready", label: "Adapter ready" }; await app.updateComplete;
   app.sendCommand = async () => true;
   const first = { kind: "advert", isHearingAid: true, name: "Left Aid", address: "01:02:03:04:05:06", addressType: 1, rssi: -45 };
   app.handlePacket(first); await app.updateComplete; await Promise.resolve();
   const dialog = app.renderRoot.querySelector("pairing-dialog");
+  const header = app.renderRoot.querySelector("app-header"); await header.updateComplete;
+  const firstButton = header.renderRoot.querySelector('[aria-label="Pair device (1 nearby)"]');
+  assert(!dialog.open && firstButton?.querySelector(".notification-badge")?.textContent === "1");
+  firstButton.click(); await app.updateComplete; await dialog.updateComplete;
   assert(dialog.open);
   await app.pairCandidate(first); await app.updateComplete;
-  assert(!dialog.open && !app.autoPairDismissed && app.adapter.adverts.length === 0);
+  assert(!dialog.open && app.adapter.adverts.length === 0);
   const second = { kind: "advert", isHearingAid: true, name: "Right Aid", address: "11:12:13:14:15:16", addressType: 1, rssi: -48 };
   app.handlePacket(second); await app.updateComplete; await Promise.resolve();
-  assert(dialog.open && app.adapter.adverts.length === 1 && app.adapter.adverts[0].address === second.address);
+  await header.updateComplete;
+  const secondButton = header.renderRoot.querySelector('[aria-label="Pair device (1 nearby)"]');
+  assert(!dialog.open && secondButton?.querySelector(".notification-badge")?.textContent === "1" && app.adapter.adverts[0].address === second.address);
+  secondButton.click(); await app.updateComplete; await dialog.updateComplete;
+  assert(dialog.open);
   dialog.close(); app.remove();
 });
 
@@ -665,6 +674,11 @@ test("App header emits connection events and shows firmware/UAC together", async
   element.uacVersion = 2;
   await element.updateComplete;
   assert(element.renderRoot.textContent.includes("Firmware 1.8.2 · UAC2"));
+  let pairingOpened = false; element.addEventListener("pairing-open", () => { pairingOpened = true; });
+  element.candidateCount = 2; await element.updateComplete;
+  const pairingButton = element.renderRoot.querySelector('[aria-label="Pair device (2 nearby)"]');
+  assert(pairingButton?.title === "Pair device (2 nearby)" && pairingButton.querySelector(".notification-badge")?.textContent === "2" && pairingButton.querySelector(".material-symbols-outlined")?.textContent === "bluetooth_connected");
+  pairingButton.click(); assert(pairingOpened);
   element.remove();
 });
 
@@ -768,12 +782,11 @@ test("Every settings dialog button is icon-only with a native tooltip and access
   element.remotes = [{ name: "Test Aid", address: "01:02:03:04:05:06", side: "Left", paired: true }];
   await element.updateComplete;
   const buttons = [...element.renderRoot.querySelectorAll("button")];
-  assert(buttons.length === 10);
+  assert(buttons.length === 9);
   for (const button of buttons) {
     assert(button.title && button.getAttribute("aria-label"));
     assert(button.children.length === 1 && button.firstElementChild.classList.contains("material-symbols-outlined"));
   }
-  assert(element.renderRoot.querySelector('[aria-label="Pair device"] .material-symbols-outlined').textContent === "hearing");
   assert(!element.renderRoot.querySelector("footer"));
   element.remove();
 });
