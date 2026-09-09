@@ -273,6 +273,17 @@ test("Closing pairing clears stale nearby-device candidates", () => {
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
+test("App logs include milliseconds and omit volume events", () => {
+  const app = new PicoAshaApp();
+  app.addLog("Diagnostic");
+  assert(/^\[\d{2}:\d{2}:\d{2}\.\d{3}\] INFO  Diagnostic$/.test(app.logEntries[0]));
+  const count = app.logEntries.length;
+  app.handlePacket(decodePacket(makeEvent(EventType.AudioVolume)));
+  assert(app.logEntries.length === count);
+  app.controller.dispose();
+  globalThis.removeEventListener("beforeunload", app.beforeUnload);
+});
+
 test("Pairing advertisements notify the main-page button without auto-opening", async () => {
   const app = new PicoAshaApp(); document.querySelector("#fixtures").append(app); await app.updateComplete;
   app.connection = { phase: "ready", label: "Adapter ready" }; await app.updateComplete;
