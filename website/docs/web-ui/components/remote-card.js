@@ -2,6 +2,7 @@ import { LitElement, css, html } from "../vendor/lit-core.min.js";
 import { componentStyles } from "./component-styles.js";
 import { icon } from "./icon.js";
 
+// The firmware's signed volume value uses 3/8 dB increments.
 const VOLUME_DB_STEP = 0.375;
 
 export function volumeToDb(volume) {

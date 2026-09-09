@@ -1,4 +1,5 @@
 export const BTSNOOP_FILE_HEADER = Uint8Array.of(
+  // BTSnoop v1 header with H4 packet data-link type (1002), accepted by Wireshark.
   0x62, 0x74, 0x73, 0x6e, 0x6f, 0x6f, 0x70, 0x00,
   0x00, 0x00, 0x00, 0x01,
   0x00, 0x00, 0x03, 0xea,
@@ -35,6 +36,7 @@ export class HciCapture {
     }
     const chunk = data instanceof Uint8Array ? Uint8Array.from(data) : new Uint8Array(data);
     if (this.bytes + chunk.byteLength > this.limit) {
+      // Captures live in browser memory until download, so stop before a runaway capture exhausts it.
       this.limitReached = true;
       this.stop();
       return false;
@@ -72,6 +74,7 @@ export class HciCapture {
     } catch {
       return false;
     } finally {
+      // The click consumes the object URL synchronously; defer revocation so the browser can start the download.
       setTimeout(() => urlRef.revokeObjectURL(url), 1000);
     }
   }

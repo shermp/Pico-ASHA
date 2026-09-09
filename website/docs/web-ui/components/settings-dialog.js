@@ -63,6 +63,7 @@ export class SettingsDialog extends LitElement {
 
   willUpdate(changed) {
     if (changed.has("usbInfo") && this.usbInfo) {
+      // A device report is authoritative; replace any local draft after the adapter publishes new settings.
       this.uacVersion = this.usbInfo.uacVersion;
       this.minimumDb = this.usbInfo.minimumDb;
       this.maximumDb = this.usbInfo.maximumDb;
@@ -83,12 +84,14 @@ export class SettingsDialog extends LitElement {
   }
 
   updateMinimum(event) {
+    // Clamp only the moved thumb, preserving at least one step between the two slider values.
     const minimumDb = Math.min(Number(event.target.value), Number(this.maximumDb) - 1);
     event.target.value = String(minimumDb);
     this.minimumDb = minimumDb;
   }
 
   updateMaximum(event) {
+    // Do not move the lower thumb while enforcing the same ordered, one-step range.
     const maximumDb = Math.max(Number(event.target.value), Number(this.minimumDb) + 1);
     event.target.value = String(maximumDb);
     this.maximumDb = maximumDb;
@@ -100,6 +103,7 @@ export class SettingsDialog extends LitElement {
     const hciActive = ["starting", "capturing", "stopping"].includes(this.hci.phase);
     const minimumPercent = ((Number(this.minimumDb) + 127) / 127) * 100;
     const maximumPercent = ((Number(this.maximumDb) + 127) / 127) * 100;
+    // Saving restarts the adapter, so only enable it when this draft differs from its last device report.
     const usbChanged = Boolean(this.usbInfo) && (
       Number(this.uacVersion) !== Number(this.usbInfo.uacVersion)
       || Number(this.minimumDb) !== Number(this.usbInfo.minimumDb)

@@ -106,6 +106,7 @@ function decodeEvent(bytes, header) {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const data = payload.subarray(4, 36);
   const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  // Event data is a firmware union; expose each supported interpretation and let state select by event type.
   return {
     header,
     kind: "event",
@@ -218,6 +219,7 @@ export function encodeCommandPacket(command, data = {}, options = {}) {
     throw new PacketError(`Unknown command ${command}`);
   }
   const bytes = new Uint8Array(PACKET_SIZE.Command);
+  // Commands use one fixed-size union packet; the zero-filled bytes are unused by the selected command.
   const view = new DataView(bytes.buffer);
   writeHeader(view, PacketType.Command, PACKET_SIZE.Command, options.connectionId ?? 0, options.timestampMs ?? 0);
   view.setUint8(8, command);

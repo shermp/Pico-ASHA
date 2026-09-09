@@ -16,6 +16,7 @@ export class CommandResponseTracker {
   }
 
   expect(command) {
+    // Responses identify only the command, not a request sequence number. Keep one in flight per command.
     if (this.pending.has(command)) {
       return Promise.reject(new Error(`${COMMAND_NAMES[command] ?? command} is already pending`));
     }
@@ -31,6 +32,7 @@ export class CommandResponseTracker {
   accept(packet) {
     const pending = this.pending.get(packet.command);
     if (!pending) {
+      // A delayed response after a timeout or disconnect is no longer actionable.
       return false;
     }
     this.clearTimer(pending.timer);

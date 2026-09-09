@@ -16,7 +16,13 @@ export class AdapterLog extends LitElement {
   `];
 
   constructor() { super(); this.entries = []; this.timing = null; this.expanded = false; }
-  updated(changed) { if (this.expanded && (changed.has("entries") || changed.has("expanded"))) { const pre = this.renderRoot.querySelector("pre"); if (pre) { pre.scrollTop = pre.scrollHeight; } } }
+  updated(changed) {
+    if (this.expanded && (changed.has("entries") || changed.has("expanded"))) {
+      // Keep new diagnostics visible without changing the view while the log is collapsed.
+      const pre = this.renderRoot.querySelector("pre");
+      if (pre) { pre.scrollTop = pre.scrollHeight; }
+    }
+  }
   emit(name) { this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true })); }
 
   render() {

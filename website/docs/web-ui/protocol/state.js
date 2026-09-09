@@ -49,6 +49,7 @@ export class AdapterState {
   }
 
   makeSnapshot(overrides = {}) {
+    // Components receive immutable snapshots instead of the mutable maps maintained by the protocol layer.
     return Object.freeze({
       intro: this.snapshot?.intro ?? null,
       usbInfo: this.snapshot?.usbInfo ?? null,
@@ -60,6 +61,7 @@ export class AdapterState {
   }
 
   resetSession() {
+    // Retain identity details by Bluetooth address so a reconnect does not briefly erase device names.
     for (const remote of this.remoteMap.values()) {
       this.cacheRemote(remote);
     }
@@ -133,6 +135,7 @@ export class AdapterState {
     }
     if (packet.kind === "advert") {
       if (packet.isHearingAid) {
+        // Repeated advertisements refresh one candidate rather than inflating the header notification.
         this.advertMap.set(packet.address, packet);
       }
       this.snapshot = this.makeSnapshot();
@@ -160,6 +163,7 @@ export class AdapterState {
       return;
     }
     if (event.eventType === EventType.G722EncodeTimings) {
+      // Firmware reports ten samples per event; expose a stable summary after one full 1,000-sample batch.
       this.timingSamples.push(...event.encodeTimings);
       if (this.timingSamples.length >= 1000) {
         const batch = this.timingSamples.splice(0, 1000);
