@@ -38,7 +38,6 @@ export class PicoAshaApp extends LitElement {
     this.busy = false;
     this.supportMessage = webSerialSupportMessage();
     this.toastState = Object.freeze({ message: "", kind: "info", visible: false });
-    this.autoPairDismissed = false;
     this.toastTimer = null;
     this.controller = new SerialController({
       onPacket: (packet) => this.handlePacket(packet),
@@ -106,11 +105,7 @@ export class PicoAshaApp extends LitElement {
 
   handlePacket(packet) {
     if (["intro", "usb-info", "remote-info", "advert", "event"].includes(packet.kind)) {
-      const oldCandidateCount = this.adapter.adverts.length;
       this.adapter = this.store.apply(packet);
-      if (packet.kind === "advert" && packet.isHearingAid && this.adapter.adverts.length > oldCandidateCount && !this.autoPairDismissed) {
-        this.updateComplete.then(() => this.renderRoot.querySelector("pairing-dialog")?.show());
-      }
     }
 
     if (packet.kind === "event") {
@@ -231,14 +226,12 @@ export class PicoAshaApp extends LitElement {
   }
 
   openPairing() {
-    this.autoPairDismissed = false;
     this.renderRoot.querySelector("settings-dialog")?.close();
     this.renderRoot.querySelector("pairing-dialog")?.show();
   }
 
   handlePairingClose(event) {
     const dismissed = event?.detail?.dismissed ?? true;
-    this.autoPairDismissed = dismissed;
     if (dismissed) {
       this.adapter = this.store.clearAdverts();
     }
@@ -329,11 +322,13 @@ export class PicoAshaApp extends LitElement {
         <app-header
           .connection=${this.connection}
           .uacVersion=${this.adapter.usbInfo?.uacVersion ?? this.adapter.intro?.uacVersion ?? null}
+          .candidateCount=${this.adapter.adverts.length}
+          .busy=${this.busy}
         ></app-header>
         ${this.supportMessage ? html`<p class="notice">${this.supportMessage}</p>` : ""}
         <remote-grid .remotes=${this.adapter.remotes}></remote-grid>
         ${!this.adapter.intro ? html`<p class="intro">Use the cable button to grant this page access to your Pico-ASHA adapter.</p>` : ""}
-        <settings-dialog .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .candidateCount=${this.adapter.adverts.length} .hci=${this.hci} .busy=${this.busy}></settings-dialog>
+        <settings-dialog .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .hci=${this.hci} .busy=${this.busy}></settings-dialog>
         <pairing-dialog .candidates=${this.adapter.adverts} .busy=${this.busy}></pairing-dialog>
         <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>
         <toast-message .message=${this.toastState.message} .kind=${this.toastState.kind} .visible=${this.toastState.visible}></toast-message>

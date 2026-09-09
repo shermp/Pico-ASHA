@@ -6,6 +6,8 @@ export class AppHeader extends LitElement {
   static properties = {
     connection: { type: Object },
     uacVersion: { type: Number },
+    candidateCount: { type: Number },
+    busy: { type: Boolean },
   };
 
   static styles = [
@@ -25,6 +27,28 @@ export class AppHeader extends LitElement {
         display: flex;
         align-items: center;
         gap: 0.75rem;
+      }
+
+      .pairing-button {
+        position: relative;
+      }
+
+      .notification-badge {
+        position: absolute;
+        top: -0.35rem;
+        right: -0.35rem;
+        display: grid;
+        min-width: 1.15rem;
+        height: 1.15rem;
+        padding: 0 0.22rem;
+        place-items: center;
+        border: 2px solid var(--app-panel);
+        border-radius: 999px;
+        background: var(--app-warning);
+        color: #1c1306;
+        font-size: 0.64rem;
+        font-weight: 700;
+        line-height: 1;
       }
 
       .mark {
@@ -85,6 +109,8 @@ export class AppHeader extends LitElement {
     super();
     this.connection = { phase: "idle", label: "Adapter disconnected" };
     this.uacVersion = null;
+    this.candidateCount = 0;
+    this.busy = false;
   }
 
   emit(name) {
@@ -96,6 +122,7 @@ export class AppHeader extends LitElement {
     const canDisconnect = ready || this.connection.phase === "reconnecting";
     const busy = ["connecting", "disconnecting"].includes(this.connection.phase);
     const uacLabel = ready && Number.isFinite(this.uacVersion) ? ` · UAC${this.uacVersion}` : "";
+    const pairingLabel = this.candidateCount ? `Pair device (${this.candidateCount} nearby)` : "Pair device";
     return html`
       <header class="panel">
         <div class="brand">
@@ -119,6 +146,17 @@ export class AppHeader extends LitElement {
             @click=${() => this.emit(canDisconnect ? "adapter-disconnect" : "adapter-connect")}
           >
             ${icon(canDisconnect ? "link_off" : "cable")}
+          </button>
+          <button
+            class="icon-button pairing-button"
+            type="button"
+            aria-label=${pairingLabel}
+            title=${pairingLabel}
+            ?disabled=${!ready || this.busy}
+            @click=${() => this.emit("pairing-open")}
+          >
+            ${icon("bluetooth_connected")}
+            ${this.candidateCount ? html`<span class="notification-badge" aria-hidden="true">${this.candidateCount > 99 ? "99+" : this.candidateCount}</span>` : ""}
           </button>
           <button class="icon-button" type="button" aria-label="Open settings" title="Settings" @click=${() => this.emit("settings-open")}>
             ${icon("settings")}

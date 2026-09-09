@@ -5,7 +5,7 @@ import { icon } from "./icon.js";
 export class SettingsDialog extends LitElement {
   static properties = {
     ready: { type: Boolean }, intro: { type: Object }, usbInfo: { type: Object }, remotes: { type: Array },
-    candidateCount: { type: Number }, hci: { type: Object }, busy: { type: Boolean },
+    hci: { type: Object }, busy: { type: Boolean },
     uacVersion: { state: true }, minimumDb: { state: true }, maximumDb: { state: true },
   };
 
@@ -56,7 +56,7 @@ export class SettingsDialog extends LitElement {
 
   constructor() {
     super();
-    this.ready = false; this.intro = null; this.usbInfo = null; this.remotes = []; this.candidateCount = 0;
+    this.ready = false; this.intro = null; this.usbInfo = null; this.remotes = [];
     this.hci = { phase: "idle", bytes: 0, downloadAvailable: false }; this.busy = false;
     this.uacVersion = 2; this.minimumDb = -60; this.maximumDb = 0;
   }
@@ -114,7 +114,6 @@ export class SettingsDialog extends LitElement {
             <div class="button-row">
               <button class="control-button" type="button" aria-label=${audioEnabled ? "Stop audio" : "Start audio"} title=${audioEnabled ? "Stop audio" : "Start audio"} ?disabled=${!this.ready || this.busy} @click=${() => this.emit("audio-change", { enabled: !audioEnabled })}>${icon(audioEnabled ? "stop" : "play_arrow")}</button>
               <button class="control-button" type="button" aria-label=${connectionsAllowed ? "Disable connections" : "Enable connections"} title=${connectionsAllowed ? "Disable connections" : "Enable connections"} ?disabled=${!this.ready || this.busy} @click=${() => this.emit("connection-change", { enabled: !connectionsAllowed })}>${icon(connectionsAllowed ? "link_off" : "cable")}</button>
-              <button class="control-button" type="button" aria-label="Pair device" title=${this.candidateCount ? `Pair device (${this.candidateCount} nearby)` : "Pair device"} ?disabled=${!this.ready || this.busy} @click=${() => this.emit("pairing-open")}>${icon("hearing")}</button>
               <button class="control-button danger" type="button" aria-label="Restart adapter" title="Restart adapter" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("adapter-restart")}>${icon("restart_alt")}</button>
             </div>
           </section>
