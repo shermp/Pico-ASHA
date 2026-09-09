@@ -150,7 +150,7 @@ export class SettingsDialog extends LitElement {
           </section>
           <section>
             <div class="section-title">${icon("delete")}<h3>Paired devices</h3></div>
-            ${this.remotes.length ? this.remotes.map((remote) => html`<div class="unpair-row"><span>${remote.name || remote.address} · ${remote.side}</span><button class="control-button danger" type="button" ?disabled=${!this.ready || this.busy || !remote.paired} @click=${() => this.emit("remote-unpair", { remote })} aria-label=${`Unpair ${remote.name || remote.address}`} title=${`Unpair ${remote.name || remote.address}`}>${icon("link_off")}</button></div>`) : html`<p class="hint">No connected hearing aids.</p>`}
+            ${this.remotes.length ? this.remotes.map((remote) => html`<div class="unpair-row"><span>${remote.name || remote.address} · ${remote.side}</span><button class="control-button danger" type="button" ?disabled=${!this.ready || this.busy || !remote.paired} @click=${() => this.emit("remote-unpair", { remote })} aria-label=${`Unpair ${remote.name || remote.address}`} title=${`Unpair ${remote.name || remote.address}`}>${icon("delete")}</button></div>`) : html`<p class="hint">No connected hearing aids.</p>`}
           </section>
         </div>
       </dialog>
