@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "../vendor/lit-core.min.js";
-import { Command, EVENT_NAMES, StatusType } from "../protocol/constants.js";
+import { Command, EVENT_NAMES, EventType, StatusType } from "../protocol/constants.js";
 import { validateUSBSettings } from "../protocol/codec.js";
 import { describeEventError, describeSerialError, webSerialSupportMessage } from "../protocol/errors.js";
 import { AdapterState } from "../protocol/state.js";
@@ -67,7 +67,8 @@ export class PicoAshaApp extends LitElement {
   }
 
   addLog(message, level = "info") {
-    const time = new Date().toLocaleTimeString([], { hour12: false });
+    const now = new Date();
+    const time = `${now.toLocaleTimeString([], { hour12: false })}.${String(now.getMilliseconds()).padStart(3, "0")}`;
     const marker = level === "error" ? "ERROR" : level === "warning" ? "WARN" : "INFO";
     this.logEntries = [...this.logEntries.slice(-1999), `[${time}] ${marker}  ${message}`];
   }
@@ -110,6 +111,9 @@ export class PicoAshaApp extends LitElement {
     }
 
     if (packet.kind === "event") {
+      if (packet.eventType === EventType.AudioVolume) {
+        return;
+      }
       if (packet.eventType === 0 && packet.text) {
         this.addLog(packet.text);
       } else if (packet.statusType !== StatusType.Success && packet.status !== 0) {
