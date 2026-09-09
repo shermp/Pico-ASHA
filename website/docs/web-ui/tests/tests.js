@@ -787,6 +787,8 @@ test("Every settings dialog button is icon-only with a native tooltip and access
     assert(button.title && button.getAttribute("aria-label"));
     assert(button.children.length === 1 && button.firstElementChild.classList.contains("material-symbols-outlined"));
   }
+  const unpair = element.renderRoot.querySelector('[aria-label="Unpair Test Aid"]');
+  assert(unpair.classList.contains("danger") && unpair.querySelector(".material-symbols-outlined").textContent === "delete");
   assert(!element.renderRoot.querySelector("footer"));
   element.remove();
 });
