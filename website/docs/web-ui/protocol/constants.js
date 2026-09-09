@@ -1,3 +1,4 @@
+// Keep these values aligned with include/asha_comms.cpp in the firmware protocol.
 export const USB_FILTER = Object.freeze({ usbVendorId: 0xcafe, usbProductId: 16401 });
 
 export const PacketType = Object.freeze({

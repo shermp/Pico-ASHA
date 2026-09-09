@@ -25,6 +25,7 @@ export class PairingDialog extends LitElement {
   show() { const dialog = this.renderRoot.querySelector("dialog"); if (!dialog.open) { dialog.showModal(); } }
   close({ dismissed = true } = {}) {
     this.renderRoot.querySelector("dialog")?.close();
+    // Native dialog events do not distinguish a user dismissal from a successful pairing close.
     this.dispatchEvent(new CustomEvent("pairing-close", { detail: { dismissed }, bubbles: true, composed: true }));
   }
   select(candidate) { this.dispatchEvent(new CustomEvent("pairing-select", { detail: { candidate }, bubbles: true, composed: true })); }
@@ -33,7 +34,7 @@ export class PairingDialog extends LitElement {
     return html`
       <dialog aria-labelledby="pair-title" @cancel=${this.close}>
         <header><h2 id="pair-title">Nearby hearing aids</h2><button class="icon-button" type="button" aria-label="Close pairing" title="Close" @click=${this.close}>${icon("close")}</button></header>
-        ${this.candidates.length ? html`<div class="list">${this.candidates.map((candidate) => html`<button class="candidate" type="button" ?disabled=${this.busy} @click=${() => this.select(candidate)} aria-label=${`Pair ${candidate.name || candidate.address}`}><span class="identity"><strong>${candidate.name || "Unnamed hearing aid"}</strong><small>${candidate.address}</small></span><span class="signal">${icon("pairing")}${candidate.rssi} dBm</span></button>`)}</div>` : html`<p class="empty">No hearing-aid advertisements received yet.</p>`}
+        ${this.candidates.length ? html`<div class="list">${this.candidates.map((candidate) => html`<button class="candidate" type="button" ?disabled=${this.busy} @click=${() => this.select(candidate)} aria-label=${`Pair ${candidate.name || candidate.address}`}><span class="identity"><strong>${candidate.name || "Unnamed hearing aid"}</strong><small>${candidate.address}</small></span><span class="signal">${icon("bluetooth_connected")}${candidate.rssi} dBm</span></button>`)}</div>` : html`<p class="empty">No hearing-aid advertisements received yet.</p>`}
       </dialog>
     `;
   }

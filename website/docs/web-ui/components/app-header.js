@@ -123,6 +123,7 @@ export class AppHeader extends LitElement {
     const busy = ["connecting", "disconnecting"].includes(this.connection.phase);
     const uacLabel = ready && Number.isFinite(this.uacVersion) ? ` · UAC${this.uacVersion}` : "";
     const pairingLabel = this.candidateCount ? `Pair device (${this.candidateCount} nearby)` : "Pair device";
+    // "pairing" is not a valid bundled ligature; use the included Bluetooth glyph instead of fallback text.
     return html`
       <header class="panel">
         <div class="brand">

@@ -46,6 +46,7 @@ export class SerialController {
     this.port = null;
     this.reader = null;
     this.readTask = null;
+    // WritableStream permits one locked writer at a time, so commands are serialized through this promise tail.
     this.writeTail = Promise.resolve();
     this.manualDisconnect = true;
     this.closing = false;
@@ -134,6 +135,7 @@ export class SerialController {
     }
     this.readTask = this.readLoop(port);
     this.armIntroTimeout();
+    // The intro packet is both the device handshake and the signal that enables adapter controls.
     void this.sendCommand(Command.IntroPacket).catch((error) => {
       if (!this.restartExpected) {
         this.onError(error);
@@ -236,6 +238,7 @@ export class SerialController {
   }
 
   enqueueWrite(bytes) {
+    // Continue after a failed earlier write so one transport error does not permanently block later commands.
     const operation = this.writeTail.catch(() => {}).then(async () => {
       if (!this.port?.writable) {
         throw new Error("Adapter write stream is unavailable");
@@ -293,6 +296,7 @@ export class SerialController {
     }
     const shouldReconnect = !this.manualDisconnect;
     if (this.restartExpected) {
+      // USB and HCI settings intentionally restart the adapter; seeing the disconnect confirms that transition.
       this.restartObserved = true;
     }
     await this.closePort();
@@ -309,6 +313,7 @@ export class SerialController {
     this.reconnectTimer = this.setTimer(async () => {
       this.reconnectTimer = null;
       try {
+        // Reuse a previously authorized port without reopening the browser's device picker.
         await this.connect({ requestPort: false });
       } catch {
         if (!this.manualDisconnect) {

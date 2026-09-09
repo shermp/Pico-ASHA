@@ -105,6 +105,7 @@ export class PicoAshaApp extends LitElement {
 
   handlePacket(packet) {
     if (["intro", "usb-info", "remote-info", "advert", "event"].includes(packet.kind)) {
+      // Advertisements update the pairing badge only; opening the dialog is always an explicit user action.
       this.adapter = this.store.apply(packet);
     }
 
@@ -233,12 +234,14 @@ export class PicoAshaApp extends LitElement {
   handlePairingClose(event) {
     const dismissed = event?.detail?.dismissed ?? true;
     if (dismissed) {
+      // A manual close ends the current scan so stale nearby-device notifications are not retained.
       this.adapter = this.store.clearAdverts();
     }
   }
 
   async pairCandidate(candidate) {
     if (await this.sendCommand(Command.PairBond, candidate, {}, `Pairing with ${candidate.name || candidate.address}…`)) {
+      // Keep any other candidate in the store so its badge can notify the user after this dialog closes.
       this.adapter = this.store.removeAdvert(candidate.address);
       this.renderRoot.querySelector("pairing-dialog")?.close({ dismissed: false });
     }

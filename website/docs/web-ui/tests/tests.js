@@ -795,7 +795,7 @@ test("Pairing dialog emits candidate selection from keyboard-operable buttons", 
   const element = document.createElement("pairing-dialog"); document.querySelector("#fixtures").append(element);
   const candidate = { name: "Nearby", address: "01:02:03:04:05:06", addressType: 1, rssi: -50 }; element.candidates = [candidate]; await element.updateComplete;
   let selected; element.addEventListener("pairing-select", (event) => { selected = event.detail.candidate; });
-  const button = element.renderRoot.querySelector("button.candidate"); assert(button.getAttribute("aria-label") === "Pair Nearby"); button.click(); equal(selected, candidate); element.remove();
+  const button = element.renderRoot.querySelector("button.candidate"); assert(button.getAttribute("aria-label") === "Pair Nearby" && button.querySelector(".signal .material-symbols-outlined")?.textContent === "bluetooth_connected"); button.click(); equal(selected, candidate); element.remove();
 });
 
 test("Adapter log expands, exposes accessible actions, and auto-scrolls", async () => {

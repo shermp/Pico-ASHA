@@ -62,6 +62,7 @@ export function cobsDecode(input) {
 }
 
 export function framePacket(packet) {
+  // Zero is the serial framing delimiter, so COBS removes it from the encoded payload.
   const encoded = cobsEncode(packet);
   const frame = new Uint8Array(encoded.length + 2);
   frame[0] = 0;
@@ -116,6 +117,7 @@ export class CobsFrameDecoder {
       if (this.buffer.length > this.maxEncodedBytes) {
         this.onError(new CobsError(`Encoded frame exceeds ${this.maxEncodedBytes} bytes`));
         this.buffer = [];
+        // Ignore the remainder of this corrupt frame; the next delimiter re-synchronizes the stream.
         this.discarding = true;
       }
     }
