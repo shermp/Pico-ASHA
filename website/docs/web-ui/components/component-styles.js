@@ -63,6 +63,12 @@ export const componentStyles = css`
     white-space: nowrap;
   }
 
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,

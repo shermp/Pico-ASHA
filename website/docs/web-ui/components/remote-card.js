@@ -146,7 +146,7 @@ export class RemoteCard extends LitElement {
       }
 
       .battery.low {
-        color: var(--pico-del-color, #c83737);
+        color: var(--app-battery-low);
       }
 
       .battery.medium {
