@@ -5,19 +5,103 @@ import { icon } from "./icon.js";
 export class PairingDialog extends LitElement {
   static properties = { candidates: { type: Array }, busy: { type: Boolean } };
   static styles = [componentStyles, css`
-    dialog { width: min(34rem, calc(100% - 1.5rem)); margin: auto; padding: 0; border: 1px solid var(--app-border); border-radius: var(--app-radius); background: var(--app-panel); color: var(--app-text); box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45); }
-    dialog::backdrop { background: rgba(2, 8, 15, 0.72); backdrop-filter: blur(4px); }
-    header, .candidate { display: flex; align-items: center; }
-    header { justify-content: space-between; padding: 0.9rem 1rem; border-bottom: 1px solid var(--app-border); }
-    h2, p { margin: 0; } h2 { font-size: 1.05rem; }
-    .list { display: grid; gap: 0.55rem; max-height: 60dvh; padding: 1rem; overflow: auto; }
-    .candidate { width: 100%; justify-content: space-between; gap: 1rem; margin: 0; padding: 0.75rem; border: 1px solid var(--app-border); border-radius: 0.75rem; background: var(--app-panel-soft); color: var(--app-text); text-align: left; cursor: pointer; }
-    .candidate:hover:not(:disabled) { border-color: var(--app-accent); } .candidate:disabled { opacity: 0.45; }
-    .identity { display: grid; min-width: 0; gap: 0.15rem; }
-    strong, small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    small, .empty { color: var(--app-muted); }
-    .signal { display: flex; flex: 0 0 auto; align-items: center; gap: 0.35rem; color: var(--app-muted); }
-    .empty { padding: 2.5rem 1rem; text-align: center; }
+    dialog {
+      width: min(34rem, calc(100% - 1.5rem));
+      margin: auto;
+      padding: 0;
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      background: var(--app-panel);
+      color: var(--app-text);
+      box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
+    }
+
+    dialog::backdrop {
+      background: rgba(2, 8, 15, 0.72);
+      backdrop-filter: blur(4px);
+    }
+
+    header,
+    .candidate {
+      display: flex;
+      align-items: center;
+    }
+
+    header {
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 1.05rem;
+    }
+
+    .list {
+      display: grid;
+      gap: 0.55rem;
+      max-height: 60dvh;
+      padding: 1rem;
+      overflow: auto;
+    }
+
+    .candidate {
+      width: 100%;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: 0;
+      padding: 0.75rem;
+      border: 1px solid var(--app-border);
+      border-radius: 0.75rem;
+      background: var(--app-panel-soft);
+      color: var(--app-text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .candidate:hover:not(:disabled) {
+      border-color: var(--app-accent);
+    }
+
+    .candidate:disabled {
+      opacity: 0.45;
+    }
+
+    .identity {
+      display: grid;
+      min-width: 0;
+      gap: 0.15rem;
+    }
+
+    strong,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small,
+    .empty {
+      color: var(--app-muted);
+    }
+
+    .signal {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--app-muted);
+    }
+
+    .empty {
+      padding: 2.5rem 1rem;
+      text-align: center;
+    }
   `];
 
   constructor() { super(); this.candidates = []; this.busy = false; }

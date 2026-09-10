@@ -10,47 +10,276 @@ export class SettingsDialog extends LitElement {
   };
 
   static styles = [componentStyles, css`
-    dialog { width: min(43rem, calc(100% - 1.5rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 0; overflow: hidden; border: 1px solid var(--app-border); border-radius: var(--app-radius); background: var(--app-panel); color: var(--app-text); box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45); }
-    dialog::backdrop { background: rgba(2, 8, 15, 0.72); backdrop-filter: blur(4px); }
-    header, .section-title, .button-row, .field-grid, .unpair-row, .range-heading { display: flex; align-items: center; }
-    header { justify-content: space-between; padding: 0.9rem 1rem; border-bottom: 1px solid var(--app-border); }
-    h2, h3, p { margin: 0; }
-    h2 { font-size: 1.05rem; }
-    h3 { font-size: 0.9rem; }
-    .content { max-height: calc(100dvh - 5.5rem); padding: 1rem; overflow: auto; }
-    section + section { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--app-border); }
-    .section-title { gap: 0.5rem; margin-bottom: 0.7rem; color: var(--app-muted); }
-    .button-row { flex-wrap: wrap; gap: 0.55rem; }
-    button { min-height: 2.55rem; margin: 0; padding: 0.55rem 0.8rem; border: 1px solid var(--app-border); border-radius: 0.72rem; background: var(--app-panel-soft); color: var(--app-text); cursor: pointer; }
-    button:hover:not(:disabled) { border-color: var(--app-accent); color: var(--app-accent-strong); }
-    button:disabled { cursor: not-allowed; opacity: 0.42; }
-    button.danger { color: var(--app-danger); }
-    button.primary { border-color: var(--app-accent); background: color-mix(in srgb, var(--app-accent) 22%, var(--app-panel)); }
-    .control-button { display: inline-grid; place-items: center; width: 2.55rem; padding: 0; }
-    .field-grid { align-items: end; gap: 0.65rem; }
-    label { flex: 1 1 8rem; color: var(--app-muted); font-size: 0.78rem; }
-    select { width: 100%; height: 2.55rem; margin-top: 0.25rem; padding: 0.45rem 0.6rem; border: 1px solid var(--app-border); border-radius: 0.6rem; background: var(--app-bg); color: var(--app-text); }
-    .range-field { flex: 2 1 18rem; min-width: 14rem; margin: 0; padding: 0; border: 0; }
-    .range-heading { width: 100%; justify-content: space-between; gap: 1rem; color: var(--app-muted); font-size: 0.78rem; }
-    .range-values { color: var(--app-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .range-control { position: relative; height: 2.55rem; margin-top: 0.25rem; }
-    .range-track { position: absolute; top: 50%; right: 0.55rem; left: 0.55rem; height: 0.35rem; transform: translateY(-50%); border-radius: 999px; background: linear-gradient(to right, var(--app-border) 0 var(--range-min), var(--app-accent) var(--range-min) var(--range-max), var(--app-border) var(--range-max) 100%); }
-    input[type="range"] { position: absolute; inset: 0; width: 100%; height: 2.55rem; margin: 0; padding: 0; border: 0; background: transparent; pointer-events: none; appearance: none; }
-    input[type="range"]::-webkit-slider-runnable-track { height: 0.35rem; background: transparent; }
-    input[type="range"]::-webkit-slider-thumb { width: 1.1rem; height: 1.1rem; margin-top: -0.375rem; border: 2px solid var(--app-panel); border-radius: 50%; background: var(--app-accent-strong); box-shadow: 0 0 0 1px var(--app-accent); pointer-events: auto; appearance: none; cursor: grab; }
-    input[type="range"]::-moz-range-track { height: 0.35rem; background: transparent; }
-    input[type="range"]::-moz-range-thumb { width: 1.1rem; height: 1.1rem; border: 2px solid var(--app-panel); border-radius: 50%; background: var(--app-accent-strong); box-shadow: 0 0 0 1px var(--app-accent); pointer-events: auto; cursor: grab; }
-    input[type="range"]:disabled::-webkit-slider-thumb { cursor: not-allowed; opacity: 0.42; }
-    input[type="range"]:disabled::-moz-range-thumb { cursor: not-allowed; opacity: 0.42; }
-    .unpair-row { justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; font-size: 0.84rem; }
-    .unpair-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .unpair-row button { flex: 0 0 auto; }
-    .hint { margin-top: 0.55rem; color: var(--app-muted); font-size: 0.76rem; }
+    dialog {
+      width: min(43rem, calc(100% - 1.5rem));
+      max-height: calc(100dvh - 2rem);
+      margin: auto;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+      background: var(--app-panel);
+      color: var(--app-text);
+      box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
+    }
+
+    dialog::backdrop {
+      background: rgba(2, 8, 15, 0.72);
+      backdrop-filter: blur(4px);
+    }
+
+    header,
+    .section-title,
+    .button-row,
+    .field-grid,
+    .unpair-row,
+    .range-heading {
+      display: flex;
+      align-items: center;
+    }
+
+    header {
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 1.05rem;
+    }
+
+    h3 {
+      font-size: 0.9rem;
+    }
+
+    .content {
+      max-height: calc(100dvh - 5.5rem);
+      padding: 1rem;
+      overflow: auto;
+    }
+
+    section + section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--app-border);
+    }
+
+    .section-title {
+      gap: 0.5rem;
+      margin-bottom: 0.7rem;
+      color: var(--app-muted);
+    }
+
+    .button-row {
+      flex-wrap: wrap;
+      gap: 0.55rem;
+    }
+
+    button {
+      min-height: 2.55rem;
+      margin: 0;
+      padding: 0.55rem 0.8rem;
+      border: 1px solid var(--app-border);
+      border-radius: 0.72rem;
+      background: var(--app-panel-soft);
+      color: var(--app-text);
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--app-accent);
+      color: var(--app-accent-strong);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    button.danger {
+      color: var(--app-danger);
+    }
+
+    button.primary {
+      border-color: var(--app-accent);
+      background: color-mix(in srgb, var(--app-accent) 22%, var(--app-panel));
+    }
+
+    .control-button {
+      display: inline-grid;
+      place-items: center;
+      width: 2.55rem;
+      padding: 0;
+    }
+
+    .field-grid {
+      align-items: end;
+      gap: 0.65rem;
+    }
+
+    label {
+      flex: 1 1 8rem;
+      color: var(--app-muted);
+      font-size: 0.78rem;
+    }
+
+    select {
+      width: 100%;
+      height: 2.55rem;
+      margin-top: 0.25rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--app-border);
+      border-radius: 0.6rem;
+      background: var(--app-bg);
+      color: var(--app-text);
+    }
+
+    .range-field {
+      flex: 2 1 18rem;
+      min-width: 14rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .range-heading {
+      width: 100%;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--app-muted);
+      font-size: 0.78rem;
+    }
+
+    .range-values {
+      color: var(--app-text);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .range-control {
+      position: relative;
+      height: 2.55rem;
+      margin-top: 0.25rem;
+    }
+
+    .range-track {
+      position: absolute;
+      top: 50%;
+      right: 0.55rem;
+      left: 0.55rem;
+      height: 0.35rem;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: linear-gradient(to right, var(--app-border) 0 var(--range-min), var(--app-accent) var(--range-min) var(--range-max), var(--app-border) var(--range-max) 100%);
+    }
+
+    input[type="range"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 2.55rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      pointer-events: none;
+      appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 0.35rem;
+      background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      width: 1.1rem;
+      height: 1.1rem;
+      margin-top: -0.375rem;
+      border: 2px solid var(--app-panel);
+      border-radius: 50%;
+      background: var(--app-accent-strong);
+      box-shadow: 0 0 0 1px var(--app-accent);
+      pointer-events: auto;
+      appearance: none;
+      cursor: grab;
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 0.35rem;
+      background: transparent;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 1.1rem;
+      height: 1.1rem;
+      border: 2px solid var(--app-panel);
+      border-radius: 50%;
+      background: var(--app-accent-strong);
+      box-shadow: 0 0 0 1px var(--app-accent);
+      pointer-events: auto;
+      cursor: grab;
+    }
+
+    input[type="range"]:disabled::-webkit-slider-thumb {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    input[type="range"]:disabled::-moz-range-thumb {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .unpair-row {
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      font-size: 0.84rem;
+    }
+
+    .unpair-row span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .unpair-row button {
+      flex: 0 0 auto;
+    }
+
+    .hint {
+      margin-top: 0.55rem;
+      color: var(--app-muted);
+      font-size: 0.76rem;
+    }
+
     @media (max-width: 35rem) {
-      .field-grid { align-items: stretch; flex-direction: column; }
-      .field-grid label { width: 100%; flex: 0 0 auto; }
-      .range-field { width: 100%; min-width: 0; flex: 0 0 auto; }
-      .field-grid button { align-self: end; }
+      .field-grid {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .field-grid label {
+        width: 100%;
+        flex: 0 0 auto;
+      }
+
+      .range-field {
+        width: 100%;
+        min-width: 0;
+        flex: 0 0 auto;
+      }
+
+      .field-grid button {
+        align-self: end;
+      }
     }
   `];
 

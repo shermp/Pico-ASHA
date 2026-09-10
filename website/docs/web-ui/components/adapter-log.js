@@ -5,14 +5,74 @@ import { icon } from "./icon.js";
 export class AdapterLog extends LitElement {
   static properties = { entries: { type: Array }, timing: { type: Object }, expanded: { type: Boolean, reflect: true } };
   static styles = [componentStyles, css`
-    :host { position: fixed; z-index: 10; right: 1rem; bottom: 1rem; left: 1rem; display: block; pointer-events: none; }
-    .log { width: min(72rem, 100%); margin: 0 auto; overflow: hidden; pointer-events: auto; }
-    header { display: flex; min-height: 3.3rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.4rem 0.55rem 0.4rem 0.9rem; }
-    .title, .actions, .timing { display: flex; align-items: center; gap: 0.45rem; }
-    h2 { margin: 0; font-size: 0.86rem; } .count { color: var(--app-muted); font-size: 0.72rem; }
-    .timing { margin-left: auto; color: var(--app-muted); font-size: 0.72rem; }
-    pre { height: min(40dvh, 22rem); margin: 0; padding: 0.85rem 1rem; overflow: auto; border-top: 1px solid var(--app-border); background: color-mix(in srgb, var(--app-bg) 86%, transparent); color: #cfe7ff; font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-    @media (max-width: 42rem) { .timing { display: none; } }
+    :host {
+      position: fixed;
+      z-index: 10;
+      right: 1rem;
+      bottom: 1rem;
+      left: 1rem;
+      display: block;
+      pointer-events: none;
+    }
+
+    .log {
+      width: min(72rem, 100%);
+      margin: 0 auto;
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    header {
+      display: flex;
+      min-height: 3.3rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.4rem 0.55rem 0.4rem 0.9rem;
+    }
+
+    .title,
+    .actions,
+    .timing {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 0.86rem;
+    }
+
+    .count {
+      color: var(--app-muted);
+      font-size: 0.72rem;
+    }
+
+    .timing {
+      margin-left: auto;
+      color: var(--app-muted);
+      font-size: 0.72rem;
+    }
+
+    pre {
+      height: min(40dvh, 22rem);
+      margin: 0;
+      padding: 0.85rem 1rem;
+      overflow: auto;
+      border-top: 1px solid var(--app-border);
+      background: color-mix(in srgb, var(--app-bg) 86%, transparent);
+      color: #cfe7ff;
+      font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 42rem) {
+      .timing {
+        display: none;
+      }
+    }
   `];
 
   constructor() { super(); this.entries = []; this.timing = null; this.expanded = false; }
