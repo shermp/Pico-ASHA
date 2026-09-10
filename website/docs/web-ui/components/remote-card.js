@@ -44,7 +44,6 @@ export class RemoteCard extends LitElement {
     componentStyles,
     css`
       article {
-        min-height: 20rem;
         overflow: hidden;
       }
 
@@ -188,7 +187,6 @@ export class RemoteCard extends LitElement {
       }
 
       .empty {
-        min-height: 17.5rem;
         flex-direction: column;
         justify-content: center;
         gap: 0.6rem;
