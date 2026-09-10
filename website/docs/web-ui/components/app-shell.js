@@ -20,11 +20,41 @@ export class PicoAshaApp extends LitElement {
   };
 
   static styles = [componentStyles, css`
-    :host { display: block; min-height: 100vh; }
-    main { width: min(72rem, calc(100% - 2rem)); margin: 0 auto; padding: 1rem 0 5.5rem; }
-    remote-grid { display: block; margin-top: 1rem; }
-    .notice { display: flex; align-items: flex-start; gap: 0.55rem; margin: 1rem 0 0; padding: 0.75rem 0.9rem; border: 1px solid color-mix(in srgb, var(--app-warning) 45%, var(--app-border)); border-radius: 0.8rem; background: color-mix(in srgb, var(--app-warning) 9%, var(--app-panel)); color: var(--app-muted); font-size: 0.8rem; }
-    .intro { margin: 1rem 0 0; color: var(--app-muted); font-size: 0.82rem; text-align: center; }
+    :host {
+      display: block;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(72rem, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 1rem 0 5.5rem;
+    }
+
+    remote-grid {
+      display: block;
+      margin-top: 1rem;
+    }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      margin: 1rem 0 0;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
+      border-radius: 0.8rem;
+      background: color-mix(in srgb, var(--app-warning) 9%, var(--app-panel));
+      color: var(--app-muted);
+      font-size: 0.8rem;
+    }
+
+    .intro {
+      margin: 1rem 0 0;
+      color: var(--app-muted);
+      font-size: 0.82rem;
+      text-align: center;
+    }
   `];
 
   constructor() {

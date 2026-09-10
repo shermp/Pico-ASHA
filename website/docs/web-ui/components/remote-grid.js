@@ -5,8 +5,17 @@ import "./remote-card.js";
 export class RemoteGrid extends LitElement {
   static properties = { remotes: { type: Array } };
   static styles = [componentStyles, css`
-    section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-    @media (max-width: 46rem) { section { grid-template-columns: 1fr; } }
+    section {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    @media (max-width: 46rem) {
+      section {
+        grid-template-columns: 1fr;
+      }
+    }
   `];
 
   constructor() {
