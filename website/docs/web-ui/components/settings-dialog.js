@@ -315,7 +315,7 @@ export class SettingsDialog extends DialogElement {
             </form>
           </section>
           <section>
-            <div class="section-title">${icon("delete")}<h3>Paired devices</h3></div>
+            <div class="section-title">${icon("bluetooth_connected")}<h3>Paired devices</h3></div>
             ${this.remotes.length ? this.remotes.map((remote) => html`<div class="unpair-row"><span>${remote.name || remote.address} · ${remote.side}</span><button class="danger" type="button" ?disabled=${!this.ready || this.busy || !remote.paired} @click=${() => this.emit("remote-unpair", { remote })}>Unpair</button></div>`) : html`<p class="hint">No connected hearing aids.</p>`}
           </section>
         </div>

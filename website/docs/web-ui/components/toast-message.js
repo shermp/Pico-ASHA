@@ -56,7 +56,7 @@ export class ToastMessage extends LitElement {
   `];
 
   constructor() { super(); this.message = ""; this.kind = "info"; this.visible = false; }
-  render() { return html`<div class="toast panel ${this.kind}" role=${this.kind === "error" ? "alert" : "status"}>${icon(this.kind === "error" ? "warning" : "info")}<p>${this.message}</p><button class="icon-button" type="button" aria-label="Dismiss message" title="Dismiss" @click=${() => { this.visible = false; }}>${icon("close")}</button></div>`; }
+  render() { return html`<div class="toast panel ${this.kind}" role=${this.kind === "error" ? "alert" : "status"}>${icon(this.kind === "error" ? "error" : this.kind === "warning" ? "warning" : "info")}<p>${this.message}</p><button class="icon-button" type="button" aria-label="Dismiss message" title="Dismiss" @click=${() => { this.visible = false; }}>${icon("close")}</button></div>`; }
 }
 
 customElements.define("toast-message", ToastMessage);

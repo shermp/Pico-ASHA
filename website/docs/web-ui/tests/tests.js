@@ -709,7 +709,7 @@ test("App header emits connection events and shows firmware/UAC together", async
   let pairingOpened = false; element.addEventListener("pairing-open", () => { pairingOpened = true; });
   element.candidateCount = 2; await element.updateComplete;
   const pairingButton = element.renderRoot.querySelector('[aria-label="Pair device (2 nearby)"]');
-  assert(pairingButton?.title === "Pair device (2 nearby)" && pairingButton.querySelector(".notification-badge")?.textContent === "2" && pairingButton.querySelector(".material-symbols-outlined")?.textContent === "bluetooth_connected");
+  assert(pairingButton?.title === "Pair device (2 nearby)" && pairingButton.querySelector(".notification-badge")?.textContent === "2" && pairingButton.querySelector(".material-symbols-outlined")?.textContent === "bluetooth_searching");
   pairingButton.click(); assert(pairingOpened);
   element.remove();
 });
@@ -912,7 +912,7 @@ test("Pairing dialog emits candidate selection from keyboard-operable buttons", 
   const element = document.createElement("pairing-dialog"); document.querySelector("#fixtures").append(element);
   const candidate = { name: "Nearby", address: "01:02:03:04:05:06", addressType: 1, rssi: -50 }; element.candidates = [candidate]; await element.updateComplete;
   let selected; element.addEventListener("pairing-select", (event) => { selected = event.detail.candidate; });
-  const button = element.renderRoot.querySelector("button.candidate"); assert(button.getAttribute("aria-label") === "Pair Nearby" && button.querySelector(".signal .material-symbols-outlined")?.textContent === "bluetooth_connected"); button.click(); equal(selected, candidate); element.remove();
+  const button = element.renderRoot.querySelector("button.candidate"); assert(button.getAttribute("aria-label") === "Pair Nearby" && button.querySelector(".signal .material-symbols-outlined")?.textContent === "bluetooth_searching"); button.click(); equal(selected, candidate); element.remove();
 });
 
 test("Adapter log is always open, exposes actions, and auto-scrolls", async () => {
@@ -945,13 +945,14 @@ test("Toast is bottom-aligned and distinguishes warning and error states", async
   assert(warning.classList.contains("warning") && warningBackground !== infoBackground && warning.getAttribute("role") === "status");
   element.kind = "error"; await element.updateComplete;
   const error = element.renderRoot.querySelector(".toast");
-  assert(error.classList.contains("error") && getComputedStyle(error).backgroundColor !== warningBackground && error.getAttribute("role") === "alert");
+  assert(error.classList.contains("error") && getComputedStyle(error).backgroundColor !== warningBackground && error.getAttribute("role") === "alert" && error.querySelector(".material-symbols-outlined")?.textContent === "error");
   element.remove();
 });
 
 test("The subsetted Material Symbols font is locally available", async () => {
-  await document.fonts.load('24px "Material Symbols Outlined"');
-  assert(document.fonts.check('24px "Material Symbols Outlined"'));
+  const iconFont = '24px "Material Symbols Outlined"';
+  await document.fonts.load(iconFont, "bluetooth_searching error");
+  assert(document.fonts.check(iconFont, "bluetooth_searching error"));
 });
 
 test("PWA manifest is installable and uses subdirectory-safe URLs", async () => {
