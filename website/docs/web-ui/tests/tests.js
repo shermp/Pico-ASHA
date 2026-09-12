@@ -954,6 +954,47 @@ test("The subsetted Material Symbols font is locally available", async () => {
   assert(document.fonts.check('24px "Material Symbols Outlined"'));
 });
 
+test("PWA manifest is installable and uses subdirectory-safe URLs", async () => {
+  const manifestUrl = new URL("../manifest.webmanifest", import.meta.url);
+  const response = await fetch(manifestUrl);
+  assert(response.ok, `Manifest request failed with ${response.status}`);
+  const manifest = await response.json();
+  equal({
+    id: manifest.id,
+    startUrl: manifest.start_url,
+    scope: manifest.scope,
+    display: manifest.display,
+  }, {
+    id: "./",
+    startUrl: "./",
+    scope: "./",
+    display: "standalone",
+  });
+  assert(manifest.name && manifest.short_name && manifest.theme_color && manifest.background_color);
+  assert(manifest.icons.some((entry) => entry.purpose === "any" && entry.sizes === "any"));
+  assert(manifest.icons.some((entry) => entry.purpose === "maskable" && entry.sizes === "any"));
+  const iconResponses = await Promise.all(manifest.icons.map((entry) => fetch(new URL(entry.src, manifestUrl))));
+  assert(iconResponses.every((iconResponse) => iconResponse.ok), "A manifest icon could not be loaded");
+});
+
+test("Service worker installs the complete offline app shell", async () => {
+  assert("serviceWorker" in navigator, "Service workers are unavailable in this browser");
+  const scopeUrl = new URL("../", import.meta.url);
+  const registration = await navigator.serviceWorker.register(
+    new URL("../service-worker.js", import.meta.url),
+    { scope: "../", updateViaCache: "none" },
+  );
+  await navigator.serviceWorker.ready;
+  equal(registration.scope, scopeUrl.href);
+
+  const cacheNames = await caches.keys();
+  assert(cacheNames.includes("pico-asha-control-v1"));
+  for (const path of ["index.html", "app.js", "components/app-shell.js", "vendor/lit-core.min.js", "icons/icon.svg", "icons/maskable-icon.svg"]) {
+    const response = await caches.match(new URL(path, scopeUrl));
+    assert(response?.ok, `${path} was not precached`);
+  }
+});
+
 async function run() {
   const results = document.querySelector("#results");
   let passed = 0;

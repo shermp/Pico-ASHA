@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pico-ASHA">
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#07111f"/>
+  <path d="M120 356V156h72c58 0 92 27 92 73s-34 73-92 73h-72" fill="none" stroke="#70f2e5" stroke-linecap="round" stroke-linejoin="round" stroke-width="42"/>
+  <path d="M274 356l68-200 68 200M300 286h84" fill="none" stroke="#55d7ca" stroke-linecap="round" stroke-linejoin="round" stroke-width="42"/>
+</svg>
