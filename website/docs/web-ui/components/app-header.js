@@ -156,7 +156,7 @@ export class AppHeader extends LitElement {
             ?disabled=${!ready || this.busy}
             @click=${() => this.emit("pairing-open")}
           >
-            ${icon("bluetooth_connected")}
+            ${icon("bluetooth_searching")}
             ${this.candidateCount ? html`<span class="notification-badge" aria-hidden="true">${this.candidateCount > 99 ? "99+" : this.candidateCount}</span>` : ""}
           </button>
           <button class="icon-button" type="button" aria-label="Open settings" title="Settings" @click=${() => this.emit("settings-open")}>
