@@ -909,6 +909,28 @@ test("Adapter log is always open, exposes actions, and auto-scrolls", async () =
   assert(scrollTop === 321); element.remove();
 });
 
+test("Toast is bottom-aligned and distinguishes warning and error states", async () => {
+  const element = document.createElement("toast-message");
+  element.style.cssText = "--app-panel: rgb(10, 20, 30); --app-border: rgb(40, 50, 60); --app-warning: rgb(240, 180, 60); --app-danger: rgb(240, 60, 80);";
+  element.message = "Test message";
+  element.visible = true;
+  document.querySelector("#fixtures").append(element);
+  await element.updateComplete;
+  const hostStyle = getComputedStyle(element);
+  assert(hostStyle.position === "fixed" && parseFloat(hostStyle.bottom) < parseFloat(hostStyle.top));
+
+  element.kind = "info"; await element.updateComplete;
+  const infoBackground = getComputedStyle(element.renderRoot.querySelector(".toast")).backgroundColor;
+  element.kind = "warning"; await element.updateComplete;
+  const warning = element.renderRoot.querySelector(".toast");
+  const warningBackground = getComputedStyle(warning).backgroundColor;
+  assert(warning.classList.contains("warning") && warningBackground !== infoBackground && warning.getAttribute("role") === "status");
+  element.kind = "error"; await element.updateComplete;
+  const error = element.renderRoot.querySelector(".toast");
+  assert(error.classList.contains("error") && getComputedStyle(error).backgroundColor !== warningBackground && error.getAttribute("role") === "alert");
+  element.remove();
+});
+
 test("The subsetted Material Symbols font is locally available", async () => {
   await document.fonts.load('24px "Material Symbols Outlined"');
   assert(document.fonts.check('24px "Material Symbols Outlined"'));
