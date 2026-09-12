@@ -147,11 +147,12 @@ export class PicoAshaApp extends LitElement {
     }
   }
 
-  addLog(message, level = "info") {
+  addLog(message, level = "info", connectionId = 0) {
     const now = new Date();
     const time = `${now.toLocaleTimeString([], { hour12: false })}.${String(now.getMilliseconds()).padStart(3, "0")}`;
     const marker = level === "error" ? "ERROR" : level === "warning" ? "WARN" : "INFO";
-    this.logEntries = [...this.logEntries.slice(-1999), `[${time}] ${marker}  ${message}`];
+    const connection = connectionId ? ` [Connection ${connectionId}]` : "";
+    this.logEntries = [...this.logEntries.slice(-1999), `[${time}] ${marker}${connection}  ${message}`];
   }
 
   showToast(message, kind = "info", duration = 5000) {
@@ -179,13 +180,14 @@ export class PicoAshaApp extends LitElement {
     }
   }
 
-  handleError(error) {
+  handleError(error, connectionId = 0) {
     const message = describeSerialError(error);
-    this.addLog(message, "error");
+    this.addLog(message, "error", connectionId);
     this.showToast(message, "error", 8000);
   }
 
   handlePacket(packet) {
+    const connectionId = packet.header?.connectionId || packet.connectionId || 0;
     if (["intro", "usb-info", "remote-info", "advert", "event"].includes(packet.kind)) {
       // Advertisements update the pairing badge only; opening the dialog is always an explicit user action.
       this.adapter = this.store.apply(packet);
@@ -196,19 +198,19 @@ export class PicoAshaApp extends LitElement {
         return;
       }
       if (packet.eventType === 0 && packet.text) {
-        this.addLog(packet.text);
+        this.addLog(packet.text, "info", connectionId);
       } else if (packet.statusType !== StatusType.Success && packet.status !== 0) {
-        this.addLog(describeEventError(packet), "error");
+        this.addLog(describeEventError(packet), "error", connectionId);
       } else {
-        this.addLog(`${EVENT_NAMES[packet.eventType] ?? `Event ${packet.eventType}`}${packet.header.connectionId ? ` · connection ${packet.header.connectionId}` : ""}`);
+        this.addLog(EVENT_NAMES[packet.eventType] ?? `Event ${packet.eventType}`, "info", connectionId);
       }
     } else if (packet.kind === "intro") {
-      this.addLog(`Pico-ASHA firmware ${packet.version}; ${packet.numberConnected} hearing aid(s) connected`);
+      this.addLog(`Pico-ASHA firmware ${packet.version}; ${packet.numberConnected} hearing aid(s) connected`, "info", connectionId);
     } else if (packet.kind === "usb-info") {
-      this.addLog(`USB Audio Class ${packet.uacVersion}; ${packet.minimumDb} to ${packet.maximumDb} dB`);
+      this.addLog(`USB Audio Class ${packet.uacVersion}; ${packet.minimumDb} to ${packet.maximumDb} dB`, "info", connectionId);
     } else if (packet.kind === "hci") {
       if (!this.capture.append(packet.data)) {
-        this.addLog("HCI capture reached the 64 MiB limit and was stopped", "warning");
+        this.addLog("HCI capture reached the 64 MiB limit and was stopped", "warning", connectionId);
         this.showToast("HCI capture reached 64 MiB. Stopping and preparing the download.", "warning", 9000);
         this.hci = Object.freeze({ phase: "stopping", bytes: this.capture.bytes, downloadAvailable: true });
         void this.sendRestartingCommand(Command.HCIDump, { enabled: false });
@@ -239,6 +241,7 @@ export class PicoAshaApp extends LitElement {
   }
 
   async sendCommand(command, data = {}, options = {}, successMessage = "Setting updated") {
+    const connectionId = options.connectionId || data.connectionId || 0;
     this.busy = true;
     try {
       await this.controller.sendCommand(command, data, options);
@@ -247,20 +250,20 @@ export class PicoAshaApp extends LitElement {
         if (this.controller.ready) {
           this.controller.restartExpected = false;
           this.controller.restartObserved = false;
-          this.addLog("Setting was already active; no adapter restart was needed");
+          this.addLog("Setting was already active; no adapter restart was needed", "info", connectionId);
         }
       }
       if (successMessage) {
         this.showToast(successMessage);
-        this.addLog(successMessage);
+        this.addLog(successMessage, "info", connectionId);
       }
       return true;
     } catch (error) {
       if (options.expectRestart && this.controller.restartObserved) {
-        this.addLog("Adapter restart detected; waiting to reconnect");
+        this.addLog("Adapter restart detected; waiting to reconnect", "info", connectionId);
         return true;
       }
-      this.handleError(error);
+      this.handleError(error, connectionId);
       return false;
     } finally {
       this.busy = false;

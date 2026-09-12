@@ -276,10 +276,28 @@ test("Closing pairing clears stale nearby-device candidates", () => {
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
-test("App logs include milliseconds and omit volume events", () => {
+test("App logs structure nonzero connection IDs and omit volume events", () => {
   const app = new PicoAshaApp();
   app.addLog("Diagnostic");
   assert(/^\[\d{2}:\d{2}:\d{2}\.\d{3}\] INFO  Diagnostic$/.test(app.logEntries[0]));
+  app.addLog("Remote diagnostic", "warning", 12);
+  assert(/ WARN \[Connection 12\]  Remote diagnostic$/.test(app.logEntries.at(-1)));
+
+  const shortLog = decodePacket(makeEvent(EventType.ShortLog, 7));
+  shortLog.text = "Pairing started";
+  app.handlePacket(shortLog);
+  assert(/ INFO \[Connection 7\]  Pairing started$/.test(app.logEntries.at(-1)));
+
+  app.handlePacket(decodePacket(makeEvent(EventType.L2CAPConnected, 8)));
+  assert(/ INFO \[Connection 8\]  L2CAPConnected$/.test(app.logEntries.at(-1)));
+
+  const failedEvent = makeEvent(EventType.DiscoverServices, 9);
+  failedEvent[9] = StatusType.ATT;
+  failedEvent[10] = 0x01;
+  app.handlePacket(decodePacket(failedEvent));
+  assert(/ ERROR \[Connection 9\]  DiscoverServices: Invalid handle$/.test(app.logEntries.at(-1)));
+
+  assert(app.logEntries.slice(1).every((entry) => /\[Connection \d+\]  /.test(entry)));
   const count = app.logEntries.length;
   app.handlePacket(decodePacket(makeEvent(EventType.AudioVolume)));
   assert(app.logEntries.length === count);
