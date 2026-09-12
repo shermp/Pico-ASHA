@@ -1,0 +1,41 @@
+:root {
+  --app-bg: #07111f;
+  --app-panel: rgba(14, 28, 47, 0.92);
+  --app-panel-soft: rgba(19, 38, 61, 0.76);
+  --app-border: rgba(156, 189, 223, 0.18);
+  --app-text: #e9f3ff;
+  --app-muted: #9bb0c8;
+  --app-accent: #55d7ca;
+  --app-accent-strong: #70f2e5;
+  --app-danger: #ff7a8b;
+  --app-warning: #f5bd68;
+  --app-success: #67ddb0;
+  --app-battery-low: rgb(205.5, 74, 80);
+  --app-radius: 1rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --app-bg: #eef4f8;
+    --app-panel: rgba(255, 255, 255, 0.95);
+    --app-panel-soft: rgba(240, 247, 251, 0.92);
+    --app-border: rgba(31, 66, 95, 0.16);
+    --app-text: #10263b;
+    --app-muted: #5b7082;
+    --app-accent: #087f78;
+    --app-accent-strong: #04665f;
+    --app-battery-low: rgb(136, 56, 53);
+  }
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(35, 133, 151, 0.2), transparent 36rem),
+    radial-gradient(circle at 90% 25%, rgba(64, 88, 173, 0.17), transparent 32rem),
+    var(--app-bg);
+  color: var(--app-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+}

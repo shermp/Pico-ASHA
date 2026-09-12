@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Pico-ASHA Control",
+  "short_name": "Pico-ASHA",
+  "description": "Configure and monitor a Pico-ASHA adapter over Web Serial.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "categories": ["utilities", "medical"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

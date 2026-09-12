@@ -2,8 +2,7 @@ name: Build and deploy website
 
 on:
     push:
-      branches:
-        - main
+    pull_request:
     workflow_dispatch:
 
 permissions:
@@ -38,8 +37,15 @@ jobs:
               run: |
                 cd website
                 mkdocs build
-                
+
             - name: Upload artifact
+              uses: actions/upload-artifact@v7
+              with:
+                name: pico-asha-website
+                path: ./website/site
+                
+            - name: Upload pages artifact
+              if: github.ref == 'refs/heads/main' && github.event_name == 'push'
               uses: actions/upload-pages-artifact@v3
               with:
                 path: ./website/site
@@ -50,6 +56,7 @@ jobs:
             url: ${{ steps.deployment.outputs.page_url }}
         runs-on: ubuntu-latest
         needs: build
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         steps:
             - name: Deploy to GitHub Pages
               id: deployment

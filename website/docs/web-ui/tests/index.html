@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pico-ASHA Web UI tests</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="../vendor/material-symbols.css">
+    <style>
+      :root { --test-pass: #087f5b; --test-fail: #c92a2a; }
+      body { padding: 1rem; }
+      main { width: min(64rem, 100%); margin: 0 auto; }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+      #summary[data-state="passed"] { color: var(--test-pass); }
+      #summary[data-state="failed"] { color: var(--test-fail); }
+      ol { padding-left: 1.6rem; }
+      li { padding: 0.35rem 0; }
+      li.pass::marker { color: var(--test-pass); content: "✓  "; }
+      li.fail { color: var(--test-fail); }
+      li.fail::marker { content: "✗  "; }
+      code { overflow-wrap: anywhere; }
+      #fixtures { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    </style>
+    <script type="module" src="tests.js"></script>
+  </head>
+  <body>
+    <main>
+      <header><div><h1>Web UI tests</h1><p>Dependency-free browser checks</p></div><strong id="summary" role="status">Running…</strong></header>
+      <ol id="results"></ol>
+      <div id="fixtures" aria-hidden="true"></div>
+    </main>
+  </body>
+</html>
