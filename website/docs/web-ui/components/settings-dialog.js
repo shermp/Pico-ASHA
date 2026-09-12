@@ -1,34 +1,22 @@
-import { LitElement, css, html } from "../vendor/lit-core.min.js";
+import { css, html } from "../vendor/lit-core.min.js";
 import { componentStyles } from "./component-styles.js";
+import { DialogElement, dialogStyles } from "./dialog-element.js";
 import { icon } from "./icon.js";
 
-export class SettingsDialog extends LitElement {
+export class SettingsDialog extends DialogElement {
   static properties = {
     ready: { type: Boolean }, intro: { type: Object }, usbInfo: { type: Object }, remotes: { type: Array },
     hci: { type: Object }, busy: { type: Boolean },
     uacVersion: { state: true }, minimumDb: { state: true }, maximumDb: { state: true },
   };
 
-  static styles = [componentStyles, css`
+  static styles = [componentStyles, dialogStyles, css`
     dialog {
       width: min(43rem, calc(100% - 1.5rem));
       max-height: calc(100dvh - 2rem);
-      margin: auto;
-      padding: 0;
       overflow: hidden;
-      border: 1px solid var(--app-border);
-      border-radius: var(--app-radius);
-      background: var(--app-panel);
-      color: var(--app-text);
-      box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
     }
 
-    dialog::backdrop {
-      background: rgba(2, 8, 15, 0.72);
-      backdrop-filter: blur(4px);
-    }
-
-    header,
     .section-title,
     .button-row,
     .field-grid,
@@ -38,20 +26,10 @@ export class SettingsDialog extends LitElement {
       align-items: center;
     }
 
-    header {
-      justify-content: space-between;
-      padding: 0.9rem 1rem;
-      border-bottom: 1px solid var(--app-border);
-    }
-
     h2,
     h3,
     p {
       margin: 0;
-    }
-
-    h2 {
-      font-size: 1.05rem;
     }
 
     h3 {
@@ -299,12 +277,6 @@ export class SettingsDialog extends LitElement {
     }
   }
 
-  show() {
-    const dialog = this.renderRoot.querySelector("dialog");
-    if (!dialog.open) { dialog.showModal(); }
-  }
-
-  close() { this.renderRoot.querySelector("dialog")?.close(); }
   emit(name, detail = undefined) { this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true })); }
 
   submitUSB(event) {

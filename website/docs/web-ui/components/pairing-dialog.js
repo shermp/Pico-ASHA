@@ -1,45 +1,22 @@
-import { LitElement, css, html } from "../vendor/lit-core.min.js";
+import { css, html } from "../vendor/lit-core.min.js";
 import { componentStyles } from "./component-styles.js";
+import { DialogElement, dialogStyles } from "./dialog-element.js";
 import { icon } from "./icon.js";
 
-export class PairingDialog extends LitElement {
+export class PairingDialog extends DialogElement {
   static properties = { candidates: { type: Array }, busy: { type: Boolean } };
-  static styles = [componentStyles, css`
+  static styles = [componentStyles, dialogStyles, css`
     dialog {
       width: min(34rem, calc(100% - 1.5rem));
-      margin: auto;
-      padding: 0;
-      border: 1px solid var(--app-border);
-      border-radius: var(--app-radius);
-      background: var(--app-panel);
-      color: var(--app-text);
-      box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
     }
 
-    dialog::backdrop {
-      background: rgba(2, 8, 15, 0.72);
-      backdrop-filter: blur(4px);
-    }
-
-    header,
     .candidate {
       display: flex;
       align-items: center;
     }
 
-    header {
-      justify-content: space-between;
-      padding: 0.9rem 1rem;
-      border-bottom: 1px solid var(--app-border);
-    }
-
-    h2,
     p {
       margin: 0;
-    }
-
-    h2 {
-      font-size: 1.05rem;
     }
 
     .list {
@@ -105,10 +82,8 @@ export class PairingDialog extends LitElement {
   `];
 
   constructor() { super(); this.candidates = []; this.busy = false; }
-  get open() { return Boolean(this.renderRoot.querySelector("dialog")?.open); }
-  show() { const dialog = this.renderRoot.querySelector("dialog"); if (!dialog.open) { dialog.showModal(); } }
   close({ dismissed = true } = {}) {
-    this.renderRoot.querySelector("dialog")?.close();
+    super.close();
     // Native dialog events do not distinguish a user dismissal from a successful pairing close.
     this.dispatchEvent(new CustomEvent("pairing-close", { detail: { dismissed }, bubbles: true, composed: true }));
   }
