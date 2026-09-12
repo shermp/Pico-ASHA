@@ -49,12 +49,6 @@ export class PicoAshaApp extends LitElement {
       font-size: 0.8rem;
     }
 
-    .intro {
-      margin: 1rem 0 0;
-      color: var(--app-muted);
-      font-size: 0.82rem;
-      text-align: center;
-    }
   `];
 
   constructor() {
@@ -363,8 +357,7 @@ export class PicoAshaApp extends LitElement {
           .busy=${this.busy}
         ></app-header>
         ${this.supportMessage ? html`<p class="notice">${this.supportMessage}</p>` : ""}
-        <remote-grid .remotes=${this.adapter.remotes}></remote-grid>
-        ${!this.adapter.intro ? html`<p class="intro">Use the cable button to grant this page access to your Pico-ASHA adapter.</p>` : ""}
+        <remote-grid .remotes=${this.adapter.remotes} .adapterConnected=${this.connection.phase === "ready"}></remote-grid>
         <settings-dialog .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .hci=${this.hci} .busy=${this.busy}></settings-dialog>
         <pairing-dialog .candidates=${this.adapter.adverts} .busy=${this.busy}></pairing-dialog>
         <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>

@@ -10,6 +10,7 @@ import "../components/adapter-log.js";
 import "../components/app-header.js";
 import "../components/pairing-dialog.js";
 import { batteryColor, batteryIcon, volumeToDb } from "../components/remote-card.js";
+import "../components/remote-grid.js";
 import "../components/settings-dialog.js";
 import { PicoAshaApp } from "../components/app-shell.js";
 
@@ -710,6 +711,17 @@ test("Remote card reacts to immutable state and presents battery/volume/streamin
   element.side = "Right"; await element.updateComplete;
   const rightBadge = element.renderRoot.querySelector(".aid");
   assert(rightBadge.textContent.trim() === "R" && rightBadge.classList.contains("right") && rightBadge.getAttribute("aria-label") === "Right hearing aid");
+  element.remove();
+});
+
+test("Remote grid tailors its single empty state to adapter connectivity", async () => {
+  const element = document.createElement("remote-grid"); document.querySelector("#fixtures").append(element); await element.updateComplete;
+  assert(element.renderRoot.querySelectorAll("remote-card").length === 0);
+  assert(element.renderRoot.querySelector(".empty-state")?.textContent.includes("Adapter disconnected"));
+  element.adapterConnected = true; await element.updateComplete;
+  assert(element.renderRoot.querySelector(".empty-state")?.textContent.includes("No hearing aids connected"));
+  element.remotes = [Object.freeze({ side: "Left" })]; await element.updateComplete;
+  assert(element.renderRoot.querySelectorAll("remote-card").length === 2);
   element.remove();
 });
 
