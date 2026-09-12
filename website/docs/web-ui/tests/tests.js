@@ -787,6 +787,18 @@ test("Settings dialog exposes disabled states until the adapter is ready", async
   assert(!element.renderRoot.querySelector("button.control-button").disabled); element.remove();
 });
 
+test("Dialogs share the same native modal lifecycle", async () => {
+  const settings = document.createElement("settings-dialog");
+  const pairing = document.createElement("pairing-dialog");
+  document.querySelector("#fixtures").append(settings, pairing);
+  await Promise.all([settings.updateComplete, pairing.updateComplete]);
+  for (const dialog of [settings, pairing]) {
+    dialog.show(); assert(dialog.open);
+    dialog.close(); assert(!dialog.open);
+  }
+  settings.remove(); pairing.remove();
+});
+
 test("Every settings dialog button is icon-only with a native tooltip and accessible name", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
   element.ready = true; element.intro = { audioStreamingEnabled: false, connectionsAllowed: false };
