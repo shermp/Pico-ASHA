@@ -8,7 +8,7 @@ export class ToastMessage extends LitElement {
     :host {
       position: fixed;
       z-index: 30;
-      top: 1rem;
+      bottom: max(1rem, env(safe-area-inset-bottom));
       left: 50%;
       display: none;
       width: min(34rem, calc(100% - 2rem));
@@ -28,10 +28,20 @@ export class ToastMessage extends LitElement {
 
     .toast.error {
       border-color: color-mix(in srgb, var(--app-danger) 60%, var(--app-border));
+      background: color-mix(in srgb, var(--app-danger) 16%, var(--app-panel));
     }
 
     .toast.warning {
       border-color: color-mix(in srgb, var(--app-warning) 60%, var(--app-border));
+      background: color-mix(in srgb, var(--app-warning) 16%, var(--app-panel));
+    }
+
+    .toast.error > .material-symbols-outlined {
+      color: var(--app-danger);
+    }
+
+    .toast.warning > .material-symbols-outlined {
+      color: var(--app-warning);
     }
 
     p {
