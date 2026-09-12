@@ -1276,6 +1276,14 @@ bool HearingAid::process_audio()
                             break;
                         }
                         ha->curr_read_index = w_index - 1;
+
+                        // Ensure the volume is sent over CDC in case the control 
+                        // app does not have the current value
+                        auto vol_ev = EventPacket(EventType::AudioVolume);
+                        vol_ev.data.volume = ha->curr_vol;
+                        add_event_to_buffer(ha->conn_id, vol_ev);
+
+                        // add_event_to_buffer(ha->conn_id, )
                         ha->first_audio_send = false;
                     }
                     if (ha->curr_read_index < w_index) {
