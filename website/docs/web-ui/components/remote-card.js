@@ -148,6 +148,12 @@ export class RemoteCard extends LitElement {
         color: var(--app-battery-low);
       }
 
+      .battery {
+        display: inline-grid;
+        height: 1.25rem;
+        place-items: center;
+      }
+
       .battery.medium {
         color: #ba7a00;
       }
