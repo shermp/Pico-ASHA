@@ -20,10 +20,6 @@ export const componentStyles = css`
     backdrop-filter: blur(18px);
   }
 
-  .muted {
-    color: var(--app-muted);
-  }
-
   .icon-button {
     display: inline-grid;
     width: 2.55rem;
