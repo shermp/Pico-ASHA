@@ -5,18 +5,3 @@
   font-display: block;
   src: url("material-symbols-outlined.woff2") format("woff2");
 }
-
-.material-symbols-outlined {
-  display: inline-block;
-  overflow: hidden;
-  width: 1em;
-  font-family: "Material Symbols Outlined";
-  font-size: 1.25rem;
-  font-style: normal;
-  font-weight: 400;
-  font-feature-settings: "liga";
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-  line-height: 1;
-  text-rendering: optimizeLegibility;
-  white-space: nowrap;
-}
