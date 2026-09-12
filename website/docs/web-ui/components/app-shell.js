@@ -6,8 +6,10 @@ import { AdapterState } from "../protocol/state.js";
 import { HciCapture } from "../serial/hci-capture.js";
 import { SerialController } from "../serial/serial-controller.js";
 import { componentStyles } from "./component-styles.js";
+import "./adapter-controls.js";
 import "./adapter-log.js";
 import "./app-header.js";
+import "./hci-capture-controls.js";
 import "./pairing-dialog.js";
 import "./remote-grid.js";
 import "./settings-dialog.js";
@@ -17,6 +19,7 @@ export class PicoAshaApp extends LitElement {
   static properties = {
     connection: { type: Object }, adapter: { type: Object }, logEntries: { type: Array },
     hci: { type: Object }, busy: { type: Boolean }, supportMessage: { type: String }, toastState: { type: Object },
+    activeTab: { state: true },
   };
 
   static styles = [componentStyles, css`
@@ -28,11 +31,64 @@ export class PicoAshaApp extends LitElement {
     main {
       width: min(72rem, calc(100% - 2rem));
       margin: 0 auto;
-      padding: 1rem 0 5.5rem;
+      padding: 1rem 0;
     }
 
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      margin-top: 1rem;
+      padding: 0.3rem;
+      border: 1px solid var(--app-border);
+      border-radius: 0.85rem;
+      background: color-mix(in srgb, var(--app-panel) 88%, transparent);
+      box-shadow: 0 0.65rem 1.75rem rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(18px);
+    }
+
+    [role="tab"] {
+      display: inline-flex;
+      flex: 1 1 0;
+      min-height: 2.7rem;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 0.55rem 1rem;
+      border: 1px solid transparent;
+      border-radius: 0.62rem;
+      background: transparent;
+      color: var(--app-muted);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    [role="tab"]:hover {
+      color: var(--app-text);
+    }
+
+    [role="tab"][aria-selected="true"] {
+      border-color: color-mix(in srgb, var(--app-accent) 42%, var(--app-border));
+      background: color-mix(in srgb, var(--app-accent) 14%, var(--app-panel-soft));
+      color: var(--app-accent-strong);
+    }
+
+    [role="tabpanel"] {
+      margin-top: 1rem;
+    }
+
+    [role="tabpanel"][hidden] {
+      display: none;
+    }
+
+    adapter-controls,
+    hci-capture-controls,
+    adapter-log,
     remote-grid {
       display: block;
+    }
+
+    remote-grid,
+    adapter-log {
       margin-top: 1rem;
     }
 
@@ -62,6 +118,7 @@ export class PicoAshaApp extends LitElement {
     this.busy = false;
     this.supportMessage = webSerialSupportMessage();
     this.toastState = Object.freeze({ message: "", kind: "info", visible: false });
+    this.activeTab = "adapter";
     this.toastTimer = null;
     this.controller = new SerialController({
       onPacket: (packet) => this.handlePacket(packet),
@@ -335,6 +392,29 @@ export class PicoAshaApp extends LitElement {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  selectTab(tab, { focus = false } = {}) {
+    if (!["adapter", "diagnostics"].includes(tab)) {
+      return;
+    }
+    this.activeTab = tab;
+    if (focus) {
+      void this.updateComplete.then(() => this.renderRoot.querySelector(`#${tab}-tab`)?.focus());
+    }
+  }
+
+  handleTabKeydown(event) {
+    const tabs = ["adapter", "diagnostics"];
+    const current = tabs.indexOf(this.activeTab);
+    let next = current;
+    if (event.key === "ArrowRight") next = (current + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    this.selectTab(tabs[next], { focus: true });
+  }
+
   render() {
     return html`
       <main
@@ -357,10 +437,48 @@ export class PicoAshaApp extends LitElement {
           .busy=${this.busy}
         ></app-header>
         ${this.supportMessage ? html`<p class="notice">${this.supportMessage}</p>` : ""}
-        <remote-grid .remotes=${this.adapter.remotes} .adapterConnected=${this.connection.phase === "ready"}></remote-grid>
-        <settings-dialog .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .hci=${this.hci} .busy=${this.busy}></settings-dialog>
+        <div class="tabs" role="tablist" aria-label="Main content" @keydown=${this.handleTabKeydown}>
+          <button
+            id="adapter-tab"
+            type="button"
+            role="tab"
+            aria-controls="adapter-panel"
+            aria-selected=${this.activeTab === "adapter"}
+            tabindex=${this.activeTab === "adapter" ? "0" : "-1"}
+            @click=${() => this.selectTab("adapter")}
+          >Adapter</button>
+          <button
+            id="diagnostics-tab"
+            type="button"
+            role="tab"
+            aria-controls="diagnostics-panel"
+            aria-selected=${this.activeTab === "diagnostics"}
+            tabindex=${this.activeTab === "diagnostics" ? "0" : "-1"}
+            @click=${() => this.selectTab("diagnostics")}
+          >Diagnostics</button>
+        </div>
+        <section
+          id="adapter-panel"
+          role="tabpanel"
+          aria-labelledby="adapter-tab"
+          tabindex="0"
+          ?hidden=${this.activeTab !== "adapter"}
+        >
+          <adapter-controls .ready=${this.connection.phase === "ready"} .intro=${this.adapter.intro} .busy=${this.busy}></adapter-controls>
+          <remote-grid .remotes=${this.adapter.remotes} .adapterConnected=${this.connection.phase === "ready"}></remote-grid>
+        </section>
+        <section
+          id="diagnostics-panel"
+          role="tabpanel"
+          aria-labelledby="diagnostics-tab"
+          tabindex="0"
+          ?hidden=${this.activeTab !== "diagnostics"}
+        >
+          <hci-capture-controls .ready=${this.connection.phase === "ready"} .hci=${this.hci} .busy=${this.busy}></hci-capture-controls>
+          <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>
+        </section>
+        <settings-dialog .ready=${this.connection.phase === "ready"} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .busy=${this.busy}></settings-dialog>
         <pairing-dialog .candidates=${this.adapter.adverts} .busy=${this.busy}></pairing-dialog>
-        <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>
         <toast-message .message=${this.toastState.message} .kind=${this.toastState.kind} .visible=${this.toastState.visible}></toast-message>
       </main>
     `;

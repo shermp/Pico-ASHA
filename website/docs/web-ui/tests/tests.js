@@ -6,8 +6,10 @@ import { describeSerialError, describeStatus, webSerialSupportMessage } from "..
 import { AdapterState } from "../protocol/state.js";
 import { BTSNOOP_FILE_HEADER, HciCapture } from "../serial/hci-capture.js";
 import { SerialController } from "../serial/serial-controller.js";
+import "../components/adapter-controls.js";
 import "../components/adapter-log.js";
 import "../components/app-header.js";
+import "../components/hci-capture-controls.js";
 import "../components/pairing-dialog.js";
 import { batteryColor, batteryIcon, volumeToDb } from "../components/remote-card.js";
 import "../components/remote-grid.js";
@@ -694,6 +696,57 @@ test("App header emits connection events and shows firmware/UAC together", async
   element.remove();
 });
 
+test("Main content uses accessible Adapter and Diagnostics tabs", async () => {
+  const app = new PicoAshaApp(); document.querySelector("#fixtures").append(app); await app.updateComplete;
+  const tabs = [...app.renderRoot.querySelectorAll('[role="tab"]')];
+  const adapterPanel = app.renderRoot.querySelector("#adapter-panel");
+  const diagnosticsPanel = app.renderRoot.querySelector("#diagnostics-panel");
+  equal(tabs.map((tab) => [tab.textContent.trim(), tab.getAttribute("aria-controls")]), [["Adapter", "adapter-panel"], ["Diagnostics", "diagnostics-panel"]]);
+  assert(tabs.every((tab) => getComputedStyle(tab).flexGrow === "1"));
+  assert(tabs[0].getAttribute("aria-selected") === "true" && tabs[0].tabIndex === 0 && !adapterPanel.hidden);
+  assert(tabs[1].getAttribute("aria-selected") === "false" && tabs[1].tabIndex === -1 && diagnosticsPanel.hidden);
+  assert(adapterPanel.querySelector("adapter-controls") && adapterPanel.querySelector("remote-grid"));
+  assert(diagnosticsPanel.querySelector("hci-capture-controls") && diagnosticsPanel.querySelector("adapter-log"));
+  tabs[1].click(); await app.updateComplete;
+  assert(adapterPanel.hidden && !diagnosticsPanel.hidden && tabs[1].getAttribute("aria-selected") === "true");
+  tabs[1].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }));
+  await app.updateComplete; await Promise.resolve();
+  assert(app.activeTab === "adapter" && app.renderRoot.activeElement === tabs[0]);
+  app.remove();
+});
+
+test("Adapter controls expose runtime actions and disabled states", async () => {
+  const element = document.createElement("adapter-controls"); document.querySelector("#fixtures").append(element); await element.updateComplete;
+  assert([...element.renderRoot.querySelectorAll("button")].every((button) => button.disabled));
+  element.ready = true;
+  element.intro = { audioStreamingEnabled: true, connectionsAllowed: true };
+  await element.updateComplete;
+  assert(getComputedStyle(element.renderRoot.querySelector(".button-row")).justifyContent === "center");
+  assert(element.renderRoot.querySelector(".title .material-symbols-outlined")?.textContent === "graphic_eq");
+  equal([...element.renderRoot.querySelectorAll("button")].map((button) => button.textContent.trim()), ["Stop audio", "Disable connections", "Restart adapter"]);
+  let audio; element.addEventListener("audio-change", (event) => { audio = event.detail; });
+  element.renderRoot.querySelector("button").click();
+  equal(audio, { enabled: false });
+  element.remove();
+});
+
+test("HCI capture controls reflect capture progress and emit actions", async () => {
+  const element = document.createElement("hci-capture-controls"); document.querySelector("#fixtures").append(element); await element.updateComplete;
+  const buttons = () => [...element.renderRoot.querySelectorAll("button")];
+  assert(buttons().every((button) => button.disabled));
+  element.ready = true; await element.updateComplete;
+  assert(getComputedStyle(element.renderRoot.querySelector(".button-row")).justifyContent === "center");
+  equal(buttons().map((button) => button.disabled), [false, true, true]);
+  let started = false; element.addEventListener("hci-start", () => { started = true; });
+  buttons()[0].click(); assert(started);
+  element.hci = { phase: "capturing", bytes: 1572864, downloadAvailable: false }; await element.updateComplete;
+  equal(buttons().map((button) => button.disabled), [true, false, true]);
+  assert(element.renderRoot.textContent.includes("1.50 MiB buffered"));
+  element.hci = { phase: "ready", bytes: 1572864, downloadAvailable: true }; await element.updateComplete;
+  equal(buttons().map((button) => button.disabled), [false, true, false]);
+  element.remove();
+});
+
 test("Remote card reacts to immutable state and presents battery/volume/streaming", async () => {
   const element = document.createElement("remote-card"); document.querySelector("#fixtures").append(element); element.side = "Left"; await element.updateComplete;
   assert(element.renderRoot.textContent.includes("No left hearing aid"));
@@ -795,10 +848,18 @@ test("USB save is enabled only while device settings have been changed", async (
   element.remove();
 });
 
-test("Settings dialog exposes disabled states until the adapter is ready", async () => {
-  const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element); await element.updateComplete;
-  assert([...element.renderRoot.querySelectorAll("button")].some((button) => button.disabled)); element.ready = true; await element.updateComplete;
-  assert(!element.renderRoot.querySelector("button:not(.icon-button)").disabled); element.remove();
+test("Settings dialog disables device changes until the adapter is ready", async () => {
+  const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
+  element.usbInfo = { uacVersion: 2, minimumDb: -60, maximumDb: 0 };
+  element.remotes = [{ name: "Test Aid", address: "01:02:03:04:05:06", side: "Left", paired: true }];
+  await element.updateComplete;
+  const save = element.renderRoot.querySelector('button[type="submit"]');
+  const unpair = element.renderRoot.querySelector("button.danger");
+  assert(save.disabled && unpair.disabled);
+  element.ready = true;
+  const uac = element.renderRoot.querySelector("select");
+  uac.value = "1"; uac.dispatchEvent(new Event("change", { bubbles: true })); await element.updateComplete;
+  assert(!save.disabled && !unpair.disabled); element.remove();
 });
 
 test("Dialogs share the same native modal lifecycle", async () => {
@@ -815,13 +876,13 @@ test("Dialogs share the same native modal lifecycle", async () => {
 
 test("Settings actions have visible labels while close remains icon-only", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
-  element.ready = true; element.intro = { audioStreamingEnabled: false, connectionsAllowed: false };
+  element.ready = true;
   element.remotes = [{ name: "Test Aid", address: "01:02:03:04:05:06", side: "Left", paired: true }];
   await element.updateComplete;
   const buttons = [...element.renderRoot.querySelectorAll("button")];
-  assert(buttons.length === 9);
+  assert(buttons.length === 3);
   assert(buttons[0].classList.contains("icon-button") && buttons[0].getAttribute("aria-label") === "Close settings");
-  equal(buttons.slice(1).map((button) => button.textContent.trim()), ["Start audio", "Enable connections", "Restart adapter", "Save USB settings", "Start capture", "Stop and download", "Download capture", "Unpair"]);
+  equal(buttons.slice(1).map((button) => button.textContent.trim()), ["Save USB settings", "Unpair"]);
   assert(buttons.slice(1).every((button) => !button.querySelector(".material-symbols-outlined")));
   const unpair = buttons.at(-1);
   assert(unpair.classList.contains("danger") && unpair.textContent.trim() === "Unpair");
@@ -836,10 +897,16 @@ test("Pairing dialog emits candidate selection from keyboard-operable buttons", 
   const button = element.renderRoot.querySelector("button.candidate"); assert(button.getAttribute("aria-label") === "Pair Nearby" && button.querySelector(".signal .material-symbols-outlined")?.textContent === "bluetooth_connected"); button.click(); equal(selected, candidate); element.remove();
 });
 
-test("Adapter log expands, exposes accessible actions, and auto-scrolls", async () => {
-  const element = document.createElement("adapter-log"); document.querySelector("#fixtures").append(element); element.entries = ["one", "two"]; element.expanded = true; await element.updateComplete;
-  assert(element.renderRoot.querySelector('[role="log"]').textContent.includes("two"));
-  equal([...element.renderRoot.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")), ["Copy adapter log", "Download adapter log", "Clear adapter log", "Collapse adapter log"]); element.remove();
+test("Adapter log is always open, exposes actions, and auto-scrolls", async () => {
+  const element = document.createElement("adapter-log"); document.querySelector("#fixtures").append(element); element.entries = ["one", "two"]; await element.updateComplete;
+  const log = element.renderRoot.querySelector('[role="log"]');
+  assert(log.textContent.includes("two"));
+  equal([...element.renderRoot.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")), ["Copy adapter log", "Download adapter log", "Clear adapter log"]);
+  let scrollTop = 0;
+  Object.defineProperty(log, "scrollHeight", { value: 321, configurable: true });
+  Object.defineProperty(log, "scrollTop", { get: () => scrollTop, set: (value) => { scrollTop = value; }, configurable: true });
+  element.entries = [...element.entries, "three"]; await element.updateComplete;
+  assert(scrollTop === 321); element.remove();
 });
 
 test("The subsetted Material Symbols font is locally available", async () => {

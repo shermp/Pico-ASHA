@@ -5,8 +5,7 @@ import { icon } from "./icon.js";
 
 export class SettingsDialog extends DialogElement {
   static properties = {
-    ready: { type: Boolean }, intro: { type: Object }, usbInfo: { type: Object }, remotes: { type: Array },
-    hci: { type: Object }, busy: { type: Boolean },
+    ready: { type: Boolean }, usbInfo: { type: Object }, remotes: { type: Array }, busy: { type: Boolean },
     uacVersion: { state: true }, minimumDb: { state: true }, maximumDb: { state: true },
   };
 
@@ -18,7 +17,6 @@ export class SettingsDialog extends DialogElement {
     }
 
     .section-title,
-    .button-row,
     .field-grid,
     .unpair-row,
     .range-heading {
@@ -52,11 +50,6 @@ export class SettingsDialog extends DialogElement {
       gap: 0.5rem;
       margin-bottom: 0.7rem;
       color: var(--app-muted);
-    }
-
-    .button-row {
-      flex-wrap: wrap;
-      gap: 0.55rem;
     }
 
     button {
@@ -256,8 +249,7 @@ export class SettingsDialog extends DialogElement {
 
   constructor() {
     super();
-    this.ready = false; this.intro = null; this.usbInfo = null; this.remotes = [];
-    this.hci = { phase: "idle", bytes: 0, downloadAvailable: false }; this.busy = false;
+    this.ready = false; this.usbInfo = null; this.remotes = []; this.busy = false;
     this.uacVersion = 2; this.minimumDb = -60; this.maximumDb = 0;
   }
 
@@ -292,9 +284,6 @@ export class SettingsDialog extends DialogElement {
   }
 
   render() {
-    const audioEnabled = this.intro?.audioStreamingEnabled ?? false;
-    const connectionsAllowed = this.intro?.connectionsAllowed ?? false;
-    const hciActive = ["starting", "capturing", "stopping"].includes(this.hci.phase);
     const minimumPercent = ((Number(this.minimumDb) + 127) / 127) * 100;
     const maximumPercent = ((Number(this.maximumDb) + 127) / 127) * 100;
     // Saving restarts the adapter, so only enable it when this draft differs from its last device report.
@@ -307,14 +296,6 @@ export class SettingsDialog extends DialogElement {
       <dialog aria-labelledby="settings-title" @cancel=${() => this.close()}>
         <header><h2 id="settings-title">Adapter settings</h2><button class="icon-button" type="button" aria-label="Close settings" title="Close" @click=${this.close}>${icon("close")}</button></header>
         <div class="content">
-          <section>
-            <div class="section-title">${icon("graphic_eq")}<h3>Adapter controls</h3></div>
-            <div class="button-row">
-              <button type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("audio-change", { enabled: !audioEnabled })}>${audioEnabled ? "Stop audio" : "Start audio"}</button>
-              <button type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("connection-change", { enabled: !connectionsAllowed })}>${connectionsAllowed ? "Disable connections" : "Enable connections"}</button>
-              <button class="danger" type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("adapter-restart")}>Restart adapter</button>
-            </div>
-          </section>
           <section>
             <div class="section-title">${icon("usb")}<h3>USB audio</h3></div>
             <form @submit=${this.submitUSB}>
@@ -332,15 +313,6 @@ export class SettingsDialog extends DialogElement {
               </div>
               <p class="hint">Saving changed USB settings restarts the adapter.</p>
             </form>
-          </section>
-          <section>
-            <div class="section-title">${icon("terminal")}<h3>HCI capture</h3></div>
-            <div class="button-row">
-              <button type="button" ?disabled=${!this.ready || this.busy || hciActive} @click=${() => this.emit("hci-start")}>Start capture</button>
-              <button type="button" ?disabled=${!this.ready || this.busy || !hciActive || this.hci.phase === "stopping"} @click=${() => this.emit("hci-stop")}>Stop and download</button>
-              <button type="button" ?disabled=${!this.hci.downloadAvailable} @click=${() => this.emit("hci-download")}>Download capture</button>
-            </div>
-            <p class="hint">${hciActive ? `${(this.hci.bytes / 1048576).toFixed(2)} MiB buffered. Refreshing or closing loses an unfinished capture.` : this.hci.downloadAvailable ? "Completed capture is ready to download." : "Capture is stored in this page up to 64 MiB."}</p>
           </section>
           <section>
             <div class="section-title">${icon("delete")}<h3>Paired devices</h3></div>

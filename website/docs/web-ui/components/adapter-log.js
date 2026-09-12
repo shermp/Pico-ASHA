@@ -3,23 +3,15 @@ import { componentStyles } from "./component-styles.js";
 import { icon } from "./icon.js";
 
 export class AdapterLog extends LitElement {
-  static properties = { entries: { type: Array }, timing: { type: Object }, expanded: { type: Boolean, reflect: true } };
+  static properties = { entries: { type: Array }, timing: { type: Object } };
   static styles = [componentStyles, css`
     :host {
-      position: fixed;
-      z-index: 10;
-      right: 1rem;
-      bottom: 1rem;
-      left: 1rem;
       display: block;
-      pointer-events: none;
     }
 
     .log {
-      width: min(72rem, 100%);
-      margin: 0 auto;
+      width: 100%;
       overflow: hidden;
-      pointer-events: auto;
     }
 
     header {
@@ -56,7 +48,7 @@ export class AdapterLog extends LitElement {
     }
 
     pre {
-      height: min(40dvh, 22rem);
+      height: min(52dvh, 32rem);
       margin: 0;
       padding: 0.85rem 1rem;
       overflow: auto;
@@ -75,10 +67,10 @@ export class AdapterLog extends LitElement {
     }
   `];
 
-  constructor() { super(); this.entries = []; this.timing = null; this.expanded = false; }
+  constructor() { super(); this.entries = []; this.timing = null; }
   updated(changed) {
-    if (this.expanded && (changed.has("entries") || changed.has("expanded"))) {
-      // Keep new diagnostics visible without changing the view while the log is collapsed.
+    if (changed.has("entries")) {
+      // Keep the newest diagnostic entry visible.
       const pre = this.renderRoot.querySelector("pre");
       if (pre) { pre.scrollTop = pre.scrollHeight; }
     }
@@ -94,9 +86,8 @@ export class AdapterLog extends LitElement {
           <button class="icon-button" type="button" aria-label="Copy adapter log" title="Copy log" ?disabled=${!this.entries.length} @click=${() => this.emit("log-copy")}>${icon("content_copy")}</button>
           <button class="icon-button" type="button" aria-label="Download adapter log" title="Download log" ?disabled=${!this.entries.length} @click=${() => this.emit("log-download")}>${icon("download")}</button>
           <button class="icon-button" type="button" aria-label="Clear adapter log" title="Clear log" ?disabled=${!this.entries.length} @click=${() => this.emit("log-clear")}>${icon("delete")}</button>
-          <button class="icon-button" type="button" aria-expanded=${this.expanded} aria-label=${this.expanded ? "Collapse adapter log" : "Expand adapter log"} title=${this.expanded ? "Collapse log" : "Expand log"} @click=${() => { this.expanded = !this.expanded; }}>${icon(this.expanded ? "expand_more" : "expand_less")}</button>
         </div>
-      </header>${this.expanded ? html`<pre role="log" aria-live="polite">${this.entries.join("\n")}</pre>` : ""}</section>
+      </header><pre role="log" aria-live="polite">${this.entries.join("\n")}</pre></section>
     `;
   }
 }
