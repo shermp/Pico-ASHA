@@ -89,13 +89,6 @@ export class SettingsDialog extends DialogElement {
       background: color-mix(in srgb, var(--app-accent) 22%, var(--app-panel));
     }
 
-    .control-button {
-      display: inline-grid;
-      place-items: center;
-      width: 2.55rem;
-      padding: 0;
-    }
-
     .field-grid {
       align-items: end;
       gap: 0.65rem;
@@ -317,9 +310,9 @@ export class SettingsDialog extends DialogElement {
           <section>
             <div class="section-title">${icon("graphic_eq")}<h3>Adapter controls</h3></div>
             <div class="button-row">
-              <button class="control-button" type="button" aria-label=${audioEnabled ? "Stop audio" : "Start audio"} title=${audioEnabled ? "Stop audio" : "Start audio"} ?disabled=${!this.ready || this.busy} @click=${() => this.emit("audio-change", { enabled: !audioEnabled })}>${icon(audioEnabled ? "stop" : "play_arrow")}</button>
-              <button class="control-button" type="button" aria-label=${connectionsAllowed ? "Disable connections" : "Enable connections"} title=${connectionsAllowed ? "Disable connections" : "Enable connections"} ?disabled=${!this.ready || this.busy} @click=${() => this.emit("connection-change", { enabled: !connectionsAllowed })}>${icon(connectionsAllowed ? "link_off" : "cable")}</button>
-              <button class="control-button danger" type="button" aria-label="Restart adapter" title="Restart adapter" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("adapter-restart")}>${icon("restart_alt")}</button>
+              <button type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("audio-change", { enabled: !audioEnabled })}>${audioEnabled ? "Stop audio" : "Start audio"}</button>
+              <button type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("connection-change", { enabled: !connectionsAllowed })}>${connectionsAllowed ? "Disable connections" : "Enable connections"}</button>
+              <button class="danger" type="button" ?disabled=${!this.ready || this.busy} @click=${() => this.emit("adapter-restart")}>Restart adapter</button>
             </div>
           </section>
           <section>
@@ -335,7 +328,7 @@ export class SettingsDialog extends DialogElement {
                     <input type="range" min="-127" max="0" step="1" .value=${String(this.maximumDb)} aria-label="Maximum volume" .ariaValueText=${String(this.maximumDb)} @input=${this.updateMaximum} ?disabled=${!this.ready || this.busy}>
                   </div>
                 </fieldset>
-                <button class="primary control-button" type="submit" aria-label="Save USB settings" title="Save USB settings" ?disabled=${!this.ready || this.busy || !usbChanged}>${icon("save")}</button>
+                <button class="primary" type="submit" ?disabled=${!this.ready || this.busy || !usbChanged}>Save USB settings</button>
               </div>
               <p class="hint">Saving changed USB settings restarts the adapter.</p>
             </form>
@@ -343,15 +336,15 @@ export class SettingsDialog extends DialogElement {
           <section>
             <div class="section-title">${icon("terminal")}<h3>HCI capture</h3></div>
             <div class="button-row">
-              <button class="control-button" type="button" aria-label="Start HCI capture" title="Start HCI capture" ?disabled=${!this.ready || this.busy || hciActive} @click=${() => this.emit("hci-start")}>${icon("play_arrow")}</button>
-              <button class="control-button" type="button" aria-label="Stop and download HCI capture" title="Stop and download HCI capture" ?disabled=${!this.ready || this.busy || !hciActive || this.hci.phase === "stopping"} @click=${() => this.emit("hci-stop")}>${icon("stop")}</button>
-              <button class="control-button" type="button" aria-label="Download HCI capture again" title="Download HCI capture again" ?disabled=${!this.hci.downloadAvailable} @click=${() => this.emit("hci-download")}>${icon("download")}</button>
+              <button type="button" ?disabled=${!this.ready || this.busy || hciActive} @click=${() => this.emit("hci-start")}>Start capture</button>
+              <button type="button" ?disabled=${!this.ready || this.busy || !hciActive || this.hci.phase === "stopping"} @click=${() => this.emit("hci-stop")}>Stop and download</button>
+              <button type="button" ?disabled=${!this.hci.downloadAvailable} @click=${() => this.emit("hci-download")}>Download capture</button>
             </div>
             <p class="hint">${hciActive ? `${(this.hci.bytes / 1048576).toFixed(2)} MiB buffered. Refreshing or closing loses an unfinished capture.` : this.hci.downloadAvailable ? "Completed capture is ready to download." : "Capture is stored in this page up to 64 MiB."}</p>
           </section>
           <section>
             <div class="section-title">${icon("delete")}<h3>Paired devices</h3></div>
-            ${this.remotes.length ? this.remotes.map((remote) => html`<div class="unpair-row"><span>${remote.name || remote.address} · ${remote.side}</span><button class="control-button danger" type="button" ?disabled=${!this.ready || this.busy || !remote.paired} @click=${() => this.emit("remote-unpair", { remote })} aria-label=${`Unpair ${remote.name || remote.address}`} title=${`Unpair ${remote.name || remote.address}`}>${icon("delete")}</button></div>`) : html`<p class="hint">No connected hearing aids.</p>`}
+            ${this.remotes.length ? this.remotes.map((remote) => html`<div class="unpair-row"><span>${remote.name || remote.address} · ${remote.side}</span><button class="danger" type="button" ?disabled=${!this.ready || this.busy || !remote.paired} @click=${() => this.emit("remote-unpair", { remote })}>Unpair</button></div>`) : html`<p class="hint">No connected hearing aids.</p>`}
           </section>
         </div>
       </dialog>
