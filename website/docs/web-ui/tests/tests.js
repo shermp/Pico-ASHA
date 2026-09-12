@@ -701,9 +701,11 @@ test("Remote card reacts to immutable state and presents battery/volume/streamin
   const text = element.renderRoot.textContent;
   const leftBadge = element.renderRoot.querySelector(".aid");
   const battery = element.renderRoot.querySelector(".battery");
+  const streamingIcon = element.renderRoot.querySelector(".metric > .material-symbols-outlined");
   assert(text.includes("Test Aid") && text.includes("Streaming") && text.includes("-4.5 dB") && text.includes("9/10"));
   assert(leftBadge.textContent.trim() === "L" && leftBadge.classList.contains("left") && !text.includes("Left channel"));
   assert(battery.textContent === "battery_6_bar" && battery.classList.contains("high"));
+  assert(getComputedStyle(battery).height === getComputedStyle(streamingIcon).height);
   element.remote = Object.freeze({ ...element.remote, battery: 4 }); await element.updateComplete;
   assert(element.renderRoot.querySelector(".battery").textContent === "battery_3_bar" && element.renderRoot.querySelector(".battery").classList.contains("medium"));
   element.remote = Object.freeze({ ...element.remote, battery: 1 }); await element.updateComplete;
