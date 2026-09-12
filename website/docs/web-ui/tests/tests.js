@@ -776,7 +776,7 @@ test("USB save is enabled only while device settings have been changed", async (
   element.ready = true;
   element.usbInfo = { uacVersion: 2, minimumDb: -60, maximumDb: 0 };
   await element.updateComplete;
-  const save = element.renderRoot.querySelector('[aria-label="Save USB settings"]');
+  const save = element.renderRoot.querySelector('button[type="submit"]');
   const uac = element.renderRoot.querySelector("select");
   const minimum = element.renderRoot.querySelector('[aria-label="Minimum volume"]');
   assert(save.disabled);
@@ -796,7 +796,7 @@ test("USB save is enabled only while device settings have been changed", async (
 test("Settings dialog exposes disabled states until the adapter is ready", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element); await element.updateComplete;
   assert([...element.renderRoot.querySelectorAll("button")].some((button) => button.disabled)); element.ready = true; await element.updateComplete;
-  assert(!element.renderRoot.querySelector("button.control-button").disabled); element.remove();
+  assert(!element.renderRoot.querySelector("button:not(.icon-button)").disabled); element.remove();
 });
 
 test("Dialogs share the same native modal lifecycle", async () => {
@@ -811,19 +811,18 @@ test("Dialogs share the same native modal lifecycle", async () => {
   settings.remove(); pairing.remove();
 });
 
-test("Every settings dialog button is icon-only with a native tooltip and accessible name", async () => {
+test("Settings actions have visible labels while close remains icon-only", async () => {
   const element = document.createElement("settings-dialog"); document.querySelector("#fixtures").append(element);
   element.ready = true; element.intro = { audioStreamingEnabled: false, connectionsAllowed: false };
   element.remotes = [{ name: "Test Aid", address: "01:02:03:04:05:06", side: "Left", paired: true }];
   await element.updateComplete;
   const buttons = [...element.renderRoot.querySelectorAll("button")];
   assert(buttons.length === 9);
-  for (const button of buttons) {
-    assert(button.title && button.getAttribute("aria-label"));
-    assert(button.children.length === 1 && button.firstElementChild.classList.contains("material-symbols-outlined"));
-  }
-  const unpair = element.renderRoot.querySelector('[aria-label="Unpair Test Aid"]');
-  assert(unpair.classList.contains("danger") && unpair.querySelector(".material-symbols-outlined").textContent === "delete");
+  assert(buttons[0].classList.contains("icon-button") && buttons[0].getAttribute("aria-label") === "Close settings");
+  equal(buttons.slice(1).map((button) => button.textContent.trim()), ["Start audio", "Enable connections", "Restart adapter", "Save USB settings", "Start capture", "Stop and download", "Download capture", "Unpair"]);
+  assert(buttons.slice(1).every((button) => !button.querySelector(".material-symbols-outlined")));
+  const unpair = buttons.at(-1);
+  assert(unpair.classList.contains("danger") && unpair.textContent.trim() === "Unpair");
   assert(!element.renderRoot.querySelector("footer"));
   element.remove();
 });
