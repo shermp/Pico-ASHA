@@ -70,14 +70,17 @@ export class SerialController {
     this.onStatus(Object.freeze({ phase, label }));
   }
 
-  async connect({ requestPort = true } = {}) {
+  async connect({ requestPort = true, reconnecting = false } = {}) {
     if (!this.serial) {
       throw new Error("Web Serial is unavailable");
     }
     this.manualDisconnect = false;
     this.clearReconnect();
-    const reconnecting = !requestPort;
-    this.setStatus(reconnecting ? "reconnecting" : "connecting", reconnecting ? "Waiting for adapter…" : "Selecting adapter…");
+    const automatic = !requestPort && !reconnecting;
+    this.setStatus(
+      reconnecting ? "reconnecting" : "connecting",
+      reconnecting ? "Waiting for adapter…" : automatic ? "Connecting to authorized adapter…" : "Selecting adapter…",
+    );
 
     const authorized = (await this.serial.getPorts()).find((port) => portMatches(port) && portIsConnected(port));
     let port = authorized;
@@ -314,7 +317,7 @@ export class SerialController {
       this.reconnectTimer = null;
       try {
         // Reuse a previously authorized port without reopening the browser's device picker.
-        await this.connect({ requestPort: false });
+        await this.connect({ requestPort: false, reconnecting: true });
       } catch {
         if (!this.manualDisconnect) {
           this.setStatus("reconnecting", "Waiting for adapter…");

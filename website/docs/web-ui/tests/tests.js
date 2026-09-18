@@ -305,6 +305,19 @@ test("App logs structure nonzero connection IDs and omit volume events", () => {
   globalThis.removeEventListener("beforeunload", app.beforeUnload);
 });
 
+test("App attempts an authorized adapter connection after its first render", async () => {
+  const app = new PicoAshaApp();
+  const originalController = app.controller;
+  const attempts = [];
+  app.supportMessage = "";
+  app.controller = { connect: async (options) => { attempts.push(options); } };
+  app.firstUpdated();
+  await wait();
+  equal(attempts, [{ requestPort: false }]);
+  originalController.dispose();
+  globalThis.removeEventListener("beforeunload", app.beforeUnload);
+});
+
 test("Pairing advertisements notify the main-page button without auto-opening", async () => {
   const app = new PicoAshaApp(); document.querySelector("#fixtures").append(app); await app.updateComplete;
   app.connection = { phase: "ready", label: "Adapter ready" }; await app.updateComplete;
@@ -461,6 +474,40 @@ test("Authorized matching ports are reused without a picker", async () => {
   await controller.connect();
   assert(!requested);
   await controller.disconnect();
+});
+
+test("Automatic connection only reuses an authorized adapter", async () => {
+  const port = new MockPort();
+  let requested = false;
+  const serial = {
+    getPorts: async () => [port],
+    requestPort: async () => { requested = true; return port; },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const controller = new SerialController({ serial, ...noTimers() });
+  await controller.connect({ requestPort: false });
+  assert(port.openCalls.length === 1 && !requested);
+  await controller.disconnect();
+});
+
+test("Automatic connection does not open a device picker", async () => {
+  let requested = false;
+  const serial = {
+    getPorts: async () => [],
+    requestPort: async () => { requested = true; throw new Error("Picker should not open"); },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const controller = new SerialController({ serial, ...noTimers() });
+  let error;
+  try {
+    await controller.connect({ requestPort: false });
+  } catch (caught) {
+    error = caught;
+  }
+  assert(error?.message.includes("previously authorized") && !requested);
+  controller.dispose();
 });
 
 test("Explicitly disconnected authorized ports are skipped for the filtered picker", async () => {
@@ -989,7 +1036,7 @@ test("Service worker installs the complete offline app shell", async () => {
   equal(registration.scope, scopeUrl.href);
 
   const cacheNames = await caches.keys();
-  assert(cacheNames.includes("pico-asha-control-v1"));
+  assert(cacheNames.includes("pico-asha-control-v2"));
   for (const path of ["index.html", "app.js", "components/app-shell.js", "vendor/lit-core.min.js", "icons/icon.svg", "icons/maskable-icon.svg"]) {
     const response = await caches.match(new URL(path, scopeUrl));
     assert(response?.ok, `${path} was not precached`);
