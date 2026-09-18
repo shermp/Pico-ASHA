@@ -97,7 +97,7 @@ export class HciCaptureControls extends LitElement {
         : "Capture is stored in this page up to 64 MiB.";
     return html`
       <section class="panel" aria-labelledby="hci-capture-title">
-        <div class="title">${icon("terminal")}<h2 id="hci-capture-title">HCI capture</h2></div>
+        <div class="title">${icon("terminal")}<h2 id="hci-capture-title">Diagnostic capture</h2></div>
         <div class="button-row">
           <button class="primary" type="button" ?disabled=${!this.ready || this.busy || hciActive} @click=${() => this.emit("hci-start")}>Start capture</button>
           <button type="button" ?disabled=${!this.ready || this.busy || !hciActive || this.hci.phase === "stopping"} @click=${() => this.emit("hci-stop")}>Stop and download</button>

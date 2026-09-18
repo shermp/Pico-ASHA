@@ -57,7 +57,7 @@ export class RemoteGrid extends LitElement {
     const empty = !this.remotes.length;
     const emptyTitle = this.adapterConnected ? "No hearing aids connected" : "Adapter disconnected";
     const emptyHint = this.adapterConnected
-      ? "Pair a hearing aid to get started."
+      ? "Connect or pair a hearing aid to get started."
       : "Use the cable button to connect your Pico-ASHA adapter.";
     return html`
       <section class=${empty ? "empty" : ""} aria-label="Hearing aids">
