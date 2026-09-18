@@ -144,7 +144,11 @@ export class PicoAshaApp extends LitElement {
   firstUpdated() {
     if (this.supportMessage) {
       this.showToast(this.supportMessage, "warning", 9000);
+      return;
     }
+    // Web Serial can reconnect only to a port the user has already authorized; a
+    // device picker still requires an explicit user gesture.
+    void this.connect({ requestPort: false, reportError: false });
   }
 
   addLog(message, level = "info", connectionId = 0) {
@@ -220,16 +224,18 @@ export class PicoAshaApp extends LitElement {
     }
   }
 
-  async connect() {
+  async connect({ requestPort = true, reportError = true } = {}) {
     if (this.supportMessage) {
       this.showToast(this.supportMessage, "warning", 9000);
       return;
     }
     try {
-      await this.controller.connect();
+      await this.controller.connect({ requestPort });
     } catch (error) {
       this.connection = Object.freeze({ phase: "idle", label: "Adapter disconnected" });
-      this.handleError(error);
+      if (reportError) {
+        this.handleError(error);
+      }
     }
   }
 
