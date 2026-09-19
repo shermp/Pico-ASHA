@@ -25,9 +25,9 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
             
-            - name: Install mkdocs
+            - name: Install Zensical
               run:
-                pip install mkdocs
+                pip install zensical
             
             - name: Setup Pages
               id: pages
@@ -36,7 +36,7 @@ jobs:
             - name: Build site
               run: |
                 cd website
-                mkdocs build
+                zensical build --clean
 
             - name: Upload artifact
               uses: actions/upload-artifact@v7
