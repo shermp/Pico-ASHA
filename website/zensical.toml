@@ -2,9 +2,9 @@
 site_name = "Pico ASHA"
 nav = [
   "index.md",
-  "control-app.md",
-  "download.md",
   "guide.md",
+  "download.md",
+  "control-app.md",
   "development.md",
   "faq.md",
   "status.md",
