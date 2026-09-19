@@ -5,7 +5,7 @@
 - Implements a USB audio to ASHAadapter using a Raspberry Pi Pico W development board.
 - Firmware source in `src/` directory. It uses the Pico-SDK.
 - Adapter can be interfaced over USB CDC serial connection. Protocol documented in `include/asha_comms.cpp`.
-- A Web UI application exists in `website/docs/web-ui`. It is a completely static site using no build tooling.
+- A Web UI application exists in `website/docs/control-app`. It is a completely static site using no build tooling.
 - Website/documentation is in the `website/` directory.
 
 ## Tooling
