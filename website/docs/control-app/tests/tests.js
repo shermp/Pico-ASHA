@@ -1036,8 +1036,8 @@ test("Service worker installs the complete offline app shell", async () => {
   equal(registration.scope, scopeUrl.href);
 
   const cacheNames = await caches.keys();
-  assert(cacheNames.includes("pico-asha-control-v2"));
-  for (const path of ["index.html", "app.js", "components/app-shell.js", "vendor/lit-core.min.js", "icons/icon.svg", "icons/maskable-icon.svg"]) {
+  assert(cacheNames.includes("pico-asha-control-v3"));
+  for (const path of ["index.html", "app.js", "components/app-shell.js", "vendor/lit-core.min.js", "icons/icon.svg", "icons/maskable-icon.svg", "zensical.css"]) {
     const response = await caches.match(new URL(path, scopeUrl));
     assert(response?.ok, `${path} was not precached`);
   }
