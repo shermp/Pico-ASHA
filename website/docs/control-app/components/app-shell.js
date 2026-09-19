@@ -25,7 +25,6 @@ export class PicoAshaApp extends LitElement {
   static styles = [componentStyles, css`
     :host {
       display: block;
-      min-height: 100vh;
     }
 
     main {

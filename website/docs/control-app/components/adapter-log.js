@@ -48,7 +48,7 @@ export class AdapterLog extends LitElement {
     }
 
     pre {
-      height: min(52dvh, 25.6rem);
+      height: clamp(7.5rem, calc(100dvh - var(--app-log-viewport-offset, 18rem)), 20rem);
       margin: 0;
       padding: 0.68rem 0.8rem;
       overflow: auto;
