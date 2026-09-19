@@ -16,19 +16,18 @@ export const componentStyles = css`
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius);
     background: var(--app-panel);
-    box-shadow: 0 1rem 2.75rem rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(18px);
+    box-shadow: var(--app-shadow, 0 1rem 2.75rem rgba(0, 0, 0, 0.16));
   }
 
   .icon-button {
     display: inline-grid;
-    width: 2.55rem;
-    height: 2.55rem;
+    width: 2.4rem;
+    height: 2.4rem;
     margin: 0;
     padding: 0;
     place-items: center;
     border: 1px solid var(--app-border);
-    border-radius: 0.72rem;
+    border-radius: var(--app-control-radius, 0.72rem);
     background: var(--app-panel-soft);
     color: var(--app-text);
     cursor: pointer;
@@ -49,7 +48,8 @@ export const componentStyles = css`
     overflow: hidden;
     width: 1em;
     font-family: "Material Symbols Outlined";
-    font-size: 1.25rem;
+    /* Match Zensical's .md-icon svg dimensions. */
+    font-size: 1.2rem;
     font-style: normal;
     font-weight: 400;
     font-feature-settings: "liga";

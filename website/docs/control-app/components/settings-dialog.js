@@ -57,7 +57,7 @@ export class SettingsDialog extends DialogElement {
       margin: 0;
       padding: 0.55rem 0.8rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.72rem;
+      border-radius: var(--app-control-radius, 0.72rem);
       background: var(--app-panel-soft);
       color: var(--app-text);
       cursor: pointer;
@@ -99,7 +99,7 @@ export class SettingsDialog extends DialogElement {
       margin-top: 0.25rem;
       padding: 0.45rem 0.6rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.6rem;
+      border-radius: var(--app-control-radius, 0.6rem);
       background: var(--app-bg);
       color: var(--app-text);
     }

@@ -1,36 +1,28 @@
 pico-asha-app {
   display: block;
-  --app-bg: #07111f;
-  --app-panel: rgba(14, 28, 47, 0.92);
-  --app-panel-soft: rgba(19, 38, 61, 0.76);
-  --app-border: rgba(156, 189, 223, 0.18);
-  --app-text: #e9f3ff;
-  --app-muted: #9bb0c8;
-  --app-accent: #55d7ca;
-  --app-accent-strong: #70f2e5;
-  --app-danger: #ff7a8b;
-  --app-warning: #f5bd68;
-  --app-success: #67ddb0;
-  --app-battery-low: rgb(205.5, 74, 80);
-  --app-radius: 1rem;
-  background:
-    radial-gradient(circle at 15% 0%, rgba(35, 133, 151, 0.2), transparent 36rem),
-    radial-gradient(circle at 90% 25%, rgba(64, 88, 173, 0.17), transparent 32rem),
-    var(--app-bg);
+  --app-bg: var(--md-default-bg-color);
+  --app-panel: var(--md-default-bg-color);
+  --app-panel-soft: var(--md-code-bg-color);
+  --app-border: var(--md-default-fg-color--lightest);
+  --app-text: var(--md-default-fg-color);
+  --app-muted: var(--md-default-fg-color--light);
+  --app-accent: var(--md-primary-fg-color);
+  --app-accent-strong: var(--md-primary-fg-color--dark);
+  --app-danger: var(--md-code-hl-number-color);
+  --app-warning: #ffb74d;
+  --app-success: var(--md-code-hl-string-color);
+  --app-battery-low: var(--app-danger);
+  --app-radius: 0.2rem;
+  --app-control-radius: 0.2rem;
+  --app-shadow: var(--md-shadow-z1);
+  --app-dialog-shadow: var(--md-shadow-z3);
+  --app-code-text: var(--md-code-fg-color);
+  --app-card-edge: var(--md-primary-fg-color);
+  --app-brand-background: var(--md-primary-fg-color);
+  --app-left-aid: var(--md-primary-fg-color);
+  --app-right-aid: var(--app-danger);
   color: var(--app-text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--md-text-font-family);
   font-weight: 400;
   line-height: 1.5;
-}
-
-[data-md-color-scheme="default"] pico-asha-app {
-  --app-bg: #eef4f8;
-  --app-panel: rgba(255, 255, 255, 0.95);
-  --app-panel-soft: rgba(240, 247, 251, 0.92);
-  --app-border: rgba(31, 66, 95, 0.16);
-  --app-text: #10263b;
-  --app-muted: #5b7082;
-  --app-accent: #087f78;
-  --app-accent-strong: #04665f;
-  --app-battery-low: rgb(136, 56, 53);
 }

@@ -34,7 +34,7 @@ export class PairingDialog extends DialogElement {
       margin: 0;
       padding: 0.75rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.75rem;
+      border-radius: var(--app-control-radius, 0.75rem);
       background: var(--app-panel-soft);
       color: var(--app-text);
       text-align: left;

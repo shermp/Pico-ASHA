@@ -54,8 +54,8 @@ export class AdapterLog extends LitElement {
       overflow: auto;
       border-top: 1px solid var(--app-border);
       background: color-mix(in srgb, var(--app-bg) 86%, transparent);
-      color: #cfe7ff;
-      font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      color: var(--app-code-text, #cfe7ff);
+      font: 0.75rem/1.5 var(--md-code-font-family, ui-monospace, SFMono-Regular, Consolas, monospace);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }

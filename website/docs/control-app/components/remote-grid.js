@@ -28,7 +28,7 @@ export class RemoteGrid extends LitElement {
 
     .empty-state .material-symbols-outlined {
       color: var(--app-muted);
-      font-size: 2.5rem;
+      font-size: 2rem;
     }
 
     .empty-state p {
