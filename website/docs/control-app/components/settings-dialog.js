@@ -11,8 +11,8 @@ export class SettingsDialog extends DialogElement {
 
   static styles = [componentStyles, dialogStyles, css`
     dialog {
-      width: min(43rem, calc(100% - 1.5rem));
-      max-height: calc(100dvh - 2rem);
+      width: min(34.4rem, calc(100% - 1.2rem));
+      max-height: calc(100dvh - 1.6rem);
       overflow: hidden;
     }
 
@@ -31,33 +31,33 @@ export class SettingsDialog extends DialogElement {
     }
 
     h3 {
-      font-size: 0.9rem;
+      font-size: 0.72rem;
     }
 
     .content {
-      max-height: calc(100dvh - 5.5rem);
-      padding: 1rem;
+      max-height: calc(100dvh - 4.4rem);
+      padding: 0.8rem;
       overflow: auto;
     }
 
     section + section {
-      margin-top: 1rem;
-      padding-top: 1rem;
+      margin-top: 0.8rem;
+      padding-top: 0.8rem;
       border-top: 1px solid var(--app-border);
     }
 
     .section-title {
-      gap: 0.5rem;
-      margin-bottom: 0.7rem;
+      gap: 0.4rem;
+      margin-bottom: 0.56rem;
       color: var(--app-muted);
     }
 
     button {
-      min-height: 2.55rem;
+      min-height: 2.04rem;
       margin: 0;
-      padding: 0.55rem 0.8rem;
+      padding: 0.44rem 0.64rem;
       border: 1px solid var(--app-border);
-      border-radius: var(--app-control-radius, 0.72rem);
+      border-radius: var(--app-control-radius, 0.576rem);
       background: var(--app-panel-soft);
       color: var(--app-text);
       cursor: pointer;
@@ -84,29 +84,29 @@ export class SettingsDialog extends DialogElement {
 
     .field-grid {
       align-items: end;
-      gap: 0.65rem;
+      gap: 0.52rem;
     }
 
     label {
-      flex: 1 1 8rem;
+      flex: 1 1 6.4rem;
       color: var(--app-muted);
-      font-size: 0.78rem;
+      font-size: 0.624rem;
     }
 
     select {
       width: 100%;
-      height: 2.55rem;
-      margin-top: 0.25rem;
-      padding: 0.45rem 0.6rem;
+      height: 2.04rem;
+      margin-top: 0.2rem;
+      padding: 0.36rem 0.48rem;
       border: 1px solid var(--app-border);
-      border-radius: var(--app-control-radius, 0.6rem);
+      border-radius: var(--app-control-radius, 0.48rem);
       background: var(--app-bg);
       color: var(--app-text);
     }
 
     .range-field {
-      flex: 2 1 18rem;
-      min-width: 14rem;
+      flex: 2 1 14.4rem;
+      min-width: 11.2rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -115,9 +115,9 @@ export class SettingsDialog extends DialogElement {
     .range-heading {
       width: 100%;
       justify-content: space-between;
-      gap: 1rem;
+      gap: 0.8rem;
       color: var(--app-muted);
-      font-size: 0.78rem;
+      font-size: 0.624rem;
     }
 
     .range-values {
@@ -128,16 +128,16 @@ export class SettingsDialog extends DialogElement {
 
     .range-control {
       position: relative;
-      height: 2.55rem;
-      margin-top: 0.25rem;
+      height: 2.04rem;
+      margin-top: 0.2rem;
     }
 
     .range-track {
       position: absolute;
       top: 50%;
-      right: 0.55rem;
-      left: 0.55rem;
-      height: 0.35rem;
+      right: 0.44rem;
+      left: 0.44rem;
+      height: 0.28rem;
       transform: translateY(-50%);
       border-radius: 999px;
       background: linear-gradient(to right, var(--app-border) 0 var(--range-min), var(--app-accent) var(--range-min) var(--range-max), var(--app-border) var(--range-max) 100%);
@@ -147,7 +147,7 @@ export class SettingsDialog extends DialogElement {
       position: absolute;
       inset: 0;
       width: 100%;
-      height: 2.55rem;
+      height: 2.04rem;
       margin: 0;
       padding: 0;
       border: 0;
@@ -157,14 +157,14 @@ export class SettingsDialog extends DialogElement {
     }
 
     input[type="range"]::-webkit-slider-runnable-track {
-      height: 0.35rem;
+      height: 0.28rem;
       background: transparent;
     }
 
     input[type="range"]::-webkit-slider-thumb {
-      width: 1.1rem;
-      height: 1.1rem;
-      margin-top: -0.375rem;
+      width: 0.88rem;
+      height: 0.88rem;
+      margin-top: -0.3rem;
       border: 2px solid var(--app-panel);
       border-radius: 50%;
       background: var(--app-accent-strong);
@@ -175,13 +175,13 @@ export class SettingsDialog extends DialogElement {
     }
 
     input[type="range"]::-moz-range-track {
-      height: 0.35rem;
+      height: 0.28rem;
       background: transparent;
     }
 
     input[type="range"]::-moz-range-thumb {
-      width: 1.1rem;
-      height: 1.1rem;
+      width: 0.88rem;
+      height: 0.88rem;
       border: 2px solid var(--app-panel);
       border-radius: 50%;
       background: var(--app-accent-strong);
@@ -202,9 +202,9 @@ export class SettingsDialog extends DialogElement {
 
     .unpair-row {
       justify-content: space-between;
-      gap: 0.75rem;
-      padding: 0.5rem 0;
-      font-size: 0.84rem;
+      gap: 0.6rem;
+      padding: 0.4rem 0;
+      font-size: 0.672rem;
     }
 
     .unpair-row span {
@@ -219,12 +219,12 @@ export class SettingsDialog extends DialogElement {
     }
 
     .hint {
-      margin-top: 0.55rem;
+      margin-top: 0.44rem;
       color: var(--app-muted);
-      font-size: 0.76rem;
+      font-size: 0.608rem;
     }
 
-    @media (max-width: 35rem) {
+    @media (max-width: 28rem) {
       .field-grid {
         align-items: stretch;
         flex-direction: column;

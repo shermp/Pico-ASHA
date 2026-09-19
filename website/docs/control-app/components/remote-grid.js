@@ -9,7 +9,7 @@ export class RemoteGrid extends LitElement {
     section {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1rem;
+      gap: 0.8rem;
     }
 
     section.empty {
@@ -18,17 +18,17 @@ export class RemoteGrid extends LitElement {
 
     .empty-state {
       display: grid;
-      min-height: 10rem;
+      min-height: 8rem;
       place-items: center;
       align-content: center;
-      gap: 0.6rem;
-      padding: 1.5rem;
+      gap: 0.48rem;
+      padding: 1.2rem;
       text-align: center;
     }
 
     .empty-state .material-symbols-outlined {
       color: var(--app-muted);
-      font-size: 2rem;
+      font-size: 1.6rem;
     }
 
     .empty-state p {
@@ -36,7 +36,7 @@ export class RemoteGrid extends LitElement {
       color: var(--app-muted);
     }
 
-    @media (max-width: 46rem) {
+    @media (max-width: 36.8rem) {
       section {
         grid-template-columns: 1fr;
       }

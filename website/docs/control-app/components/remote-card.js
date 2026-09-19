@@ -48,12 +48,12 @@ export class RemoteCard extends LitElement {
       }
 
       .edge {
-        height: 0.25rem;
-        background: var(--app-card-edge, linear-gradient(90deg, var(--app-accent), #4e83e8));
+        height: 0.2rem;
+        background: var(--app-card-edge, var(--app-accent));
       }
 
       .body {
-        padding: 1.15rem;
+        padding: 0.92rem;
       }
 
       .top,
@@ -65,37 +65,37 @@ export class RemoteCard extends LitElement {
 
       .top {
         justify-content: space-between;
-        gap: 1rem;
+        gap: 0.8rem;
       }
 
       .identity {
         display: flex;
         min-width: 0;
         align-items: center;
-        gap: 0.8rem;
+        gap: 0.64rem;
       }
 
       .aid {
         display: grid;
-        width: 2.5rem;
-        height: 2.5rem;
+        width: 2rem;
+        height: 2rem;
         flex: 0 0 auto;
         place-items: center;
         border: 1px solid transparent;
         border-radius: 50%;
         color: #ffffff;
-        font-size: 1.1rem;
+        font-size: 0.88rem;
         font-weight: 700;
       }
 
       .aid.left {
-        background: var(--app-left-aid, #1e70d1);
-        border-color: var(--app-left-aid, #1e70d1);
+        background: var(--app-left-aid, #4051b5);
+        border-color: var(--app-left-aid, #4051b5);
       }
 
       .aid.right {
-        background: var(--app-right-aid, #c83737);
-        border-color: var(--app-right-aid, #c83737);
+        background: var(--app-right-aid, #d52a2a);
+        border-color: var(--app-right-aid, #d52a2a);
       }
 
       h2,
@@ -105,7 +105,7 @@ export class RemoteCard extends LitElement {
 
       h2 {
         overflow: hidden;
-        font-size: 0.95rem;
+        font-size: 0.76rem;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -122,17 +122,17 @@ export class RemoteCard extends LitElement {
       .metrics {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 0.55rem;
-        margin-top: 1.15rem;
+        gap: 0.44rem;
+        margin-top: 0.92rem;
       }
 
       .metric {
         min-width: 0;
         flex-direction: column;
-        gap: 0.3rem;
-        padding: 0.72rem 0.4rem;
+        gap: 0.24rem;
+        padding: 0.576rem 0.32rem;
         border: 1px solid var(--app-border);
-        border-radius: var(--app-control-radius, 0.72rem);
+        border-radius: var(--app-control-radius, 0.576rem);
         background: var(--app-panel-soft);
         text-align: center;
       }
@@ -140,7 +140,7 @@ export class RemoteCard extends LitElement {
       .metric strong {
         max-width: 100%;
         overflow: hidden;
-        font-size: 0.75rem;
+        font-size: 0.6rem;
         text-overflow: ellipsis;
       }
 
@@ -150,12 +150,12 @@ export class RemoteCard extends LitElement {
 
       .battery {
         display: inline-grid;
-        height: 1.2rem;
+        height: 0.96rem;
         place-items: center;
       }
 
       .battery.medium {
-        color: #ba7a00;
+        color: var(--app-warning);
       }
 
       .battery.high {
@@ -163,23 +163,23 @@ export class RemoteCard extends LitElement {
       }
 
       details {
-        margin-top: 1rem;
+        margin-top: 0.8rem;
         border-top: 1px solid var(--app-border);
-        padding-top: 0.85rem;
+        padding-top: 0.68rem;
       }
 
       summary {
         color: var(--app-muted);
         cursor: pointer;
-        font-size: 0.75rem;
+        font-size: 0.6rem;
       }
 
       dl {
         display: grid;
         grid-template-columns: auto 1fr;
-        gap: 0.35rem 0.8rem;
-        margin: 0.8rem 0 0;
-        font-size: 0.75rem;
+        gap: 0.28rem 0.64rem;
+        margin: 0.64rem 0 0;
+        font-size: 0.6rem;
       }
 
       dt {
@@ -195,13 +195,13 @@ export class RemoteCard extends LitElement {
       .empty {
         flex-direction: column;
         justify-content: center;
-        gap: 0.6rem;
+        gap: 0.48rem;
         text-align: center;
       }
 
       .empty .material-symbols-outlined {
         color: var(--app-muted);
-        font-size: 2rem;
+        font-size: 1.6rem;
       }
     `,
   ];
