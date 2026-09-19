@@ -2,12 +2,16 @@
 site_name = "Pico ASHA"
 nav = [
   "index.md",
+  "control-app.md",
   "download.md",
   "guide.md",
   "development.md",
   "faq.md",
   "status.md",
 ]
+
+[project.theme]
+custom_dir = "overrides"
 
 # Palette toggle for automatic mode
 [[project.theme.palette]]

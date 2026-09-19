@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "pico-asha-control-";
-const CACHE_NAME = `${CACHE_PREFIX}v2`;
+const CACHE_NAME = `${CACHE_PREFIX}v3`;
 const INDEX_URL = new URL("./index.html", self.location).href;
 
 const APP_SHELL = [
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./index.html",
   "./app.js",
   "./styles.css",
+  "./zensical.css",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/maskable-icon.svg",
