@@ -16,11 +16,11 @@ export class AdapterLog extends LitElement {
 
     header {
       display: flex;
-      min-height: 3.3rem;
+      min-height: 2.64rem;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      padding: 0.4rem 0.55rem 0.4rem 0.9rem;
+      gap: 0.8rem;
+      padding: 0.32rem 0.44rem 0.32rem 0.72rem;
     }
 
     .title,
@@ -28,39 +28,39 @@ export class AdapterLog extends LitElement {
     .timing {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: 0.36rem;
     }
 
     h2 {
       margin: 0;
-      font-size: 0.86rem;
+      font-size: 0.688rem;
     }
 
     .count {
       color: var(--app-muted);
-      font-size: 0.72rem;
+      font-size: 0.576rem;
     }
 
     .timing {
       margin-left: auto;
       color: var(--app-muted);
-      font-size: 0.72rem;
+      font-size: 0.576rem;
     }
 
     pre {
-      height: min(52dvh, 32rem);
+      height: clamp(7.5rem, calc(100dvh - var(--app-log-viewport-offset, 18rem)), 20rem);
       margin: 0;
-      padding: 0.85rem 1rem;
+      padding: 0.68rem 0.8rem;
       overflow: auto;
       border-top: 1px solid var(--app-border);
       background: color-mix(in srgb, var(--app-bg) 86%, transparent);
-      color: #cfe7ff;
-      font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      color: var(--app-code-text, #cfe7ff);
+      font: 0.6rem/1.5 var(--md-code-font-family, ui-monospace, SFMono-Regular, Consolas, monospace);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
 
-    @media (max-width: 42rem) {
+    @media (max-width: 33.6rem) {
       .timing {
         display: none;
       }

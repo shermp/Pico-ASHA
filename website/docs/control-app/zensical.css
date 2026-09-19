@@ -1,0 +1,31 @@
+pico-asha-app {
+  display: block;
+  --app-bg: var(--md-default-bg-color);
+  --app-panel: var(--md-default-bg-color);
+  --app-panel-soft: var(--md-code-bg-color);
+  --app-border: var(--md-default-fg-color--lightest);
+  --app-text: var(--md-default-fg-color);
+  --app-muted: var(--md-default-fg-color--light);
+  --app-accent: var(--md-accent-fg-color);
+  --app-accent-strong: var(--md-accent-fg-color);
+  --app-danger: var(--md-code-hl-number-color);
+  --app-warning: light-dark(#e68a00, #ff9100);
+  --app-success: var(--md-code-hl-string-color);
+  --app-battery-low: var(--app-danger);
+  --app-radius: 0.2rem;
+  --app-control-radius: 0.2rem;
+  --app-shadow: var(--md-shadow-z1);
+  --app-dialog-shadow: var(--md-shadow-z3);
+  --app-code-text: var(--md-code-fg-color);
+  --app-card-edge: var(--md-accent-fg-color);
+  --app-brand-background: var(--md-primary-fg-color);
+  --app-brand-foreground: var(--md-primary-bg-color);
+  --app-left-aid: var(--md-typeset-a-color);
+  --app-right-aid: var(--app-danger);
+  --app-log-viewport-offset: 28.5rem;
+  color: var(--app-text);
+  font-family: var(--md-text-font-family);
+  font-weight: 400;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}

@@ -7,7 +7,7 @@ export class PairingDialog extends DialogElement {
   static properties = { candidates: { type: Array }, busy: { type: Boolean } };
   static styles = [componentStyles, dialogStyles, css`
     dialog {
-      width: min(34rem, calc(100% - 1.5rem));
+      width: min(27.2rem, calc(100% - 1.2rem));
     }
 
     .candidate {
@@ -21,20 +21,20 @@ export class PairingDialog extends DialogElement {
 
     .list {
       display: grid;
-      gap: 0.55rem;
+      gap: 0.44rem;
       max-height: 60dvh;
-      padding: 1rem;
+      padding: 0.8rem;
       overflow: auto;
     }
 
     .candidate {
       width: 100%;
       justify-content: space-between;
-      gap: 1rem;
+      gap: 0.8rem;
       margin: 0;
-      padding: 0.75rem;
+      padding: 0.6rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.75rem;
+      border-radius: var(--app-control-radius, 0.6rem);
       background: var(--app-panel-soft);
       color: var(--app-text);
       text-align: left;
@@ -52,7 +52,7 @@ export class PairingDialog extends DialogElement {
     .identity {
       display: grid;
       min-width: 0;
-      gap: 0.15rem;
+      gap: 0.12rem;
     }
 
     strong,
@@ -71,12 +71,12 @@ export class PairingDialog extends DialogElement {
       display: flex;
       flex: 0 0 auto;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.28rem;
       color: var(--app-muted);
     }
 
     .empty {
-      padding: 2.5rem 1rem;
+      padding: 2rem 0.8rem;
       text-align: center;
     }
   `];

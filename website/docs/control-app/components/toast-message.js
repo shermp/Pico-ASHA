@@ -8,10 +8,10 @@ export class ToastMessage extends LitElement {
     :host {
       position: fixed;
       z-index: 30;
-      bottom: max(1rem, env(safe-area-inset-bottom));
+      bottom: max(0.8rem, env(safe-area-inset-bottom));
       left: 50%;
       display: none;
-      width: min(34rem, calc(100% - 2rem));
+      width: min(27.2rem, calc(100% - 1.6rem));
       transform: translateX(-50%);
     }
 
@@ -22,8 +22,8 @@ export class ToastMessage extends LitElement {
     .toast {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.8rem 0.9rem;
+      gap: 0.48rem;
+      padding: 0.64rem 0.72rem;
     }
 
     .toast.error {
@@ -47,7 +47,7 @@ export class ToastMessage extends LitElement {
     p {
       flex: 1;
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.672rem;
     }
 
     button {

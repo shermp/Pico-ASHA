@@ -11,7 +11,7 @@ export class AdapterControls extends LitElement {
 
   static styles = [componentStyles, css`
     section {
-      padding: 1rem;
+      padding: 0.8rem;
       text-align: center;
     }
 
@@ -23,8 +23,8 @@ export class AdapterControls extends LitElement {
 
     .title {
       justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 0.8rem;
+      gap: 0.4rem;
+      margin-bottom: 0.64rem;
       color: var(--app-muted);
     }
 
@@ -35,21 +35,21 @@ export class AdapterControls extends LitElement {
 
     h2 {
       color: var(--app-text);
-      font-size: 0.9rem;
+      font-size: 0.72rem;
     }
 
     .button-row {
       justify-content: center;
       flex-wrap: wrap;
-      gap: 0.55rem;
+      gap: 0.44rem;
     }
 
     button {
-      min-height: 2.55rem;
+      min-height: 2.04rem;
       margin: 0;
-      padding: 0.55rem 0.8rem;
+      padding: 0.44rem 0.64rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.72rem;
+      border-radius: var(--app-control-radius, 0.576rem);
       background: var(--app-panel-soft);
       color: var(--app-text);
       cursor: pointer;
@@ -70,9 +70,9 @@ export class AdapterControls extends LitElement {
     }
 
     p {
-      margin-top: 0.65rem;
+      margin-top: 0.52rem;
       color: var(--app-muted);
-      font-size: 0.76rem;
+      font-size: 0.608rem;
     }
   `];
 

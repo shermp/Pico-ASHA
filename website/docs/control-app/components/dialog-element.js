@@ -8,25 +8,24 @@ export const dialogStyles = css`
     border-radius: var(--app-radius);
     background: var(--app-panel);
     color: var(--app-text);
-    box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.45);
+    box-shadow: var(--app-dialog-shadow, 0 1.6rem 4.8rem rgba(0, 0, 0, 0.45));
   }
 
   dialog::backdrop {
-    background: rgba(2, 8, 15, 0.72);
-    backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--app-bg) 86%, transparent);
   }
 
   dialog > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.9rem 1rem;
+    padding: 0.72rem 0.8rem;
     border-bottom: 1px solid var(--app-border);
   }
 
   dialog > header h2 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 0.84rem;
   }
 `;
 

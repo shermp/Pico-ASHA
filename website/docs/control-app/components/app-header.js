@@ -15,18 +15,18 @@ export class AppHeader extends LitElement {
     css`
       header {
         display: flex;
-        min-height: 4.25rem;
+        min-height: 3.4rem;
         align-items: center;
         justify-content: space-between;
-        gap: 1rem;
-        padding: 0.72rem 1rem;
+        gap: 0.8rem;
+        padding: 0.576rem 0.8rem;
       }
 
       .brand,
       .actions {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.6rem;
       }
 
       .pairing-button {
@@ -35,30 +35,30 @@ export class AppHeader extends LitElement {
 
       .notification-badge {
         position: absolute;
-        top: -0.35rem;
-        right: -0.35rem;
+        top: -0.28rem;
+        right: -0.28rem;
         display: grid;
-        min-width: 1.15rem;
-        height: 1.15rem;
-        padding: 0 0.22rem;
+        min-width: 0.92rem;
+        height: 0.92rem;
+        padding: 0 0.176rem;
         place-items: center;
         border: 2px solid var(--app-panel);
         border-radius: 999px;
         background: var(--app-warning);
         color: #1c1306;
-        font-size: 0.64rem;
+        font-size: 0.48rem;
         font-weight: 700;
         line-height: 1;
       }
 
       .mark {
         display: grid;
-        width: 2.55rem;
-        height: 2.55rem;
+        width: 1.92rem;
+        height: 1.92rem;
         place-items: center;
-        border-radius: 0.8rem;
-        background: linear-gradient(145deg, var(--app-accent), #4887e8);
-        color: #031318;
+        border-radius: var(--app-control-radius, 0.64rem);
+        background: var(--app-brand-background, var(--app-accent));
+        color: var(--app-brand-foreground, #fff);
       }
 
       h1,
@@ -67,37 +67,37 @@ export class AppHeader extends LitElement {
       }
 
       h1 {
-        font-size: 1rem;
+        font-size: 0.76rem;
         letter-spacing: 0.02em;
       }
 
       p {
-        margin-top: 0.15rem;
+        margin-top: 0.12rem;
         color: var(--app-muted);
-        font-size: 0.78rem;
+        font-size: 0.6rem;
       }
 
       .status {
         display: flex;
         align-items: center;
-        gap: 0.45rem;
+        gap: 0.36rem;
         color: var(--app-muted);
-        font-size: 0.82rem;
+        font-size: 0.6rem;
       }
 
       .dot {
-        width: 0.55rem;
-        height: 0.55rem;
+        width: 0.44rem;
+        height: 0.44rem;
         border-radius: 50%;
         background: var(--app-muted);
       }
 
       .dot.ready {
         background: var(--app-success);
-        box-shadow: 0 0 0.7rem color-mix(in srgb, var(--app-success) 65%, transparent);
+        box-shadow: 0 0 0.56rem color-mix(in srgb, var(--app-success) 65%, transparent);
       }
 
-      @media (max-width: 36rem) {
+      @media (max-width: 28.8rem) {
         .status span:last-child {
           display: none;
         }

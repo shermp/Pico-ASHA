@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page.meta and page.meta.control_app %}
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Pico-ASHA">
+    <link rel="manifest" href="{{ 'control-app/manifest.webmanifest' | url }}">
+    <link rel="stylesheet" href="{{ 'control-app/vendor/material-symbols.css' | url }}">
+    <link rel="stylesheet" href="{{ 'control-app/zensical.css' | url }}">
+    <script type="module" src="{{ 'control-app/app.js' | url }}"></script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if page.meta and page.meta.control_app %}
+    <pico-asha-app></pico-asha-app>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
