@@ -29,32 +29,32 @@ export class PicoAshaApp extends LitElement {
     }
 
     main {
-      width: min(72rem, calc(100% - 2rem));
+      width: min(57.6rem, calc(100% - 1.6rem));
       margin: 0 auto;
-      padding: 1rem 0;
+      padding: 0.8rem 0;
     }
 
     .tabs {
       display: flex;
-      gap: 0.25rem;
-      margin-top: 1rem;
-      padding: 0.3rem;
+      gap: 0.2rem;
+      margin-top: 0.8rem;
+      padding: 0.24rem;
       border: 1px solid var(--app-border);
-      border-radius: var(--app-control-radius, 0.85rem);
+      border-radius: var(--app-control-radius, 0.68rem);
       background: var(--app-panel-soft);
-      box-shadow: var(--app-shadow, 0 0.65rem 1.75rem rgba(0, 0, 0, 0.1));
+      box-shadow: var(--app-shadow, 0 0.52rem 1.4rem rgba(0, 0, 0, 0.1));
     }
 
     [role="tab"] {
       display: inline-flex;
       flex: 1 1 0;
-      min-height: 2.7rem;
+      min-height: 2.16rem;
       align-items: center;
       justify-content: center;
       margin: 0;
-      padding: 0.55rem 1rem;
+      padding: 0.44rem 0.8rem;
       border: 1px solid transparent;
-      border-radius: var(--app-control-radius, 0.62rem);
+      border-radius: var(--app-control-radius, 0.496rem);
       background: transparent;
       color: var(--app-muted);
       cursor: pointer;
@@ -72,7 +72,7 @@ export class PicoAshaApp extends LitElement {
     }
 
     [role="tabpanel"] {
-      margin-top: 1rem;
+      margin-top: 0.8rem;
     }
 
     [role="tabpanel"][hidden] {
@@ -88,20 +88,20 @@ export class PicoAshaApp extends LitElement {
 
     remote-grid,
     adapter-log {
-      margin-top: 1rem;
+      margin-top: 0.8rem;
     }
 
     .notice {
       display: flex;
       align-items: flex-start;
-      gap: 0.55rem;
-      margin: 1rem 0 0;
-      padding: 0.75rem 0.9rem;
+      gap: 0.44rem;
+      margin: 0.8rem 0 0;
+      padding: 0.6rem 0.72rem;
       border: 1px solid color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
-      border-radius: var(--app-control-radius, 0.8rem);
+      border-radius: var(--app-control-radius, 0.64rem);
       background: color-mix(in srgb, var(--app-warning) 9%, var(--app-panel));
       color: var(--app-muted);
-      font-size: 0.8rem;
+      font-size: 0.64rem;
     }
 
   `];

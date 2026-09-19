@@ -4,6 +4,8 @@ export const componentStyles = css`
   :host {
     box-sizing: border-box;
     color: var(--app-text);
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 
   *,
@@ -16,18 +18,18 @@ export const componentStyles = css`
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius);
     background: var(--app-panel);
-    box-shadow: var(--app-shadow, 0 1rem 2.75rem rgba(0, 0, 0, 0.16));
+    box-shadow: var(--app-shadow, 0 0.8rem 2.2rem rgba(0, 0, 0, 0.16));
   }
 
   .icon-button {
     display: inline-grid;
-    width: 2.4rem;
-    height: 2.4rem;
+    width: 1.92rem;
+    height: 1.92rem;
     margin: 0;
     padding: 0;
     place-items: center;
     border: 1px solid var(--app-border);
-    border-radius: var(--app-control-radius, 0.72rem);
+    border-radius: var(--app-control-radius, 0.576rem);
     background: var(--app-panel-soft);
     color: var(--app-text);
     cursor: pointer;
@@ -47,9 +49,10 @@ export const componentStyles = css`
     display: inline-block;
     overflow: hidden;
     width: 1em;
+    height: 1em;
     font-family: "Material Symbols Outlined";
     /* Match Zensical's .md-icon svg dimensions. */
-    font-size: 1.2rem;
+    font-size: 0.96rem;
     font-style: normal;
     font-weight: 400;
     font-feature-settings: "liga";
@@ -65,11 +68,16 @@ export const componentStyles = css`
     font: inherit;
   }
 
+  button,
+  select {
+    font-size: 0.7rem;
+  }
+
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,
   summary:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--app-accent) 75%, white);
-    outline-offset: 3px;
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
   }
 `;
