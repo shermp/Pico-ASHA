@@ -22,6 +22,7 @@ pico-asha-app {
   --app-brand-foreground: var(--md-primary-bg-color);
   --app-left-aid: var(--md-typeset-a-color);
   --app-right-aid: var(--app-danger);
+  --app-log-viewport-offset: 28.5rem;
   color: var(--app-text);
   font-family: var(--md-text-font-family);
   font-weight: 400;

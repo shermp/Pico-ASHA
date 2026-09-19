@@ -18,6 +18,7 @@
   --app-card-edge: var(--app-accent);
   --app-left-aid: #5488e8;
   --app-right-aid: var(--app-danger);
+  --app-log-viewport-offset: 18rem;
   font-size: 125%;
 }
 
