@@ -46,18 +46,18 @@ export class AppHeader extends LitElement {
         border-radius: 999px;
         background: var(--app-warning);
         color: #1c1306;
-        font-size: 0.64rem;
+        font-size: 0.6rem;
         font-weight: 700;
         line-height: 1;
       }
 
       .mark {
         display: grid;
-        width: 2.55rem;
-        height: 2.55rem;
+        width: 2.4rem;
+        height: 2.4rem;
         place-items: center;
-        border-radius: 0.8rem;
-        background: linear-gradient(145deg, var(--app-accent), #4887e8);
+        border-radius: var(--app-control-radius, 0.8rem);
+        background: var(--app-brand-background, linear-gradient(145deg, var(--app-accent), #4887e8));
         color: #031318;
       }
 
@@ -67,14 +67,14 @@ export class AppHeader extends LitElement {
       }
 
       h1 {
-        font-size: 1rem;
+        font-size: 0.95rem;
         letter-spacing: 0.02em;
       }
 
       p {
         margin-top: 0.15rem;
         color: var(--app-muted);
-        font-size: 0.78rem;
+        font-size: 0.75rem;
       }
 
       .status {
@@ -82,7 +82,7 @@ export class AppHeader extends LitElement {
         align-items: center;
         gap: 0.45rem;
         color: var(--app-muted);
-        font-size: 0.82rem;
+        font-size: 0.75rem;
       }
 
       .dot {

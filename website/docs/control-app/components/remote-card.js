@@ -49,7 +49,7 @@ export class RemoteCard extends LitElement {
 
       .edge {
         height: 0.25rem;
-        background: linear-gradient(90deg, var(--app-accent), #4e83e8);
+        background: var(--app-card-edge, linear-gradient(90deg, var(--app-accent), #4e83e8));
       }
 
       .body {
@@ -77,25 +77,25 @@ export class RemoteCard extends LitElement {
 
       .aid {
         display: grid;
-        width: 3.1rem;
-        height: 3.1rem;
+        width: 2.5rem;
+        height: 2.5rem;
         flex: 0 0 auto;
         place-items: center;
         border: 1px solid transparent;
         border-radius: 50%;
         color: #ffffff;
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         font-weight: 700;
       }
 
       .aid.left {
-        background: #1e70d1;
-        border-color: #1e70d1;
+        background: var(--app-left-aid, #1e70d1);
+        border-color: var(--app-left-aid, #1e70d1);
       }
 
       .aid.right {
-        background: #c83737;
-        border-color: #c83737;
+        background: var(--app-right-aid, #c83737);
+        border-color: var(--app-right-aid, #c83737);
       }
 
       h2,
@@ -105,7 +105,7 @@ export class RemoteCard extends LitElement {
 
       h2 {
         overflow: hidden;
-        font-size: 1.08rem;
+        font-size: 0.95rem;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -132,7 +132,7 @@ export class RemoteCard extends LitElement {
         gap: 0.3rem;
         padding: 0.72rem 0.4rem;
         border: 1px solid var(--app-border);
-        border-radius: 0.72rem;
+        border-radius: var(--app-control-radius, 0.72rem);
         background: var(--app-panel-soft);
         text-align: center;
       }
@@ -140,7 +140,7 @@ export class RemoteCard extends LitElement {
       .metric strong {
         max-width: 100%;
         overflow: hidden;
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         text-overflow: ellipsis;
       }
 
@@ -150,7 +150,7 @@ export class RemoteCard extends LitElement {
 
       .battery {
         display: inline-grid;
-        height: 1.25rem;
+        height: 1.2rem;
         place-items: center;
       }
 
@@ -171,7 +171,7 @@ export class RemoteCard extends LitElement {
       summary {
         color: var(--app-muted);
         cursor: pointer;
-        font-size: 0.85rem;
+        font-size: 0.75rem;
       }
 
       dl {
@@ -179,7 +179,7 @@ export class RemoteCard extends LitElement {
         grid-template-columns: auto 1fr;
         gap: 0.35rem 0.8rem;
         margin: 0.8rem 0 0;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
       }
 
       dt {
@@ -201,7 +201,7 @@ export class RemoteCard extends LitElement {
 
       .empty .material-symbols-outlined {
         color: var(--app-muted);
-        font-size: 2.5rem;
+        font-size: 2rem;
       }
     `,
   ];

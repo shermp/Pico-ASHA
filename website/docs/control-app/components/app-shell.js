@@ -40,10 +40,9 @@ export class PicoAshaApp extends LitElement {
       margin-top: 1rem;
       padding: 0.3rem;
       border: 1px solid var(--app-border);
-      border-radius: 0.85rem;
-      background: color-mix(in srgb, var(--app-panel) 88%, transparent);
-      box-shadow: 0 0.65rem 1.75rem rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(18px);
+      border-radius: var(--app-control-radius, 0.85rem);
+      background: var(--app-panel-soft);
+      box-shadow: var(--app-shadow, 0 0.65rem 1.75rem rgba(0, 0, 0, 0.1));
     }
 
     [role="tab"] {
@@ -55,7 +54,7 @@ export class PicoAshaApp extends LitElement {
       margin: 0;
       padding: 0.55rem 1rem;
       border: 1px solid transparent;
-      border-radius: 0.62rem;
+      border-radius: var(--app-control-radius, 0.62rem);
       background: transparent;
       color: var(--app-muted);
       cursor: pointer;
@@ -99,7 +98,7 @@ export class PicoAshaApp extends LitElement {
       margin: 1rem 0 0;
       padding: 0.75rem 0.9rem;
       border: 1px solid color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
-      border-radius: 0.8rem;
+      border-radius: var(--app-control-radius, 0.8rem);
       background: color-mix(in srgb, var(--app-warning) 9%, var(--app-panel));
       color: var(--app-muted);
       font-size: 0.8rem;
