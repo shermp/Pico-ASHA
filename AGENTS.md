@@ -10,7 +10,7 @@
 
 ## Tooling
 
-- `mkdocs` installed in `.venv` Python virtual environment.
+- `zensical` installed in `.venv` Python virtual environment.
 
 ## Safety and permissions
 
