@@ -973,7 +973,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
 #endif
             bt_status = l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
             if (bt_status != ERROR_CODE_SUCCESS) {
-                short_log(ha->conn_id, "L2CAP Tx send err: 0x%02X Cr:%u",
+                short_log(ha->conn_id, "L2CAP Tx err: 0x%02X Cr:%u",
                           (unsigned)bt_status, (unsigned)ha->credits);
                 ha->audio_data = nullptr;
                 ha->audio_tx_pending_ticks = 0;
@@ -1170,7 +1170,7 @@ bool HearingAid::process_audio()
     for (auto ha : hearing_aids) {
         if (ha->process_state == ProcessState::CloseL2CAP) {
             if (++ha->l2cap_close_ticks >= l2cap_close_stuck_timeout_ticks) {
-                short_log(ha->conn_id, "%s", "L2CAP close timeout, reconnecting");
+                short_log(ha->conn_id, "%s", "L2CAP close t/o, reconnecting");
                 ha->disconnect();
             }
             continue;
@@ -1209,7 +1209,7 @@ bool HearingAid::process_audio()
                     // a reconnect once the stuck timeout elapses.
                     if (++ha->ready_stuck_ticks >= ready_stuck_timeout_ticks) {
                         ha->ready_stuck_ticks = 0;
-                        short_log(ha->conn_id, "%s", "Ready state stuck, recreating L2CAP");
+                        short_log(ha->conn_id, "%s", "Ready stuck, recreating L2CAP");
                         ha->close_l2cap_for_recovery();
                     }
                 } else {
@@ -1222,7 +1222,7 @@ bool HearingAid::process_audio()
                 // watchdog, a missing CAN_SEND_NOW or PACKET_SENT event leaves
                 // the aid in streaming mode with no further audio indefinitely.
                 if (++ha->audio_tx_pending_ticks >= audio_tx_stuck_timeout_ticks) {
-                    short_log(ha->conn_id, "L2CAP Tx timeout: %lums Cr:%u",
+                    short_log(ha->conn_id, "L2 Tx t/o: %lums",
                               (unsigned long)ha->audio_tx_pending_ticks,
                               (unsigned)ha->credits);
                     ha->audio_data = nullptr;
@@ -1249,7 +1249,7 @@ bool HearingAid::process_audio()
                     // schedule. Stop cleanly so the hearing aid does not time
                     // out and disconnect while it is left in streaming state.
                     if (++ha->audio_sdu_gap_ticks >= audio_sdu_gap_timeout_ticks) {
-                        short_log(ha->conn_id, "Audio Tx gap: %lums Cr:%u",
+                        short_log(ha->conn_id, "Tx gap: %lums Cr:%u",
                                   (unsigned long)ha->audio_sdu_gap_ticks,
                                   (unsigned)ha->credits);
                         ha->audio_sdu_gap_ticks = 0U;
@@ -1322,7 +1322,7 @@ bool HearingAid::process_audio()
 #endif
                         uint8_t const tx_request_status = l2cap_request_can_send_now_event(ha->cid);
                         if (tx_request_status != ERROR_CODE_SUCCESS) {
-                            short_log(ha->conn_id, "L2CAP Tx request err: 0x%02X Cr:%u",
+                            short_log(ha->conn_id, "L2CAP Tx req err: 0x%02X Cr:%u",
                                       (unsigned)tx_request_status, (unsigned)ha->credits);
                             ha->audio_data = nullptr;
                             ha->audio_tx_pending_ticks = 0;
