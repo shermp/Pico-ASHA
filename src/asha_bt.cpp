@@ -1,8 +1,5 @@
 #include <btstack.h>
 #include <pico/cyw43_arch.h>
-#include <pico/stdio_uart.h>
-#include <pico/stdio_usb.h>
-
 #include <hardware/watchdog.h>
 
 #include "asha_bt.hpp"
@@ -219,7 +216,7 @@ static void audio_timer_handler(btstack_timer_source_t* timer)
     }
 
     process_serial_cmds();
-    if (stdio_usb_connected()) {
+    if (comm::usb_connected()) {
         if (enable_send_intro_packet) {
             HearingAid::on_serial_host_connected();
             enable_send_intro_packet = false;
@@ -245,7 +242,7 @@ void delay_start_timer_handler(btstack_timer_source_t *timer)
 {
     // If dumping HCI packets, we want wait for USB CDC to ensure
     // no packets are lost
-    if (runtime_settings.get_hci_dump_enabled() && !stdio_usb_connected()) {
+    if (runtime_settings.get_hci_dump_enabled() && !comm::usb_connected()) {
         btstack_run_loop_set_timer(timer, 100);
         btstack_run_loop_add_timer(timer);
         return;

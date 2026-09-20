@@ -238,7 +238,7 @@ std::array<HearingAid*,2> HearingAid::connected_has()
 void HearingAid::on_serial_host_connected()
 {
     using namespace comm;
-    RemoteInfo info;
+    RemoteInfo info = {};
     uint16_t intro_flags = 0x00;
     if (connections_allowed) {
         intro_flags |= IntroFlags::conn_allowed;

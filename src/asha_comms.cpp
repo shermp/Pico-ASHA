@@ -1,8 +1,12 @@
-#include <pico/time.h>
-#include <pico/stdio.h>
-#include <pico/stdio_usb.h>
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cstring>
 
-#include <tusb.h>
+#include <pico/time.h>
+#include <pico/util/queue.h>
+
+#include <class/cdc/cdc_device.h>
 
 #include <etl/circular_buffer.h>
 #include <nanocobs/cobs.h>
@@ -52,15 +56,49 @@ namespace comm
     constexpr size_t max_hci_packet_len = 180; // Actually 167 for ASHA, but add a few more bytes
     constexpr size_t hci_packet_type = 1;
     constexpr size_t cobs_hci_buff_size = zero_prefix + COBS_ENCODE_MAX(sizeof(HeaderPacket) + sizeof(BTSnoopPacketHeader) + hci_packet_type + max_hci_packet_len);
-    constexpr size_t cmd_buff_size = zero_prefix + COBS_ENCODE_MAX(sizeof(HeaderPacket) + sizeof(CmdPacket));
+    constexpr size_t frame_buff_size = cobs_hci_buff_size;
     
     static_assert(cobs_hci_buff_size <= COBS_TINYFRAME_SAFE_BUFFER_SIZE);
 
-    static uint8_t cobs_enc_buff[COBS_TINYFRAME_SAFE_BUFFER_SIZE];
+    struct EncodedFrame
+    {
+        uint16_t len = 0;
+        std::array<uint8_t, frame_buff_size> data = {};
+    };
+
+    struct CommandMessage
+    {
+        HeaderPacket header;
+        CmdPacket packet;
+    };
+
+    static_assert(sizeof(CommandMessage) == sizeof(HeaderPacket) + sizeof(CmdPacket));
+
+    // Below 254 decoded bytes, every valid command has exactly this encoded size.
+    static_assert(sizeof(CommandMessage) < 254);
+    constexpr size_t cmd_buff_size = COBS_ENCODE_MAX(sizeof(CommandMessage));
+    constexpr uint control_tx_queue_depth = 8;
+    constexpr uint telemetry_tx_queue_depth = 8;
+    constexpr uint command_queue_depth = 8;
+
+    static queue_t control_tx_queue;
+    static queue_t telemetry_tx_queue;
+    static queue_t command_queue;
+    static std::atomic_bool serial_connected = false;
+
+    // Encoding is performed only on core 1. queue_try_add() copies the frame,
+    // so this scratch buffer is never shared with the USB consumer on core 0.
+    static EncodedFrame enc_frame;
 
     static etl::circular_buffer<std::array<uint8_t, cobs_ev_buff_size>, 200> event_buff;
 
-    static etl::vector<uint8_t, cmd_buff_size> cmd_buff_enc;
+    // CDC parser and transmitter state are owned exclusively by core 0.
+    static std::array<uint8_t, cmd_buff_size> usb_rx_frame = {};
+    static size_t usb_rx_frame_len = 0;
+    static bool usb_rx_discarding = false;
+    static bool usb_was_connected = false;
+    static EncodedFrame usb_tx_frame;
+    static size_t usb_tx_offset = 0;
 
     template<typename T>
     static auto construct_packet(Type header_type, uint16_t conn_id, T const& packet)
@@ -79,108 +117,111 @@ namespace comm
         };
 
         static_assert(sizeof(p) == sizeof(HeaderPacket) + sizeof(T));
-        static_assert((zero_prefix + COBS_ENCODE_MAX(sizeof(p))) <= COBS_TINYFRAME_SAFE_BUFFER_SIZE);
+        static_assert((zero_prefix + COBS_ENCODE_MAX(sizeof(p))) <= frame_buff_size);
 
         return p;
     }
 
-    template<typename T>
-    static void construct_and_send_packet(Type header_type, uint16_t conn_id, T const& packet)
+    template<typename T, size_t N>
+    static uint16_t encode_packet(Type header_type, uint16_t conn_id, T const& packet,
+                                  std::array<uint8_t, N>& buffer)
     {
         auto pkt = construct_packet(header_type, conn_id, packet);
+        static_assert(zero_prefix + COBS_ENCODE_MAX(sizeof(pkt)) <= N);
 
         size_t enc_len = 0;
-        cobs_encode(&pkt, sizeof(pkt), cobs_enc_buff + zero_prefix, sizeof(cobs_enc_buff) - zero_prefix, &enc_len);
-        stdio_put_string((const char*)cobs_enc_buff, enc_len + zero_prefix, false, false);
-        stdio_flush();
+        buffer[0] = 0;
+        if (cobs_encode(&pkt, sizeof(pkt), buffer.data() + zero_prefix,
+                        buffer.size() - zero_prefix, &enc_len) != COBS_RET_SUCCESS) {
+            return 0;
+        }
+        return static_cast<uint16_t>(enc_len + zero_prefix);
+    }
+
+    template<typename T>
+    static bool construct_and_queue_packet(Type header_type, uint16_t conn_id, T const& packet,
+                                           queue_t& queue)
+    {
+        enc_frame.len = encode_packet(header_type, conn_id, packet, enc_frame.data);
+        return enc_frame.len != 0 && queue_try_add(&queue, &enc_frame);
+    }
+
+    void init()
+    {
+        queue_init(&control_tx_queue, sizeof(EncodedFrame), control_tx_queue_depth);
+        queue_init(&telemetry_tx_queue, sizeof(EncodedFrame), telemetry_tx_queue_depth);
+        queue_init(&command_queue, sizeof(CommandMessage), command_queue_depth);
+    }
+
+    bool usb_connected()
+    {
+        return serial_connected.load(std::memory_order_relaxed);
     }
 
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event)
-    {   
-        auto pkt = construct_packet(Type::Event, conn_id, event);
+    {
         event_buff.push({0});
-        auto& buff = event_buff.back();
-        size_t enc_len = 0;
-        cobs_encode(&pkt, sizeof(pkt), buff.data() + zero_prefix, buff.size() - zero_prefix, &enc_len);
+        // The encoder checks at compile time that this slot fits the whole packet.
+        encode_packet(Type::Event, conn_id, event, event_buff.back());
     }
 
     void try_send_events()
     {
-        bool flush_req = false;
         int send_count = 0;
-        while (!event_buff.empty() && send_count < send_limit && stdio_usb_connected()) {
+        while (!event_buff.empty() && send_count < send_limit && usb_connected()) {
             const auto& buff = event_buff.front();
-            stdio_put_string((const char*)buff.data(), buff.size(), false, false);
-            flush_req = true;
+            enc_frame.len = static_cast<uint16_t>(buff.size());
+            memcpy(enc_frame.data.data(), buff.data(), buff.size());
+            if (!queue_try_add(&telemetry_tx_queue, &enc_frame)) {
+                break;
+            }
             ++send_count;
             event_buff.pop();
-        }
-        if (flush_req) {
-            send_count = 0;
-            stdio_flush();
         }
     }
 
     void send_intro_packet(int8_t num_connections, uint16_t flags)
     {
-        construct_and_send_packet(Type::Intro, unset_conn_id, IntroPacket{.pa_version = {
+        construct_and_queue_packet(Type::Intro, unset_conn_id, IntroPacket{.pa_version = {
             .major = PICO_ASHA_FW_VERS_MAJOR,
             .minor = PICO_ASHA_FW_VERS_MINOR,
             .patch = PICO_ASHA_FW_VERS_PATCH
         },
         .num_connected = num_connections,
-        .flags = flags});
+        .flags = flags}, control_tx_queue);
     }
 
     void send_usb_info_packet(USBInfo const &usb_info)
     {
-        construct_and_send_packet(Type::USBInfo, unset_conn_id, usb_info);
+        construct_and_queue_packet(Type::USBInfo, unset_conn_id, usb_info, control_tx_queue);
     }
 
     void send_remote_info_packet(RemoteInfo const& remote_info)
     {
-        construct_and_send_packet(Type::RemInfo, unset_conn_id, remote_info);
+        construct_and_queue_packet(Type::RemInfo, unset_conn_id, remote_info, control_tx_queue);
     }
 
     void send_advertising_packet(AdvertisingPacket const& ad_packet)
     {
-        if (stdio_usb_connected()) {
-            construct_and_send_packet(Type::Advert, unset_conn_id, ad_packet);
+        if (usb_connected()) {
+            construct_and_queue_packet(Type::Advert, unset_conn_id, ad_packet, telemetry_tx_queue);
         }
     }
 
     bool get_cmd_packet(HeaderPacket& header, CmdPacket& cmd_packet)
     {
-        int ch;
-        bool got_cmd = false;
-        while ((ch = stdio_getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-            uint8_t c = (uint8_t)ch;
-            if (c == 0) {
-                if (cmd_buff_enc.size() == 0) {
-                    continue;
-                }
-                cmd_buff_enc.push_back(c);
-                if (cmd_buff_enc.size() > sizeof(HeaderPacket) + sizeof(CmdPacket)) {
-                    auto ret = cobs_decode_tinyframe(cmd_buff_enc.data(), cmd_buff_enc.size());
-                    if (ret == COBS_RET_SUCCESS) {
-                        memcpy(&header, cmd_buff_enc.data() + 1, sizeof(header));
-                        if (header.type == Type::Cmd) {
-                            memcpy(&cmd_packet, cmd_buff_enc.data() + 1 + sizeof(header), sizeof(cmd_packet));
-                            got_cmd = true;
-                        }
-                    }
-                }
-                cmd_buff_enc.clear();
-                return got_cmd;
-            }
-            cmd_buff_enc.push_back(c);
+        CommandMessage message = {};
+        if (!queue_try_remove(&command_queue, &message)) {
+            return false;
         }
-        return got_cmd;
+        header = message.header;
+        cmd_packet = message.packet;
+        return true;
     }
 
     void send_cmd_resp(uint16_t const conn_id, CmdPacket const& resp)
     {
-        construct_and_send_packet(Type::Cmd, conn_id, resp);        
+        construct_and_queue_packet(Type::Cmd, conn_id, resp, control_tx_queue);
     }
 
     void send_hci_reset()
@@ -188,7 +229,7 @@ namespace comm
 
     void send_hci_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len)
     {
-        if (packet_type == LOG_MESSAGE_PACKET) return;
+        if (packet_type == LOG_MESSAGE_PACKET || !usb_connected()) return;
         auto abs_time = get_absolute_time();
         uint32_t incl_len = (len > max_hci_packet_len) ? max_hci_packet_len : len;
         BTSnoopPacketHeader snoop_header = {};
@@ -209,34 +250,145 @@ namespace comm
         };
         snoop_header.byte_swap_fields();
 
-        cobs_enc_buff[0] = 0;
+        enc_frame.data[0] = 0;
         cobs_enc_ctx_t enc_ctx = {};
         size_t enc_len = 0;
 
-        cobs_encode_inc_begin(cobs_enc_buff + zero_prefix, sizeof(cobs_enc_buff) - zero_prefix, &enc_ctx);
-        cobs_encode_inc(&enc_ctx, &header, sizeof(header));
-        cobs_encode_inc(&enc_ctx, &snoop_header, sizeof(snoop_header));
-        cobs_encode_inc(&enc_ctx, &packet_type, sizeof(packet_type));
-        cobs_encode_inc(&enc_ctx, packet, incl_len);
-        cobs_encode_inc_end(&enc_ctx, &enc_len);
+        if (cobs_encode_inc_begin(enc_frame.data.data() + zero_prefix,
+                                  enc_frame.data.size() - zero_prefix, &enc_ctx) != COBS_RET_SUCCESS
+            || cobs_encode_inc(&enc_ctx, &header, sizeof(header)) != COBS_RET_SUCCESS
+            || cobs_encode_inc(&enc_ctx, &snoop_header, sizeof(snoop_header)) != COBS_RET_SUCCESS
+            || cobs_encode_inc(&enc_ctx, &packet_type, sizeof(packet_type)) != COBS_RET_SUCCESS
+            || cobs_encode_inc(&enc_ctx, packet, incl_len) != COBS_RET_SUCCESS
+            || cobs_encode_inc_end(&enc_ctx, &enc_len) != COBS_RET_SUCCESS) {
+            return;
+        }
 
-        // Write directly to CDC rather than via stdio_put_string(): the stdio
-        // path also writes to UART, where uart_putc() blocks on TX FIFO space
-        // at 115200 baud — at ~17 ms per 200-byte packet, this stalls core 1
-        // and causes the audio timer to miss ticks.
-        // This bypasses stdio_usb_mutex, creating a theoretical race if core 0
-        // calls tud_cdc_write() via stdio simultaneously. In practice core 0
-        // makes no stdio calls during audio streaming, so the risk is negligible.
-        uint32_t total = enc_len + zero_prefix;
-        if (tud_cdc_write_available() < total) return;
-        tud_cdc_write(cobs_enc_buff, total);
-        tud_cdc_write_flush();
+        enc_frame.len = static_cast<uint16_t>(enc_len + zero_prefix);
+        queue_try_add(&telemetry_tx_queue, &enc_frame);
     }
 
     void send_hci_message([[maybe_unused]] int log_level, 
                           [[maybe_unused]] const char * format, 
                           [[maybe_unused]] va_list argptr)
     {}
+
+    static void reset_usb_rx_parser()
+    {
+        usb_rx_frame_len = 0;
+        usb_rx_discarding = false;
+    }
+
+    static void process_usb_rx(uint8_t const* data, size_t len)
+    {
+        uint8_t const* current = data;
+        uint8_t const* const end = data + len;
+
+        while (current != end) {
+            uint8_t const* const delimiter = std::find(current, end, COBS_FRAME_DELIMITER);
+            size_t const segment_len = static_cast<size_t>(delimiter - current);
+
+            if (!usb_rx_discarding) {
+                // Reserve one byte for the delimiter required by cobs_decode().
+                size_t const available = usb_rx_frame.size() - 1U - usb_rx_frame_len;
+                if (segment_len > available) {
+                    usb_rx_frame_len = 0;
+                    usb_rx_discarding = true;
+                } else {
+                    memcpy(usb_rx_frame.data() + usb_rx_frame_len, current, segment_len);
+                    usb_rx_frame_len += segment_len;
+                }
+            }
+
+            if (delimiter == end) {
+                return;
+            }
+
+            if (!usb_rx_discarding && usb_rx_frame_len != 0) {
+                usb_rx_frame[usb_rx_frame_len++] = COBS_FRAME_DELIMITER;
+                CommandMessage message = {};
+                size_t decoded_len = 0;
+                if (cobs_decode(usb_rx_frame.data(), usb_rx_frame_len,
+                                &message, sizeof(message), &decoded_len) == COBS_RET_SUCCESS
+                    && decoded_len == sizeof(message)
+                    && message.header.type == Type::Cmd
+                    && message.header.len == sizeof(message)) {
+                    queue_try_add(&command_queue, &message);
+                }
+            }
+
+            reset_usb_rx_parser();
+            current = delimiter + 1;
+        }
+    }
+
+    static void discard_queue(queue_t& queue)
+    {
+        while (queue_try_remove(&queue, nullptr)) {}
+    }
+
+    static bool load_next_tx_frame()
+    {
+        if (queue_try_remove(&control_tx_queue, &usb_tx_frame)
+            || queue_try_remove(&telemetry_tx_queue, &usb_tx_frame)) {
+            usb_tx_offset = 0;
+            return true;
+        }
+        return false;
+    }
+
+    void usb_task()
+    {
+        bool const connected = tud_cdc_connected();
+        serial_connected.store(connected, std::memory_order_relaxed);
+
+        if (!connected) {
+            reset_usb_rx_parser();
+            usb_tx_frame.len = 0;
+            usb_tx_offset = 0;
+            discard_queue(control_tx_queue);
+            discard_queue(telemetry_tx_queue);
+            if (usb_was_connected) {
+                tud_cdc_write_clear();
+            }
+            usb_was_connected = false;
+            return;
+        }
+        usb_was_connected = true;
+
+        size_t const free_commands = command_queue_depth - queue_get_level(&command_queue);
+        if (free_commands != 0) {
+            // Leave excess bytes in CDC so USB applies backpressure. Account for
+            // a partially received command; only core 0 can fill these slots.
+            size_t const rx_budget = free_commands * cmd_buff_size - usb_rx_frame_len;
+            std::array<uint8_t, 64> rx;
+            uint32_t const rx_count = tud_cdc_read(rx.data(), std::min(rx.size(), rx_budget));
+            process_usb_rx(rx.data(), rx_count);
+        }
+
+        bool wrote = false;
+        while (usb_tx_frame.len != 0 || load_next_tx_frame()) {
+            uint32_t const available = tud_cdc_write_available();
+            if (available == 0) {
+                break;
+            }
+            size_t const remaining = usb_tx_frame.len - usb_tx_offset;
+            uint32_t const requested = static_cast<uint32_t>(std::min<size_t>(available, remaining));
+            uint32_t const written = tud_cdc_write(usb_tx_frame.data.data() + usb_tx_offset, requested);
+            if (written == 0) {
+                break;
+            }
+            wrote = true;
+            usb_tx_offset += written;
+            if (usb_tx_offset == usb_tx_frame.len) {
+                usb_tx_frame.len = 0;
+                usb_tx_offset = 0;
+            }
+        }
+        if (wrote) {
+            tud_cdc_write_flush();
+        }
+    }
 
 } // namespace comm
 

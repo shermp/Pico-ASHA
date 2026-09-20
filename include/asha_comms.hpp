@@ -270,6 +270,16 @@ namespace comm
 
     static_assert(sizeof(AdvertisingPacket) == 40);
 
+    // Initialise the cross-core transport queues before core 1 starts.
+    void init();
+
+    // Run CDC RX/TX work from core 0, immediately after tud_task(). TinyUSB
+    // must not be called directly from the Bluetooth/audio core.
+    void usb_task();
+
+    // Safe to query from core 1.
+    bool usb_connected();
+
     void add_event_to_buffer(uint16_t const conn_id, EventPacket const& event);
 
     template<typename ...Fmt>

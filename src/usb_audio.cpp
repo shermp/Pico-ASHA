@@ -135,6 +135,7 @@ void usb_main(void)
   while (1)
   {
     tud_task(); // TinyUSB device task
+    comm::usb_task();
   }
 }
 
