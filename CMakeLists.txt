@@ -45,15 +45,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(ENABLE_AUDIO_ENC_STATS "Enable audio downsampling and encoding statistics" OFF)
 option(ENABLE_L2CAP_TX_TRACE "Emit per-SDU L2CAP transmit handshake diagnostics" OFF)
 
-# Drop data immediately when the CDC TX buffer is full rather than stalling
-# core 1; DEADLOCK_TIMEOUT caps the mutex-wait as a secondary safety net.
-# Must precede pico_sdk_init() so the definitions reach pico_stdio_usb's
-# stdio_usb.c (target_compile_definitions on pico_asha would not).
-add_compile_definitions(
-    PICO_STDIO_USB_STDOUT_TIMEOUT_US=0
-    PICO_STDIO_DEADLOCK_TIMEOUT_MS=10
-)
-
 pico_sdk_init()
 
 message("Pico SDK version is ${PICO_SDK_VERSION_STRING}")
@@ -106,7 +97,9 @@ list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_M
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_PATCH=${CMAKE_PROJECT_VERSION_PATCH}")
 
 # list(APPEND pico_asha_defines "PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1")
-pico_enable_stdio_usb(pico_asha 1)
+# CDC is owned directly by the core-0 communication transport. Enabling USB
+# stdio would add a second CDC reader/writer and route protocol frames to UART.
+pico_enable_stdio_usb(pico_asha 0)
 pico_enable_stdio_uart(pico_asha 1)
 
 list(APPEND pico_asha_defines "PICO_FLASH_BANK_TOTAL_SIZE=(FLASH_SECTOR_SIZE * 8u)")

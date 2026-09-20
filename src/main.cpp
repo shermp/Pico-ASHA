@@ -8,6 +8,7 @@
 
 #include "asha_unique_id.hpp"
 #include "asha_audio.h"
+#include "asha_comms.hpp"
 
 #include "runtime_settings.hpp"
 #include "hearing_aid.hpp"
@@ -36,6 +37,7 @@ extern "C" int main()
     flash_safe_execute_core_init();
     // Init global shared variables
     asha_audio_init();
+    comm::init();
 
     // Get serial
     pico_get_unique_board_id_string(pico_uid, sizeof pico_uid);
