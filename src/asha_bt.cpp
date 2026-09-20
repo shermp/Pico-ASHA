@@ -226,7 +226,7 @@ static void audio_timer_handler(btstack_timer_source_t* timer)
         usb_serial_is_connected = false;
     }
     if (usb_serial_is_connected) {
-        comm::try_send_events();
+        comm::service_tx_queues();
     }
     HearingAid::process();
 }
