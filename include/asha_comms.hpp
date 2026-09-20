@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 
 namespace asha
 {
@@ -232,7 +233,7 @@ namespace comm
         template<typename ...Fmt>
         void set_data_str(const char* format, Fmt&&... fmt) 
         {
-            sniprintf(data.str, sizeof data.str, format, fmt...);
+            std::snprintf(data.str, sizeof data.str, format, fmt...);
         }
     };
 
