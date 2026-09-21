@@ -59,13 +59,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(etl)
 
-set(CMSISCORE "${PROJECT_SOURCE_DIR}/lib/CMSIS/Core")
-add_subdirectory(lib/CMSIS/DSP/Source bin_dsp)
-
 set(ASHA_SRC
   src/main.cpp
   src/runtime_settings.cpp
   src/asha_audio.c
+  src/asha_fir.c
   src/asha_bt.cpp
   src/asha_comms.cpp
   src/asha_led.cpp
@@ -127,7 +125,6 @@ target_link_libraries(pico_asha
   tinyusb_device
   tinyusb_board
   etl::etl
-  CMSISDSP
 )
 
 target_link_options(pico_asha PUBLIC -Wl,--print-memory-usage)

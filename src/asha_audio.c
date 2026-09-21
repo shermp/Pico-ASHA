@@ -5,23 +5,13 @@
 #include <pico/time.h>
 #endif
 
-#include <dsp/filtering_functions.h>
-#include <dsp/support_functions.h>
-
 #include <g722/g722_enc_dec.h>
 
 #include "asha_audio.h"
-#include "asha_audio_coefficients.h"
+#include "asha_fir.h"
 
-
-#define ASHA_BLOCK_SIZE 48
-
-static q15_t fir_c[ASHA_NUM_TAPS] ={};
-static q15_t p_state_l[ASHA_NUM_TAPS + ASHA_BLOCK_SIZE - 1];
-static q15_t p_state_r[ASHA_NUM_TAPS + ASHA_BLOCK_SIZE - 1];
-
-static arm_fir_decimate_instance_q15 fir_s_l = {};
-static arm_fir_decimate_instance_q15 fir_s_r = {};
+static int16_t p_state_l[ASHA_FIR_STATE_SAMPLES];
+static int16_t p_state_r[ASHA_FIR_STATE_SAMPLES];
 
 struct AshaAudioEncBuffer {
     uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
@@ -70,10 +60,8 @@ static void reset_encoders()
 
 static void reset_decimators()
 {
-    memset(p_state_l, 0, sizeof(p_state_l));
-    memset(p_state_r, 0, sizeof(p_state_r));
-    arm_fir_decimate_init_q15(&fir_s_l, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_l, ASHA_BLOCK_SIZE);
-    arm_fir_decimate_init_q15(&fir_s_r, ASHA_NUM_TAPS, 48000/16000, fir_c, p_state_r, ASHA_BLOCK_SIZE);
+    asha_fir_reset(p_state_l);
+    asha_fir_reset(p_state_r);
 }
 
 static void reset_stream_encoder()
@@ -97,7 +85,6 @@ void asha_audio_init()
     write_index = 0u;
     vol_l = ASHA_USB_VOL_MIN;
     vol_r = ASHA_USB_VOL_MIN;
-    arm_float_to_q15(coefficients, fir_c, ASHA_NUM_TAPS);
     reset_stream_encoder();
 
 }
@@ -158,9 +145,9 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     int16_t* pcm_l = NULL;
     int16_t* pcm_r = NULL;
     if (count == ASHA_PCM_MAX_SAMPLES) {
-        arm_fir_decimate_fast_q15(&fir_s_l, pcm_buff_l, pcm_buff_16khz_l, ASHA_BLOCK_SIZE);
+        asha_fir_decimate_48_to_16_q15(pcm_buff_l, pcm_buff_16khz_l, p_state_l);
         if (!mono) {
-            arm_fir_decimate_fast_q15(&fir_s_r, pcm_buff_r, pcm_buff_16khz_r, ASHA_BLOCK_SIZE);
+            asha_fir_decimate_48_to_16_q15(pcm_buff_r, pcm_buff_16khz_r, p_state_r);
         }
         pcm_l = pcm_buff_16khz_l;
         pcm_r = pcm_buff_16khz_r;
