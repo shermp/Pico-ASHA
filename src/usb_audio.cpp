@@ -82,9 +82,6 @@ static PCMStereoSample spk_buf[ASHA_PCM_MAX_SAMPLES] = {};
 
 static PCMStereoSample silence_buff[ASHA_PCM_PACKET_SIZE] = {0};
 
-constexpr uint16_t spk_data_size_16 = ASHA_PCM_STEREO_PACKET_SIZE * 2;
-constexpr uint16_t spk_data_size_48 = ASHA_PCM_MAX_SAMPLES * sizeof(int16_t) * 2;
-
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
 static uint32_t silence_counter = 0ul;
@@ -109,16 +106,15 @@ USBSettings::operator bool() const
           && (max_vol >= min_vol);
 }
 
-// Alarms and timers
+// Audio task pacing
 
-constexpr uint64_t audio_alarm_delay_us = 100u;
+constexpr uint64_t audio_start_delay_us = 100u;
 
-static alarm_pool_t* audio_pool = nullptr;
-static int64_t audio_alarm_cb(alarm_id_t id, void *user_data);
-static volatile alarm_id_t audio_alarm_id = 0;
+static absolute_time_t next_audio_task_time = 0;
+static void audio_task();
 
-void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf, 
-                           [[maybe_unused]] bool dtr, 
+void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf,
+                           [[maybe_unused]] bool dtr,
                            [[maybe_unused]] bool rts)
 {}
 
@@ -126,12 +122,16 @@ void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf,
 void usb_main(void)
 {
   TU_LOG1("Headset running\n");
-  // int err = 0;
-  audio_pool = alarm_pool_create_with_unused_hardware_alarm(4);
+  next_audio_task_time = make_timeout_time_us(audio_start_delay_us);
 
   while (1)
   {
     tud_task(); // TinyUSB device task
+
+    // Keep FIFO reads in the same foreground context as TinyUSB control
+    // handling. In particular, this prevents a sample-rate interface change
+    // from clearing the FIFO while a timer interrupt is reading it.
+    audio_task();
     comm::usb_task();
   }
 }
@@ -577,27 +577,33 @@ extern "C" bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_reque
   return true;
 }
 
-
-extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
+extern "C" bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received,
+                                       uint8_t func_id, uint8_t ep_out,
+                                       uint8_t cur_alt_setting)
 {
   (void)rhport;
+  (void)n_bytes_received;
   (void)func_id;
   (void)ep_out;
   (void)cur_alt_setting;
-
-  if ((n_bytes_received == spk_data_size_16 || n_bytes_received == spk_data_size_48)
-      && audio_alarm_id <= 0 && audio_pool) {
-    audio_alarm_id = alarm_pool_add_alarm_in_us(audio_pool, audio_alarm_delay_us, &audio_alarm_cb, nullptr, false);
-  }
   return true;
 }
+
 
 //--------------------------------------------------------------------+
 // AUDIO Task
 //--------------------------------------------------------------------+
 
-static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] void *user_data)
+static void audio_task()
 {
+  if (!time_reached(next_audio_task_time)) {
+    return;
+  }
+
+  // Advance from the prior deadline rather than from now so task timing does
+  // not accumulate drift when an iteration starts late.
+  next_audio_task_time = delayed_by_us(next_audio_task_time, 1'000);
+
   // Always get the current USB volume
   asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
                               mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
@@ -619,9 +625,7 @@ static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] v
       }
       asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
       asha_audio_encode_1ms_pcm(spk_buf, samples);
-      // Stay locked to the local encoder clock; FIFO-count feedback controls
-      // the host rate and retains a jitter cushion between the two clocks.
-      return -1000;
+      return;
     }
   }
 
@@ -633,9 +637,6 @@ static int64_t audio_alarm_cb([[maybe_unused]] alarm_id_t id, [[maybe_unused]] v
   }
   // Continue encoding silence while the USB FIFO catches up or the host stops.
   asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
-  // Stay locked to the local encoder clock; FIFO-count feedback controls the
-  // host rate and retains a jitter cushion between the two clocks.
-  return -1000;
 }
 
 } // namespace asha
