@@ -75,9 +75,8 @@ static void block4(g722_band_t *band, int d)
     int wd2;
     int wd3;
     int i;
-    int sg[7];
     int ap1, ap2;
-    int sg0, sgi;
+    int sg0, sg1, sg2, sgi;
     int sz;
 
     /* Block 4, RECONS */
@@ -88,68 +87,63 @@ static void block4(g722_band_t *band, int d)
     band->p[0] = saturate(band->sz + d);
 
     /* Block 4, UPPOL2 */
-    for (i = 0;  i < 3;  i++)
-        sg[i] = band->p[i] >> 15;
+    sg0 = band->p[0] >> 15;
+    sg1 = band->p[1] >> 15;
+    sg2 = band->p[2] >> 15;
     wd1 = saturate(band->a[1] << 2);
 
-    wd2 = (sg[0] == sg[1])  ?  -wd1  :  wd1;
+    wd2 = (sg0 == sg1)  ?  -wd1  :  wd1;
     if (wd2 > 32767)
         wd2 = 32767;
 
-    ap2 = (wd2 >> 7) + ((sg[0] == sg[2])  ?  128  :  -128);
+    ap2 = (wd2 >> 7) + ((sg0 == sg2)  ?  128  :  -128);
     ap2 += (band->a[2]*32512) >> 15;
     if (ap2 > 12288)
         ap2 = 12288;
     else if (ap2 < -12288)
         ap2 = -12288;
-    band->ap[2] = ap2;
-
     /* Block 4, UPPOL1 */
-    sg[0] = band->p[0] >> 15;
-    sg[1] = band->p[1] >> 15;
-    wd1 = (sg[0] == sg[1])  ?  192  :  -192;
+    wd1 = (sg0 == sg1)  ?  192  :  -192;
     wd2 = (band->a[1]*32640) >> 15;
 
     ap1 = saturate(wd1 + wd2);
-    wd3 = saturate(15360 - band->ap[2]);
+    wd3 = saturate(15360 - ap2);
     if (ap1 > wd3)
         ap1 = wd3;
     else if (ap1 < -wd3)
         ap1 = -wd3;
-    band->ap[1] = ap1;
-
     /* Block 4, UPZERO */
     /* Block 4, FILTEZ */
     wd1 = (d == 0)  ?  0  :  128;
 
-    sg0 = sg[0] = d >> 15;
-    for (i = 1;  i < 7;  i++)
-    {
-	sgi = band->d[i] >> 15;
-	wd2 = (sgi == sg0) ? wd1 : -wd1;
-        wd3 = (band->b[i]*32640) >> 15;
-        band->bp[i] = saturate(wd2 + wd3);
-    }
+    sg0 = d >> 15;
 
-    /* Block 4, DELAYA */
+    /* Block 4, DELAYA. Run this backwards so UPZERO and FILTEZ can share
+       one pass without overwriting any delayed samples before they are read. */
     sz = 0;
     for (i = 6;  i > 0;  i--)
     {
-	int bi;
+        int bi;
 
+        sgi = band->d[i] >> 15;
+        wd2 = (sgi == sg0) ? wd1 : -wd1;
+        wd3 = (band->b[i]*32640) >> 15;
+        bi = saturate(wd2 + wd3);
+        band->b[i] = bi;
         band->d[i] = band->d[i - 1];
-        bi = band->b[i] = band->bp[i];
-        wd1 = saturate(band->d[i] + band->d[i]);
-        sz += (bi*wd1) >> 15;
+        wd3 = saturate(band->d[i] + band->d[i]);
+        sz += (bi*wd3) >> 15;
     }
     band->sz = sz;
-    
-    for (i = 2;  i > 0;  i--)
-    {
-        band->r[i] = band->r[i - 1];
-        band->p[i] = band->p[i - 1];
-        band->a[i] = band->ap[i];
-    }
+
+    /* ap[] and bp[] are reference-algorithm scratch. Their values have
+       already been consumed, so only persist state read by the next sample. */
+    band->r[2] = band->r[1];
+    band->r[1] = band->r[0];
+    band->p[2] = band->p[1];
+    band->p[1] = band->p[0];
+    band->a[2] = ap2;
+    band->a[1] = ap1;
 
     /* Block 4, FILTEP */
     wd1 = saturate(band->r[1] + band->r[1]);
@@ -218,20 +212,6 @@ static int16_t q6[32] =
      786,  858,  940, 1023, 1121, 1219, 1339, 1458,
     1612, 1765, 1980, 2195, 2557, 2919,    0,    0
 };
-static int16_t iln[32] =
-{
-     0, 63, 62, 31, 30, 29, 28, 27,
-    26, 25, 24, 23, 22, 21, 20, 19,
-    18, 17, 16, 15, 14, 13, 12, 11,
-    10,  9,  8,  7,  6,  5,  4,  0
-};
-static int16_t ilp[32] =
-{
-     0, 61, 60, 59, 58, 57, 56, 55,
-    54, 53, 52, 51, 50, 49, 48, 47,
-    46, 45, 44, 43, 42, 41, 40, 39,
-    38, 37, 36, 35, 34, 33, 32,  0
-};
 static int16_t wl[8] =
 {
     -60, -30, 58, 172, 334, 538, 1198, 3042
@@ -259,14 +239,14 @@ static int16_t qm2[4] =
 {
     -7408,  -1616,   7408,   1616
 };
-static int16_t qmf_coeffs[12] =
+/* The repeated prefix lets the QMF scan the circular sample history in
+   physical order, without a wrap branch in its inner loop. */
+static const int16_t qmf_coeffs[23] =
 {
        3,  -11,   12,   32, -210,  951, 3876, -805,  362, -156,   53,  -11,
+       3,  -11,   12,   32, -210,  951, 3876, -805,  362, -156,   53,
 };
-static int16_t ihn[3] = {0, 1, 0};
-static int16_t ihp[3] = {0, 3, 2};
 static int16_t wh[3] = {0, -214, 798};
-static int16_t rh2[4] = {2, 1, 2, 1};
 
 int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
                        const int16_t amp[], int len)
@@ -285,6 +265,7 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
     int mih;
     int i;
     int j;
+    int qmf_pos;
     /* Low and high band PCM from the QMF */
     int xlow;
     int xhigh;
@@ -298,6 +279,9 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
 
     g722_bytes = 0;
     xhigh = 0;
+    /* Encoder bit packing uses out_bits; retain the QMF head in the otherwise
+       unused input-bit field without changing the public state layout. */
+    qmf_pos = s->in_bits;
     for (j = 0;  j < len;  )
     {
         if (s->itu_test_mode)
@@ -308,21 +292,29 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
         else
         {
             {
-                /* Apply the transmit QMF */
-                /* Shuffle the buffer down */
-                for (i = 0;  i < 22;  i++)
-                    s->x[i] = s->x[i + 2];
+                /* Apply the transmit QMF. Keep the history circular: moving
+                   its start is much cheaper on Cortex-M0+ than copying 22
+                   words for every pair of input samples. */
                 //TODO: if len is odd, then this can be a buffer overrun
-                s->x[22] = amp[j++];
-                s->x[23] = amp[j++];
+                s->x[qmf_pos] = amp[j++];
+                s->x[qmf_pos + 1] = amp[j++];
+                qmf_pos += 2;
+                if (qmf_pos == 24)
+                    qmf_pos = 0;
     
                 /* Discard every other QMF output */
                 sumeven = 0;
                 sumodd = 0;
-                for (i = 0;  i < 12;  i++)
+                int qmf_pair = qmf_pos >> 1;
+                int odd_coeff = 12 - qmf_pair;
+                if (odd_coeff == 12)
+                    odd_coeff = 0;
+                const int16_t *odd = &qmf_coeffs[odd_coeff];
+                const int16_t *even = &qmf_coeffs[qmf_pair + 11];
+                for (i = 0;  i < 24;  i += 2)
                 {
-                    sumodd += s->x[2*i]*qmf_coeffs[i];
-                    sumeven += s->x[2*i + 1]*qmf_coeffs[11 - i];
+                    sumodd += s->x[i]*(*odd++);
+                    sumeven += s->x[i + 1]*(*even--);
                 }
                 /* We shift by 12 to allow for the QMF filters (DC gain = 4096), plus 1
                    to allow for us summing two filters, plus 1 to allow for the 15 bit
@@ -346,13 +338,22 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
         /* Block 1L, QUANTL */
         wd = (el >= 0)  ?  el  :  -(el + 1);
 
-        for (i = 1;  i < 30;  i++)
+        int lower = 1;
+        int upper = 30;
+        while (lower < upper)
         {
+            i = (lower + upper) >> 1;
             wd1 = (q6[i]*s->band[0].det) >> 12;
             if (wd < wd1)
-                break;
+                upper = i;
+            else
+                lower = i + 1;
         }
-        ilow = (el < 0)  ?  iln[i]  :  ilp[i];
+        i = lower;
+        if (el < 0)
+            ilow = ((i < 3) ? 64 : 34) - i;
+        else
+            ilow = 62 - i;
 
         /* Block 2L, INVQAL */
         ril = ilow >> 2;
@@ -385,14 +386,14 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
             wd = (eh >= 0)  ?  eh  :  -(eh + 1);
             wd1 = (564*s->band[1].det) >> 12;
             mih = (wd >= wd1)  ?  2  :  1;
-            ihigh = (eh < 0)  ?  ihn[mih]  :  ihp[mih];
+            ihigh = ((eh < 0) ? 2 : 4) - mih;
 
             /* Block 2H, INVQAH */
             wd2 = qm2[ihigh];
             dhigh = (s->band[1].det*wd2) >> 15;
 
             /* Block 3H, LOGSCH */
-            ih2 = rh2[ihigh];
+            ih2 = 2 - (ihigh & 1);
             wd = (s->band[1].nb*127) >> 7;
 
             nb = wd + wh[ih2];
@@ -432,6 +433,7 @@ int g722_encode(g722_encode_state_t *s, uint8_t g722_data[],
             g722_data[g722_bytes++] = (uint8_t) code;
 #endif
     }
+    s->in_bits = qmf_pos;
     return g722_bytes;
 }
 /*- End of function --------------------------------------------------------*/
