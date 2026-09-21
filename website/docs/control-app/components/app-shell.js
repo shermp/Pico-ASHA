@@ -196,7 +196,7 @@ export class PicoAshaApp extends LitElement {
     }
 
     if (packet.kind === "event") {
-      if (packet.eventType === EventType.AudioVolume) {
+      if (packet.eventType === EventType.AudioVolume || packet.eventType === EventType.G722EncodeTimings) {
         return;
       }
       if (packet.eventType === 0 && packet.text) {

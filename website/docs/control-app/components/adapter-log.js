@@ -81,7 +81,7 @@ export class AdapterLog extends LitElement {
     return html`
       <section class="log panel" aria-label="Adapter log"><header>
         <div class="title">${icon("terminal")}<h2>Adapter log</h2><span class="count">${this.entries.length}</span></div>
-        ${this.timing ? html`<span class="timing" title="Encoder timing after 1,000 samples">Encoder µs: ${this.timing.minimum.toFixed(0)} / ${this.timing.average.toFixed(1)} / ${this.timing.maximum.toFixed(0)}</span>` : ""}
+        ${this.timing ? html`<span class="timing" title="Encoder timing after 1,000 samples">Encoder µs (min/avg/max): ${this.timing.minimum.toFixed(0)} / ${this.timing.average.toFixed(1)} / ${this.timing.maximum.toFixed(0)}</span>` : ""}
         <div class="actions">
           <button class="icon-button" type="button" aria-label="Copy adapter log" title="Copy log" ?disabled=${!this.entries.length} @click=${() => this.emit("log-copy")}>${icon("content_copy")}</button>
           <button class="icon-button" type="button" aria-label="Download adapter log" title="Download log" ?disabled=${!this.entries.length} @click=${() => this.emit("log-download")}>${icon("download")}</button>
