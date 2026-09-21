@@ -30,9 +30,6 @@
 
 #include <pico/time.h>
 
-#include <dsp/support_functions.h>
-#include <dsp/filtering_functions.h>
-
 //#include <speex/speex_resampler.h>
 
 #include <tusb.h>
