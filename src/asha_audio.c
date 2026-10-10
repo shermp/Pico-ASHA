@@ -52,6 +52,11 @@ static inline uint32_t ring_buff_index(const uint32_t index)
     return index & ASHA_G722_RING_SIZE_MASK;
 }
 
+static inline int16_t get_mono_sample(struct PCMStereoSample sample)
+{
+    return (int16_t)( ( (int32_t)sample.left + (int32_t)sample.right) / 2 );
+}
+
 static void reset_encoders()
 {
     g722_encode_init(&enc_state_l, 64000, G722_PACKED);
@@ -128,11 +133,10 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     // Separate interleaved stereo samples to separate channels
     bool mono = encode_mono;
     if (mono) {
-        int16_t val;
         for (unsigned int i = 0; i < count; ++i) {
-            val = (int16_t)(((int32_t)samples[i].left + (int32_t)samples[i].right) / 2);
-            pcm_buff_l[buff_index] = val;
-            pcm_buff_r[buff_index] = val;
+            int16_t sample = get_mono_sample(samples[i]);
+            pcm_buff_l[buff_index] = sample;
+            pcm_buff_r[buff_index] = sample;
             ++buff_index;
         }       
     } else {
@@ -146,9 +150,7 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     int16_t* pcm_r = NULL;
     if (count == ASHA_PCM_MAX_SAMPLES) {
         asha_fir_decimate_48_to_16_q15(pcm_buff_l, pcm_buff_16khz_l, p_state_l);
-        if (!mono) {
-            asha_fir_decimate_48_to_16_q15(pcm_buff_r, pcm_buff_16khz_r, p_state_r);
-        }
+        asha_fir_decimate_48_to_16_q15(pcm_buff_r, pcm_buff_16khz_r, p_state_r);
         pcm_l = pcm_buff_16khz_l;
         pcm_r = pcm_buff_16khz_r;
     } else {
@@ -157,11 +159,7 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     }
 
     g722_encode(&enc_state_l, buff->l + g_offset, pcm_l, ASHA_PCM_PACKET_SIZE);
-    if (mono) {
-        memcpy(buff->r + g_offset, buff->l + g_offset, ASHA_G722_1MS_SIZE_BYTES);
-    } else {
-        g722_encode(&enc_state_r, buff->r + g_offset, pcm_r, ASHA_PCM_PACKET_SIZE);
-    }
+    g722_encode(&enc_state_r, buff->r + g_offset, pcm_r, ASHA_PCM_PACKET_SIZE);
     
     g_offset += ASHA_G722_1MS_SIZE_BYTES;
 #ifdef PICO_ASHA_ENC_STATS
