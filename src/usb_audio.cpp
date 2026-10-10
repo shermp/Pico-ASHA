@@ -345,15 +345,17 @@ const uint32_t sample_rates[] = {16000, 48000};
 
 #define N_SAMPLE_RATES TU_ARRAY_SIZE(sample_rates)
 
-static bool audio20_clock_get_request(uint8_t rhport, audio20_control_request_t const *request) {
-  TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
+static bool audio20_clock_get_request(uint8_t rhport, tusb_control_request_t const *request) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
+  uint8_t const ctrl_sel = TU_U16_HIGH(request->wValue);
+  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
 
-  if (request->bControlSelector == AUDIO20_CS_CTRL_SAM_FREQ) {
+  if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ) {
     if (request->bRequest == AUDIO20_CS_REQ_CUR) {
       TU_LOG1("Clock get current freq %" PRIu32 "\r\n", current_sample_rate);
 
       audio20_control_cur_4_t curf = {(int32_t) tu_htole32(current_sample_rate)};
-      return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &curf, sizeof(curf));
+      return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &curf, sizeof(curf));
     } else if (request->bRequest == AUDIO20_CS_REQ_RANGE) {
       audio20_control_range_4_n_t(N_SAMPLE_RATES) rangef =
           {
@@ -366,24 +368,26 @@ static bool audio20_clock_get_request(uint8_t rhport, audio20_control_request_t 
         TU_LOG1("Range %d (%d, %d, %d)\r\n", i, (int) rangef.subrange[i].bMin, (int) rangef.subrange[i].bMax, (int) rangef.subrange[i].bRes);
       }
 
-      return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &rangef, sizeof(rangef));
+      return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &rangef, sizeof(rangef));
     }
-  } else if (request->bControlSelector == AUDIO20_CS_CTRL_CLK_VALID &&
+  } else if (ctrl_sel == AUDIO20_CS_CTRL_CLK_VALID &&
              request->bRequest == AUDIO20_CS_REQ_CUR) {
     audio20_control_cur_1_t cur_valid = {.bCur = 1};
     TU_LOG1("Clock get is valid %u\r\n", cur_valid.bCur);
-    return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &cur_valid, sizeof(cur_valid));
+    return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &cur_valid, sizeof(cur_valid));
   }
   TU_LOG1("Clock get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          request->bEntityID, request->bControlSelector, request->bRequest);
+          entity_id, ctrl_sel, request->bRequest);
   return false;
 }
 
-static bool audio20_clock_set_request(audio20_control_request_t const *request, uint8_t const *buf) {
-  TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
+static bool audio20_clock_set_request(tusb_control_request_t const *request, uint8_t const *buf) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
+  uint8_t const ctrl_sel = TU_U16_HIGH(request->wValue);
+  TU_ASSERT(entity_id == UAC2_ENTITY_CLOCK);
   TU_VERIFY(request->bRequest == AUDIO20_CS_REQ_CUR);
 
-  if (request->bControlSelector == AUDIO20_CS_CTRL_SAM_FREQ) {
+  if (ctrl_sel == AUDIO20_CS_CTRL_SAM_FREQ) {
     TU_VERIFY(request->wLength == sizeof(audio20_control_cur_4_t));
 
     uint32_t const rate = tu_le32toh((uint32_t) ((audio20_control_cur_4_t const *) buf)->bCur);
@@ -395,92 +399,98 @@ static bool audio20_clock_set_request(audio20_control_request_t const *request, 
     return true;
   } else {
     TU_LOG1("Clock set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            request->bEntityID, request->bControlSelector, request->bRequest);
+            entity_id, ctrl_sel, request->bRequest);
     return false;
   }
 }
 
-static bool audio20_feature_unit_get_request(uint8_t rhport, audio20_control_request_t const *request) {
-  TU_ASSERT(request->bEntityID == UAC2_ENTITY_FEATURE_UNIT);
-  TU_VERIFY(valid_audio_channel(request->bChannelNumber));
+static bool audio20_feature_unit_get_request(uint8_t rhport, tusb_control_request_t const *request) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
+  uint8_t const ctrl_sel = TU_U16_HIGH(request->wValue);
+  uint8_t const channel_num = TU_U16_LOW(request->wValue);
+  TU_ASSERT(entity_id == UAC2_ENTITY_FEATURE_UNIT);
+  TU_VERIFY(valid_audio_channel(channel_num));
 
-  if (request->bControlSelector == AUDIO20_FU_CTRL_MUTE && request->bRequest == AUDIO20_CS_REQ_CUR) {
-    audio20_control_cur_1_t mute1 = {.bCur = mute[request->bChannelNumber]};
-    TU_LOG1("Get channel %u mute %d\r\n", request->bChannelNumber, mute1.bCur);
-    return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &mute1, sizeof(mute1));
-  } else if (request->bControlSelector == AUDIO20_FU_CTRL_VOLUME) {
+  if (ctrl_sel == AUDIO20_FU_CTRL_MUTE && request->bRequest == AUDIO20_CS_REQ_CUR) {
+    audio20_control_cur_1_t mute1 = {.bCur = mute[channel_num]};
+    TU_LOG1("Get channel %u mute %d\r\n", channel_num, mute1.bCur);
+    return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &mute1, sizeof(mute1));
+  } else if (ctrl_sel == AUDIO20_FU_CTRL_VOLUME) {
     if (request->bRequest == AUDIO20_CS_REQ_RANGE) {
       audio20_control_range_2_n_t(1) range_vol = {
           .wNumSubRanges = tu_htole16(1),
           .subrange = {{.bMin = tu_htole16(usb_settings.min_vol),
                           .bMax = tu_htole16(usb_settings.max_vol), 
                           .bRes = tu_htole16(ASHA_USB_VOL_RES)}}};
-      TU_LOG1("Get channel %u volume range (%d, %d, %u) \r\n", request->bChannelNumber,
+      TU_LOG1("Get channel %u volume range (%d, %d, %u) \r\n", channel_num,
               range_vol.subrange[0].bMin, range_vol.subrange[0].bMax, range_vol.subrange[0].bRes);
-      return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &range_vol, sizeof(range_vol));
+      return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &range_vol, sizeof(range_vol));
     } else if (request->bRequest == AUDIO20_CS_REQ_CUR) {
-      audio20_control_cur_2_t cur_vol = {.bCur = tu_htole16(volume[request->bChannelNumber])};
-      TU_LOG1("Get channel %u volume %d\r\n", request->bChannelNumber, cur_vol.bCur);
-      return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &cur_vol, sizeof(cur_vol));
+      audio20_control_cur_2_t cur_vol = {.bCur = tu_htole16(volume[channel_num])};
+      TU_LOG1("Get channel %u volume %d\r\n", channel_num, cur_vol.bCur);
+      return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &cur_vol, sizeof(cur_vol));
     }
   }
   TU_LOG1("Feature unit get request not supported, entity = %u, selector = %u, request = %u\r\n",
-          request->bEntityID, request->bControlSelector, request->bRequest);
+          entity_id, ctrl_sel, request->bRequest);
 
   return false;
 }
 
-static bool audio20_feature_unit_set_request(audio20_control_request_t const *request, uint8_t const *buf) {
-  TU_ASSERT(request->bEntityID == UAC2_ENTITY_FEATURE_UNIT);
+static bool audio20_feature_unit_set_request(tusb_control_request_t const *request, uint8_t const *buf) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
+  uint8_t const ctrl_sel = TU_U16_HIGH(request->wValue);
+  uint8_t const channel_num = TU_U16_LOW(request->wValue);
+  TU_ASSERT(entity_id == UAC2_ENTITY_FEATURE_UNIT);
   TU_VERIFY(request->bRequest == AUDIO20_CS_REQ_CUR);
-  TU_VERIFY(valid_audio_channel(request->bChannelNumber));
+  TU_VERIFY(valid_audio_channel(channel_num));
 
-  if (request->bControlSelector == AUDIO20_FU_CTRL_MUTE) {
+  if (ctrl_sel == AUDIO20_FU_CTRL_MUTE) {
     TU_VERIFY(request->wLength == sizeof(audio20_control_cur_1_t));
 
-    mute[request->bChannelNumber] = ((audio20_control_cur_1_t const *) buf)->bCur;
+    mute[channel_num] = ((audio20_control_cur_1_t const *) buf)->bCur;
 
-    TU_LOG1("Set channel %d Mute: %d\r\n", request->bChannelNumber, mute[request->bChannelNumber]);
+    TU_LOG1("Set channel %d Mute: %d\r\n", channel_num, mute[channel_num]);
 
     return true;
-  } else if (request->bControlSelector == AUDIO20_FU_CTRL_VOLUME) {
+  } else if (ctrl_sel == AUDIO20_FU_CTRL_VOLUME) {
     TU_VERIFY(request->wLength == sizeof(audio20_control_cur_2_t));
 
-    volume[request->bChannelNumber] = ((audio20_control_cur_2_t const *) buf)->bCur;
+    volume[channel_num] = ((audio20_control_cur_2_t const *) buf)->bCur;
 
-    TU_LOG1("Set channel %d volume: %d\r\n", request->bChannelNumber, volume[request->bChannelNumber]);
+    TU_LOG1("Set channel %d volume: %d\r\n", channel_num, volume[channel_num]);
 
     return true;
   } else {
     TU_LOG1("Feature unit set request not supported, entity = %u, selector = %u, request = %u\r\n",
-            request->bEntityID, request->bControlSelector, request->bRequest);
+            entity_id, ctrl_sel, request->bRequest);
     return false;
   }
 }
 
-static bool audio20_get_req_entity(uint8_t rhport, tusb_control_request_t const *p_request) {
-  audio20_control_request_t const *request = (audio20_control_request_t const *) p_request;
+static bool audio20_get_req_entity(uint8_t rhport, tusb_control_request_t const *request) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
 
-  if (request->bEntityID == UAC2_ENTITY_CLOCK)
+  if (entity_id == UAC2_ENTITY_CLOCK)
     return audio20_clock_get_request(rhport, request);
-  if (request->bEntityID == UAC2_ENTITY_FEATURE_UNIT)
+  if (entity_id == UAC2_ENTITY_FEATURE_UNIT)
     return audio20_feature_unit_get_request(rhport, request);
   else {
     TU_LOG1("Get request not handled, entity = %d, selector = %d, request = %d\r\n",
-            request->bEntityID, request->bControlSelector, request->bRequest);
+            entity_id, TU_U16_HIGH(request->wValue), request->bRequest);
   }
   return false;
 }
 
-static bool audio20_set_req_entity(tusb_control_request_t const *p_request, uint8_t *buf) {
-  audio20_control_request_t const *request = (audio20_control_request_t const *) p_request;
+static bool audio20_set_req_entity(tusb_control_request_t const *request, uint8_t *buf) {
+  uint8_t const entity_id = TU_U16_HIGH(request->wIndex);
 
-  if (request->bEntityID == UAC2_ENTITY_FEATURE_UNIT)
+  if (entity_id == UAC2_ENTITY_FEATURE_UNIT)
     return audio20_feature_unit_set_request(request, buf);
-  if (request->bEntityID == UAC2_ENTITY_CLOCK)
+  if (entity_id == UAC2_ENTITY_CLOCK)
     return audio20_clock_set_request(request, buf);
   TU_LOG1("Set request not handled, entity = %d, selector = %d, request = %d\r\n",
-          request->bEntityID, request->bControlSelector, request->bRequest);
+          entity_id, TU_U16_HIGH(request->wValue), request->bRequest);
 
   return false;
 }

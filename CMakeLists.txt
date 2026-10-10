@@ -19,11 +19,11 @@ cmake_minimum_required(VERSION 3.13)
 # Get External projects here before importing the SDK
 Include(FetchContent)
 
-# TinyUSB 0.20.0
+# TinyUSB 0.21.0
 FetchContent_Declare(
   tinyusb
   GIT_REPOSITORY https://github.com/hathach/tinyusb
-  GIT_TAG        3af1bec1a9161ee8dec29487831f7ac7ade9e189
+  GIT_TAG        dae3f9a366bfcddbf9dcf1b48d7500286a849539
 )
 FetchContent_MakeAvailable(tinyusb)
 
