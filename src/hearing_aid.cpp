@@ -115,14 +115,12 @@ void HearingAid::process()
             case DataLength:
                 ev_type = EventType::DLE;
                 //LOG_INFO("%s: Setting data length",  ha->get_side_str())
-                // If the controller can't take the command yet, yield and retry on
-                // the next tick rather than spinning the run loop. Advance to
-                // discovery right after sending: the controller only emits
+
+                // Advance to discovery right after sending: the controller only emits
                 // HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE when the effective length
                 // actually changes, so an aid already at the requested size would
                 // never fire it and we'd stall waiting.
-                if (!hci_can_send_command_packet_now()) { break; }
-                ha->set_data_langth();
+                gap_le_set_data_length(ha->conn_handle, pdu_len, max_tx_time);
                 ha->process_state = DiscoverChars;
                 break;
             case DiscoverChars: {
@@ -1468,11 +1466,6 @@ void HearingAid::set_audio_busy()
 void HearingAid::unset_audio_busy()
 {
     audio_state &= ~AudioState::AudioBusy;
-}
-
-void HearingAid::set_data_langth()
-{
-    hci_send_cmd(&hci_le_set_data_length, conn_handle, pdu_len, max_tx_time);
 }
 
 void HearingAid::send_acp_start()

@@ -275,7 +275,6 @@ private:
     void unset_process_busy();
     void set_audio_busy();
     void unset_audio_busy();
-    void set_data_langth();
     void send_acp_start();
     void send_acp_stop();
     void send_acp_status(uint8_t status);
