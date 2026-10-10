@@ -9,8 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-    PICO_SDK_COMMIT_HASH: a1438dff1d38bd9c65dbd693f0e5db4b9ae91779
-    TINYUSB_TAG: "0.20.0"
+    PICO_SDK_COMMIT_HASH: 079c6f39023649b154152db30f1d781e884879bc
 
 jobs:
     build_firmware:

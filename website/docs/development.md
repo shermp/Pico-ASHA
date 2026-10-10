@@ -6,7 +6,7 @@ The build system is CMake, as that is what the SDK uses.
 
 ## Compile firmware
 
-Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.2.0, using the provided instructions.
+Download [pico-sdk](https://github.com/raspberrypi/pico-sdk) 2.3.1, using the provided instructions.
 
 Create an environment variable called `PICO_SDK_PATH` that points to the downloaded SDK location.
 
