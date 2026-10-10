@@ -2,6 +2,7 @@
 #include <pico/stdio.h>
 #include <pico/multicore.h>
 #include <pico/flash.h>
+#include <hardware/resets.h>
 // TinyUSB
 #include <bsp/board.h>
 #include <tusb.h>
@@ -30,6 +31,17 @@ void usb_main();
 
 extern "C" int main()
 {
+    // OpenOCD's soft reset can leave core 1 outside its boot-ROM launch
+    // state. Reset it before touching the audio state shared by both cores.
+    multicore_reset_core1();
+
+    // A soft reset can also leave the previous USB connection active.
+    // Drop the pull-up now so the host sees a disconnect throughout the
+    // startup delay, before TinyUSB initializes and reconnects the device.
+    reset_block(RESETS_RESET_USBCTRL_BITS);
+    unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+    sleep_ms(250);
+
     // Apparently there be dragons when using flash and
     // multicore. And guess where BTStack saves pairing
     // info? Calling this function on the current core
