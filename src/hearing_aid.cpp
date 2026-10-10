@@ -98,18 +98,19 @@ void HearingAid::process()
             continue;
         }
         EventType ev_type;
+        ProcessState revert_process_state = ha->process_state;
         switch (ha->process_state)
         {
             case DiscoverServices:
                 ev_type = EventType::DiscServices;
                 //LOG_INFO("%s: Discovering services", ha->get_side_str());
-                ha->set_process_busy();
+                ha->process_state = DiscoverServicesInProgress;
                 res = gatt_client_discover_primary_services(&HearingAid::handle_service_discovery, ha->conn_handle);
                 break;
             case PairBond:
                 ev_type = EventType::PairAndBond;
                 //LOG_INFO("%s: Pairing and bonding",  ha->get_side_str())
-                ha->set_process_busy();
+                ha->process_state = PairBondInProgress;
                 sm_request_pairing(ha->conn_handle);
                 break;
             case DataLength:
@@ -124,7 +125,7 @@ void HearingAid::process()
                 ha->process_state = DiscoverChars;
                 break;
             case DiscoverChars: {
-                ha->set_process_busy();
+                ha->process_state = DiscoverCharsInProgress;
                 auto i = ha->service_index++; // Yes, the post-increment is on purpose
                 advanced_service_index = true;
                 auto s = ha->service_arr[i];
@@ -133,7 +134,7 @@ void HearingAid::process()
                 break;
             }
             case ReadChars: {
-                ha->set_process_busy();
+                ha->process_state = ReadCharsInProgress;
                 auto i = ha->chars_index++; // Yes, the post-increment is on purpose
                 advanced_char_index = true;
                 auto c = ha->chars_arr[i];
@@ -144,7 +145,7 @@ void HearingAid::process()
             case ConnectL2CAP:
                 ev_type = EventType::L2CAPCon;
                 //LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
-                ha->set_process_busy();
+                ha->process_state = ConnectL2CAPInProgress;
                 res = l2cap_cbm_create_channel(&HearingAid::handle_l2cap_cbm, 
                                                ha->conn_handle, 
                                                ha->psm, 
@@ -156,7 +157,7 @@ void HearingAid::process()
                 break;
             case EnBattNotification:
                 ev_type = EventType::MFIBatteryNotEnable;
-                ha->set_process_busy();
+                ha->process_state = EnBattNotificationInProgress;
                 res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_notification_reg, 
                                                                             ha->conn_handle, 
                                                                             &ha->services.mfi.battery, 
@@ -165,7 +166,7 @@ void HearingAid::process()
             case EnASPNotification:
                 ev_type = EventType::ASPNotEnable;
                 //LOG_INFO("%s: Enable ASP notification", ha->get_side_str());
-                ha->set_process_busy();
+                ha->process_state = EnASPNotificationInProgress;
                 res = gatt_client_write_client_characteristic_configuration(&HearingAid::handle_notification_reg, 
                                                                             ha->conn_handle, 
                                                                             &ha->services.asha.asp, 
@@ -174,7 +175,7 @@ void HearingAid::process()
             case Finalize:
                 ev_type = EventType::StreamReady;
                 //LOG_INFO("%s: Ready for audio streaming", ha->get_side_str());
-                ha->set_process_busy();
+                ha->process_state = FinalizeInProgress;
                 if (full_set_connected()) {
                     runtime_settings.set_full_set_paired(true);
                     led_mgr.set_led(LEDManager::State::On);
@@ -201,7 +202,7 @@ void HearingAid::process()
             }
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::BtstackStatus, res));
             //LOG_ERROR("%s: BTStack error: %s", ha->get_side_str(), bt_err_str(res));
-            ha->unset_process_busy();
+            ha->process_state = revert_process_state;
             ++ha->error_count;
             ha->process_delay_ticks = ha_process_delay_ticks;
         }
@@ -943,7 +944,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
                 //LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::L2CapStatus, bt_status));
                 // Try again later
-                ha->unset_process_busy();
+                ha->process_state = ProcessState::ConnectL2CAP;
                 ++ha->error_count;
                 ha->process_delay_ticks = ha_process_delay_ticks * 3;
             } else {
@@ -959,7 +960,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha = get_by_cid(cid);
             // A can-send notification can be delivered after an ACP stop or
             // disconnect. Only transmit the SDU for the active request.
-            if (!ha || !ha->is_streaming() || !ha->is_audio_busy() || !ha->audio_data) {
+            if (!ha || !ha->is_streaming() || !ha->audio_data) {
                 if (ha) {
                     short_log(ha->conn_id, "%s", "Ignoring stale L2CAP Tx ready");
                 }
@@ -975,7 +976,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
                           (unsigned)bt_status, (unsigned)ha->credits);
                 ha->audio_data = nullptr;
                 ha->audio_tx_pending_ticks = 0;
-                ha->unset_audio_busy();
+                ha->audio_state = AudioState::Streaming;
                 // Recover the audio transport without dropping the BLE link.
                 ha->close_l2cap_for_recovery();
                 break;
@@ -996,7 +997,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha->audio_data = nullptr;
             ha->audio_tx_pending_ticks = 0;
             ha->audio_sdu_gap_ticks = 0;
-            ha->unset_audio_busy();
+            ha->audio_state = AudioState::Streaming;
             break;
         case L2CAP_EVENT_CHANNEL_CLOSED:
             cid = l2cap_event_channel_closed_get_local_cid(packet);
@@ -1024,6 +1025,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
 void HearingAid::handle_notification_reg(PACKET_HANDLER_PARAMS)
 {
     using namespace comm;
+    using enum ProcessState;
 
     if (hci_event_packet_get_type(packet) != GATT_EVENT_QUERY_COMPLETE) {
         return;
@@ -1041,28 +1043,30 @@ void HearingAid::handle_notification_reg(PACKET_HANDLER_PARAMS)
     }
 
     switch (ha->process_state) {
-        case EnASPNotification | ProcessBusy:
+        case EnASPNotificationInProgress:
             if (att_status != ATT_ERROR_SUCCESS) {
                 //LOG_ERROR("%s: Failed to enable ASP notifications with status: %s", ha->get_side_str(), att_err_str(att_status));
                 // Try again later
-                ha->unset_process_busy();
+                ha->process_state = EnASPNotification;
                 ++ha->error_count;
                 ha->process_delay_ticks = ha_process_delay_ticks;
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable, StatusType::ATTStatus, att_status));
             } else {
                 //LOG_INFO("%s: ASP notifications enabled", ha->get_side_str());
-                ha->process_state = ProcessState::EnBattNotification;
+                ha->process_state = EnBattNotification;
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPNotEnable));
             }
             break;
-        case EnBattNotification | ProcessBusy:
+        case EnBattNotificationInProgress:
             if (att_status != ATT_ERROR_SUCCESS) {
                 // Not fatal - just continue
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::MFIBatteryNotEnable, StatusType::ATTStatus, att_status));
             } else {
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::MFIBatteryNotEnable));
             }
-            ha->process_state = ProcessState::Finalize;
+            ha->process_state = Finalize;
+            break;
+        default:
             break;
     }
     
@@ -1198,7 +1202,7 @@ bool HearingAid::process_audio()
                         // sentinel) gets baked into the first start after boot and
                         // some aids latch onto it, ignoring later volume writes.
                         ha->curr_vol = ha->rop.side() == Side::Left ? vol_l : vol_r;
-                        ha->set_audio_busy();
+                        ha->audio_state = AudioState::ReadyInProgress;
                         ha->send_acp_start();
                         ha->ready_stuck_ticks = 0;
                 } else if (audio_streaming_enabled && pcm_is_streaming && ha->credits < 4) {
@@ -1214,7 +1218,7 @@ bool HearingAid::process_audio()
                     ha->ready_stuck_ticks = 0;
                 }
                 break;
-            case AudioState::Streaming | AudioState::AudioBusy:
+            case AudioState::StreamingInProgress:
                 // The normal Streaming branch intentionally does not queue a
                 // second SDU while BTstack owns the first one. Without this
                 // watchdog, a missing CAN_SEND_NOW or PACKET_SENT event leaves
@@ -1312,7 +1316,7 @@ bool HearingAid::process_audio()
                         memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
                         ha->audio_data = ha->audio_tx_buffer.data();
                         ha->audio_tx_pending_ticks = 0;
-                        ha->set_audio_busy();
+                        ha->audio_state = AudioState::StreamingInProgress;
 
 #ifdef PICO_ASHA_L2CAP_TX_TRACE
                         short_log(ha->conn_id, "L2CAP Tx req S:%u Cr:%u",
@@ -1324,7 +1328,7 @@ bool HearingAid::process_audio()
                                       (unsigned)tx_request_status, (unsigned)ha->credits);
                             ha->audio_data = nullptr;
                             ha->audio_tx_pending_ticks = 0;
-                            ha->unset_audio_busy();
+                            ha->audio_state = AudioState::Streaming;
                             ha->close_l2cap_for_recovery();
                             break;
                         }
@@ -1439,33 +1443,8 @@ bool HearingAid::is_connected()
 
 bool HearingAid::is_streaming()
 {
-    return  audio_state == AudioState::Streaming || 
-            audio_state == (AudioState::Streaming | AudioState::AudioBusy);
-}
-
-bool HearingAid::is_audio_busy()
-{
-    return (audio_state & AudioState::AudioBusy) != 0U;
-}
-
-void HearingAid::set_process_busy()
-{
-    process_state |= ProcessState::ProcessBusy;
-}
-
-void HearingAid::unset_process_busy()
-{
-    process_state &= ~ProcessState::ProcessBusy;
-}
-
-void HearingAid::set_audio_busy()
-{
-    audio_state |= AudioState::AudioBusy;
-}
-
-void HearingAid::unset_audio_busy()
-{
-    audio_state &= ~AudioState::AudioBusy;
+    return audio_state == AudioState::Streaming || 
+           audio_state == AudioState::StreamingInProgress;
 }
 
 void HearingAid::send_acp_start()

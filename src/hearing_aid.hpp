@@ -66,38 +66,36 @@ struct ROP
 
 struct HearingAid
 {
-    enum ProcessState : uint32_t {
-        ProcessUnset        = 1U <<  0,
-        DiscoverServices    = 1U <<  1,
-        PairBond            = 1U <<  2,
-        DataLength          = 1U <<  3,
-        DiscoverChars       = 1U <<  4,
-        ReadChars           = 1U <<  5,
-        ConnectL2CAP        = 1U <<  6,
-        EnBattNotification  = 1U <<  7,
-        EnASPNotification   = 1U <<  8,
-        Finalize            = 1U <<  9,
-        Audio               = 1U << 10,
-        CloseL2CAP          = 1U << 11,
-        Disconnect          = 1U << 29,
-        Done                = 1U << 30,
-        ProcessBusy         = 1U << 31
+    enum class ProcessState {
+        ProcessUnset      ,      
+        DiscoverServices  , DiscoverServicesInProgress,  
+        PairBond          , PairBondInProgress,          
+        DataLength        , DataLengthInProgress,        
+        DiscoverChars     , DiscoverCharsInProgress,     
+        ReadChars         , ReadCharsInProgress,         
+        ConnectL2CAP      , ConnectL2CAPInProgress,      
+        EnBattNotification, EnBattNotificationInProgress,
+        EnASPNotification , EnASPNotificationInProgress, 
+        Finalize          , FinalizeInProgress,          
+        Audio             , AudioInProgress,             
+        CloseL2CAP        , CloseL2CAPInProgress,        
+        Disconnect        , DisconnectInProgress,        
+        Done      
     };
 
-    enum AudioState : uint32_t {
-        AudioUnset          = 1U <<  0,
-        Ready               = 1U <<  1,
-        Start               = 1U <<  2,
-        Streaming           = 1U <<  3,
-        Stop                = 1U <<  4,
-        AudioBusy           = 1U << 31
+    enum class AudioState {
+        AudioUnset,
+        Ready     , ReadyInProgress,
+        Start     , StartInProgress,
+        Streaming , StreamingInProgress,
+        Stop      , StopInProgress
     };
 
     bool connected = false;
     bool cached    = false;
 
-    uint32_t process_state = ProcessState::ProcessUnset;
-    uint32_t audio_state   = AudioState::AudioUnset;
+    ProcessState process_state = ProcessState::ProcessUnset;
+    AudioState   audio_state   = AudioState::AudioUnset;
 
     HearingAid* other = nullptr;
 
@@ -270,11 +268,6 @@ private:
     void assign_next_conn_id();
     bool is_connected();
     bool is_streaming();
-    bool is_audio_busy();
-    void set_process_busy();
-    void unset_process_busy();
-    void set_audio_busy();
-    void unset_audio_busy();
     void send_acp_start();
     void send_acp_stop();
     void send_acp_status(uint8_t status);
