@@ -12,6 +12,7 @@
 
 static int16_t p_state_l[ASHA_FIR_STATE_SAMPLES];
 static int16_t p_state_r[ASHA_FIR_STATE_SAMPLES];
+static uint16_t pcm_sample_count;
 
 struct AshaAudioEncBuffer {
     uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
@@ -88,6 +89,7 @@ void asha_audio_init()
     requested_encode_mono = false;
     stream_reset_pending = false;
     write_index = 0u;
+    pcm_sample_count = 0;
     vol_l = ASHA_USB_VOL_MIN;
     vol_r = ASHA_USB_VOL_MIN;
     reset_stream_encoder();
@@ -110,6 +112,13 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
         // this producer core so no partial SDU or stale predictor state leaks
         // into the next stream.
         reset_stream_encoder();
+    }
+
+    if (count != pcm_sample_count) {
+        // A USB rate change invalidates FIR history, not the aid's G.722
+        // predictor or the partially encoded 20 ms frame.
+        reset_decimators();
+        pcm_sample_count = count;
     }
 
     bool enc_audio = encode_audio;

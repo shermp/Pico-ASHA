@@ -80,7 +80,7 @@ static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for
 // Buffer for speaker data, can support up to 48KHz
 static PCMStereoSample spk_buf[ASHA_PCM_MAX_SAMPLES] = {};
 
-static PCMStereoSample silence_buff[ASHA_PCM_PACKET_SIZE] = {0};
+static PCMStereoSample silence_buff[ASHA_PCM_MAX_SAMPLES] = {};
 
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
@@ -95,6 +95,17 @@ static constexpr uint32_t silence_timeout = 10'000ul;
 // momentary underrun.
 static constexpr int64_t audio_packet_timeout_us = 5'000;
 static absolute_time_t last_pcm_packet_time = 0;
+
+static void set_sample_rate(uint32_t rate)
+{
+  if (current_sample_rate == rate) { return; }
+  // Control handling and audio_task run on core 0. Discard queued old-rate
+  // samples before the next read and allow the new stream time to refill.
+  tud_audio_clear_ep_out_ff();
+  current_sample_rate = rate;
+  silence_counter = 0;
+  last_pcm_packet_time = get_absolute_time();
+}
 
 USBSettings usb_settings = {};
 
@@ -184,7 +195,7 @@ static bool audio10_set_req_ep(tusb_control_request_t const *p_request, uint8_t 
                             | ((uint32_t)pBuff[1] << 8)
                             | ((uint32_t)pBuff[2] << 16);
         TU_VERIFY(supported_sample_rate(rate));
-        current_sample_rate = rate;
+        set_sample_rate(rate);
 
         
         TU_LOG2("EP set current freq: %" PRIu32 "\r\n", current_sample_rate);
@@ -392,7 +403,7 @@ static bool audio20_clock_set_request(tusb_control_request_t const *request, uin
 
     uint32_t const rate = tu_le32toh((uint32_t) ((audio20_control_cur_4_t const *) buf)->bCur);
     TU_VERIFY(supported_sample_rate(rate));
-    current_sample_rate = rate;
+    set_sample_rate(rate);
 
     TU_LOG1("Clock set current freq: %" PRIu32 "\r\n", current_sample_rate);
 
@@ -646,7 +657,7 @@ static void audio_task()
     asha_audio_set_pcm_streaming_enabled(false);
   }
   // Continue encoding silence while the USB FIFO catches up or the host stops.
-  asha_audio_encode_1ms_pcm(silence_buff, ASHA_PCM_PACKET_SIZE);
+  asha_audio_encode_1ms_pcm(silence_buff, samples);
 }
 
 } // namespace asha
