@@ -1242,12 +1242,11 @@ bool HearingAid::process_audio()
                         ha->send_acp_stop();
                         break;
                     }
-                    // Send volume update if volume has changed
+                    // Retry rejected writes using the latest host volume.
                     int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
                     if (ha->curr_vol != v) {
-                        ha->curr_vol = v;
                         // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
-                        ha->send_volume(ha->curr_vol);
+                        ha->send_volume(v);
                     }
                     if (w_index == 0) {
                         break;
@@ -1555,6 +1554,7 @@ void HearingAid::send_volume(int8_t volume)
         //LOG_ERROR("%s: Sending volume failed with %s", get_side_str(), bt_err_str(res));
         add_event_to_buffer(conn_id, EventPacket(EventType::AudioVolume, StatusType::BtstackStatus, res));
     } else {
+        curr_vol = volume;
         //LOG_INFO("%s: Volume changed to %d", get_side_str(), (int)volume);
         EventPacket ev_pkt(EventType::AudioVolume);
         ev_pkt.data.volume = volume;
