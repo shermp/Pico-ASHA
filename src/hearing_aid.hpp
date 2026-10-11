@@ -36,6 +36,9 @@ constexpr uint32_t audio_sdu_gap_timeout_ticks = 500;
 // BLE link rather than leaving the aid without a usable audio transport.
 constexpr uint32_t l2cap_close_stuck_timeout_ticks = 1000;
 
+// ACP deadlines use elapsed BTstack time, independently of audio timer ticks.
+constexpr uint32_t acp_timeout_ms = 1000;
+
 enum class Side  {Left = 0, Right = 1};
 enum class Mode  {Mono = 0, Binaural = 1};
 enum class Codec {G722_16, G722_24};
@@ -230,6 +233,13 @@ private:
     // Array to store current AudioControlPoint command packet
     std::array<uint8_t, 5> acp_cmd_packet = {};
 
+    enum class ACPOperation { None, Start, Stop };
+    ACPOperation acp_operation = ACPOperation::None;
+    bool acp_write_pending = false;
+    // Start needs both confirmations, in either order.
+    bool acp_start_acked = false;
+    uint32_t acp_phase_started_ms = 0;
+
     inline static std::array<HearingAid*, 2> hearing_aids;
 
     int process_delay_ticks = 0;
@@ -271,6 +281,8 @@ private:
     void send_acp_start();
     void send_acp_stop();
     void send_acp_status(uint8_t status);
+    bool acp_timed_out(uint32_t now_ms);
+    void complete_acp();
     void send_volume(int8_t volume);
     void close_l2cap_for_recovery();
     void disconnect();

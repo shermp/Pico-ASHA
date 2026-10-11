@@ -897,28 +897,26 @@ void HearingAid::handle_acp_write(PACKET_HANDLER_PARAMS)
         handle = gatt_event_query_complete_get_handle(packet);
         att_status = gatt_event_query_complete_get_att_status(packet);
         ha = get_by_con_handle(handle);
-        if (!ha) {
+        if (!ha || ha->acp_operation == ACPOperation::None || !ha->acp_write_pending) {
             return;
         }
 
-        EventType ev_type = ha->audio_state == AudioState::Start ? EventType::ACPStart 
-                                                                 : EventType::ACPStop;
+        auto const operation = ha->acp_operation;
+        uint32_t const now_ms = btstack_run_loop_get_time_ms();
+        ha->acp_write_pending = false;
+        // Teardown may have started while BTstack still owned the command.
+        if (ha->process_state != ProcessState::Audio) {
+            return;
+        }
+        EventType ev_type = operation == ACPOperation::Start ? EventType::ACPStart
+                                                            : EventType::ACPStop;
         if (att_status != ATT_ERROR_SUCCESS) {
-            //LOG_ERROR("%s: ACP write failed with status: %s", ha->get_side_str(), att_err_str(att_status));
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type, StatusType::ATTStatus, att_status));
-            bool const was_stopping = ha->audio_state == AudioState::Stop;
-            ha->audio_state = AudioState::Ready;
-            if (was_stopping && (!ha->other || !ha->other->is_streaming())) {
-                asha_audio_set_encoding_enabled(false);
-                asha_audio_request_stream_reset();
-            }
-        } else {
+            ha->disconnect();
+        } else if (!ha->acp_timed_out(now_ms)) {
             add_event_to_buffer(ha->conn_id, EventPacket(ev_type));
-            if (ha->audio_state == AudioState::Stop) {
-                if (ha->other && ha->other->is_streaming()) {
-                    ha->other->send_acp_status(ACPStatus::other_disconnected);
-                }
-            }
+            ha->acp_phase_started_ms = now_ms;
+            ha->complete_acp();
         }
     }
 }
@@ -997,7 +995,10 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha->audio_data = nullptr;
             ha->audio_tx_pending_ticks = 0;
             ha->audio_sdu_gap_ticks = 0;
-            ha->audio_state = AudioState::Streaming;
+            if (ha->process_state == ProcessState::Audio
+                && ha->audio_state == AudioState::StreamingInProgress) {
+                ha->audio_state = AudioState::Streaming;
+            }
             break;
         case L2CAP_EVENT_CHANNEL_CLOSED:
             cid = l2cap_event_channel_closed_get_local_cid(packet);
@@ -1089,49 +1090,24 @@ void HearingAid::handle_gatt_notification(PACKET_HANDLER_PARAMS)
             return;
         }
         if (val_handle == ha->services.asha.asp.value_handle) {
+            // Stop status is optional. ASP has no command ID, so a delayed
+            // Stop status during a new Start remains ambiguous, as on Android.
+            if (ha->process_state != ProcessState::Audio
+                || ha->acp_operation != ACPOperation::Start) { return; }
+            if (gatt_event_notification_get_value_length(packet) != 1) {
+                short_log(ha->conn_id, "%s", "Invalid ASP length");
+                return;
+            }
+            if (ha->acp_timed_out(btstack_run_loop_get_time_ms())) { return; }
             asp_status = (int8_t)gatt_event_notification_get_value(packet)[0];
-            EventPacket err_ev_pkt(EventType::ASPError);
-            err_ev_pkt.data.asp_not = asp_status;
-
-            switch (asp_status) {
-                case ASPStatus::ok:
-                    if (ha->audio_state == AudioState::Start) {
-                        //LOG_INFO("%s: Audio start OK", ha->get_side_str());
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStart));
-                        bool const other_streaming = ha->other && ha->other->is_streaming();
-                        ha->audio_state = AudioState::Streaming;
-                        ha->audio_start_index = asha_audio_get_write_index() + (other_streaming ? 1u : 0u);
-                        asha_audio_set_encode_mono(!other_streaming);
-                        if (!other_streaming) {
-                            asha_audio_request_stream_reset();
-                        }
-                        asha_audio_set_encoding_enabled(true);
-                        if (ha->other && ha->other->is_streaming()) {
-                            ha->other->send_acp_status(ACPStatus::other_connected);
-                        }
-                        ha->first_audio_send = true;
-                    } else if (ha->audio_state == AudioState::Stop) {
-                        //LOG_INFO("%s: Audio stop OK", ha->get_side_str());
-                        add_event_to_buffer(ha->conn_id, EventPacket(EventType::ASPStop));
-
-                        ha->stop_request_from_other = false;
-                        ha->audio_state = AudioState::Ready;
-                        if (!ha->other || !ha->other->is_streaming()) {
-                            asha_audio_set_encoding_enabled(false);
-                            asha_audio_request_stream_reset();
-                        }
-                    }
-                    break;
-                case ASPStatus::unkown_command:
-                case ASPStatus::illegal_params:
-                    add_event_to_buffer(ha->conn_id, err_ev_pkt);
-                    break;
-                default:
-                    //LOG_ERROR("%s: ASP: Unknown command", ha->get_side_str());
-                    //LOG_ERROR("%s: ASP: Illegal parameters", ha->get_side_str());
-                    //LOG_ERROR("%s: ASP: Unknown status: %d", ha->get_side_str(), asp_status);
-                    add_event_to_buffer(ha->conn_id, err_ev_pkt);
-                    break;
+            if (asp_status == ASPStatus::ok) {
+                ha->acp_start_acked = true;
+                ha->complete_acp();
+            } else {
+                EventPacket err_ev_pkt(EventType::ASPError);
+                err_ev_pkt.data.asp_not = asp_status;
+                add_event_to_buffer(ha->conn_id, err_ev_pkt);
+                ha->disconnect();
             }
         } else if (val_handle == ha->services.mfi.battery.value_handle) {
             ha->battery_level = gatt_event_notification_get_value(packet)[0];
@@ -1168,6 +1144,7 @@ bool HearingAid::process_audio()
     asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
 
     bool enable_process_delay = false;
+    uint32_t const now_ms = btstack_run_loop_get_time_ms();
 
     for (auto ha : hearing_aids) {
         if (ha->process_state == ProcessState::CloseL2CAP) {
@@ -1178,6 +1155,10 @@ bool HearingAid::process_audio()
             continue;
         }
         if (ha->process_state != ProcessState::Audio) { continue; }
+        if (ha->acp_operation != ACPOperation::None) {
+            ha->acp_timed_out(now_ms);
+            continue;
+        }
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
@@ -1451,6 +1432,11 @@ void HearingAid::send_acp_start()
 {
     using namespace comm;
 
+    if (acp_operation != ACPOperation::None || acp_write_pending) { return; }
+    acp_operation = ACPOperation::Start;
+    acp_write_pending = true;
+    acp_start_acked = false;
+    acp_phase_started_ms = btstack_run_loop_get_time_ms();
     audio_state = AudioState::Start;
     audio_sdu_gap_ticks = 0U;
     acp_cmd_packet[0] = ACPOpCode::start; // Opcode
@@ -1467,7 +1453,8 @@ void HearingAid::send_acp_start()
     if (res != ERROR_CODE_SUCCESS) {
         //LOG_ERROR("%s: ACP Write: Start error %s", get_side_str(), bt_err_str(res));
         add_event_to_buffer(conn_id, EventPacket(EventType::ACPStart, StatusType::BtstackStatus, res));
-        audio_state = AudioState::Ready;
+        acp_write_pending = false;
+        disconnect();
     }
 }
 
@@ -1475,6 +1462,10 @@ void HearingAid::send_acp_stop()
 {
     using namespace comm;
 
+    if (acp_operation != ACPOperation::None || acp_write_pending) { return; }
+    acp_operation = ACPOperation::Stop;
+    acp_write_pending = true;
+    acp_phase_started_ms = btstack_run_loop_get_time_ms();
     audio_state = AudioState::Stop;
     audio_sdu_gap_ticks = 0U;
     acp_cmd_packet[0] = ACPOpCode::stop;
@@ -1486,7 +1477,52 @@ void HearingAid::send_acp_stop()
     if (res != ERROR_CODE_SUCCESS) {
         //LOG_ERROR("%s: ACP Write: Stop error %s", get_side_str(), bt_err_str(res));
         add_event_to_buffer(conn_id, EventPacket(EventType::ACPStop, StatusType::BtstackStatus, res));
+        acp_write_pending = false;
         disconnect();
+    }
+}
+
+bool HearingAid::acp_timed_out(uint32_t now_ms)
+{
+    if (now_ms - acp_phase_started_ms < acp_timeout_ms) {
+        return false;
+    }
+    comm::short_log(conn_id, "%s", "ACP timeout, reconnecting");
+    disconnect();
+    return true;
+}
+
+void HearingAid::complete_acp()
+{
+    if (acp_write_pending || acp_operation == ACPOperation::None) { return; }
+    if (acp_operation == ACPOperation::Start && !acp_start_acked) { return; }
+    auto const operation = acp_operation;
+    acp_operation = ACPOperation::None;
+    bool const other_streaming = other && other->is_streaming();
+    if (operation == ACPOperation::Start) {
+        comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStart));
+        audio_state = AudioState::Streaming;
+        audio_start_index = asha_audio_get_write_index() + (other_streaming ? 1u : 0u);
+        asha_audio_set_encode_mono(!other_streaming);
+        if (!other_streaming) {
+            asha_audio_request_stream_reset();
+        }
+        asha_audio_set_encoding_enabled(true);
+        if (other_streaming) {
+            other->send_acp_status(ACPStatus::other_connected);
+        }
+        first_audio_send = true;
+    } else {
+        // Report Stop to the control app at GATT completion; ASP is optional.
+        comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStop));
+        stop_request_from_other = false;
+        audio_state = AudioState::Ready;
+        if (!other_streaming) {
+            asha_audio_set_encoding_enabled(false);
+            asha_audio_request_stream_reset();
+        } else {
+            other->send_acp_status(ACPStatus::other_disconnected);
+        }
     }
 }
 
@@ -1494,12 +1530,13 @@ void HearingAid::send_acp_status(uint8_t status)
 {
     using namespace comm;
 
-    acp_cmd_packet[0] = ACPOpCode::status;
-    acp_cmd_packet[1] = status;
+    // Write-without-response copies its bytes before returning. Keep this
+    // separate from the buffer retained by a pending Start/Stop GATT write.
+    std::array<uint8_t, 2> status_packet = {ACPOpCode::status, status};
     auto res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
                                                                           services.asha.acp.value_handle,
                                                                           2u,
-                                                                          acp_cmd_packet.data());
+                                                                          status_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
         //LOG_ERROR("%s: Updating status via ACP failed with %s", get_side_str(), bt_err_str(res));
         add_event_to_buffer(conn_id, EventPacket(EventType::ACPStatus, StatusType::BtstackStatus, res));
@@ -1553,6 +1590,8 @@ void HearingAid::close_l2cap_for_recovery()
 void HearingAid::disconnect()
 {
     //LOG_INFO("%s: Disconnect requested", get_side_str());
+    audio_state = AudioState::AudioUnset;
+    // Keep ACP storage and ownership intact until completion or ACL teardown.
     process_state = ProcessState::Disconnect;
     gap_disconnect(conn_handle);
 }
@@ -1565,6 +1604,10 @@ void HearingAid::reset()
     connected = false;
     process_state = ProcessState::ProcessUnset;
     audio_state = AudioState::AudioUnset;
+    acp_operation = ACPOperation::None;
+    acp_write_pending = false;
+    acp_start_acked = false;
+    acp_phase_started_ms = 0;
     other = nullptr;
     psm = 0;
     battery_level = 0;
