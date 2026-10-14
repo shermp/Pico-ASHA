@@ -246,7 +246,8 @@ private:
     int error_count = 0;
 
     uint32_t curr_read_index = 0U;
-    uint32_t audio_start_index = 0U;
+    AshaAudioReset audio_reset_type = AudioResetSession;
+    uint32_t audio_reset_request_id = 0U;
     bool first_audio_send = false;
     // BTstack only retains a pointer to an outgoing SDU. Keep a per-aid copy
     // while the L2CAP send is pending so the encoder ring cannot overwrite it.

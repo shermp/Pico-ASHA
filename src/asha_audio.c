@@ -26,7 +26,12 @@ static atomic_bool pcm_streaming;
 static atomic_bool encode_audio;
 static atomic_bool encode_mono;
 static atomic_bool requested_encode_mono;
-static atomic_bool stream_reset_pending;
+// Core 1 requests/reads resets; core 0 publishes first_frame via applied_id.
+static struct {
+    atomic_uint_least32_t requested_id;
+    atomic_uint_least32_t applied_id;
+    uint32_t first_frame;
+} encoder_resets[AudioResetRight + 1];
 
 static atomic_uint_fast32_t write_index;
 
@@ -87,7 +92,11 @@ void asha_audio_init()
     encode_audio = false;
     encode_mono = false;
     requested_encode_mono = false;
-    stream_reset_pending = false;
+    for (unsigned i = AudioResetSession; i <= AudioResetRight; ++i) {
+        encoder_resets[i].requested_id = 0;
+        encoder_resets[i].first_frame = 0;
+        encoder_resets[i].applied_id = 0;
+    }
     write_index = 0u;
     pcm_sample_count = 0;
     vol_l = ASHA_USB_VOL_MIN;
@@ -107,11 +116,14 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 #ifdef PICO_ASHA_ENC_STATS
     absolute_time_t start_time = get_absolute_time();
 #endif
-    if (atomic_exchange(&stream_reset_pending, false)) {
+    uint32_t const session_request_id = encoder_resets[AudioResetSession].requested_id;
+    if (session_request_id != encoder_resets[AudioResetSession].applied_id) {
         // The hearing aid resets its decoder after an ACP stop/start. Reset on
         // this producer core so no partial SDU or stale predictor state leaks
         // into the next stream.
         reset_stream_encoder();
+        encoder_resets[AudioResetSession].first_frame = write_index;
+        encoder_resets[AudioResetSession].applied_id = session_request_id;
     }
 
     if (count != pcm_sample_count) {
@@ -127,14 +139,15 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     int buff_index = 0;
     struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(w_index)];
 
-    // A mode change must not split an SDU. When enabling the independent right
-    // channel, its G.722 state must start clean for the newly starting aid.
+    // Mode changes and per-side resets must not split an SDU.
     if (g_offset == 1) {
-        bool requested_mono = requested_encode_mono;
-        if (encode_mono != requested_mono) {
-            encode_mono = requested_mono;
-            if (!requested_mono) {
-                g722_encode_init(&enc_state_r, 64000, G722_PACKED);
+        encode_mono = requested_encode_mono;
+        for (unsigned i = AudioResetLeft; i <= AudioResetRight; ++i) {
+            uint32_t const request_id = encoder_resets[i].requested_id;
+            if (request_id != encoder_resets[i].applied_id) {
+                g722_encode_init(i == AudioResetLeft ? &enc_state_l : &enc_state_r, 64000, G722_PACKED);
+                encoder_resets[i].first_frame = w_index;
+                encoder_resets[i].applied_id = request_id;
             }
         }
     }
@@ -227,9 +240,20 @@ void asha_audio_set_encoding_enabled(bool enabled)
     encode_audio = enabled;
 }
 
-void asha_audio_request_stream_reset()
+uint32_t asha_audio_request_reset(enum AshaAudioReset reset)
 {
-    stream_reset_pending = true;
+    if ((unsigned)reset > AudioResetRight) return 0;
+    return ++encoder_resets[reset].requested_id;
+}
+
+bool asha_audio_get_reset_frame(enum AshaAudioReset reset, uint32_t request_id, uint32_t* index)
+{
+    if ((unsigned)reset > AudioResetRight || request_id == 0
+        || encoder_resets[reset].requested_id != request_id
+        || encoder_resets[reset].applied_id != request_id) return false;
+    *index = encoder_resets[reset].first_frame;
+    // The write index publishes complete SDUs; an applied reset alone is not enough.
+    return write_index > *index;
 }
 
 bool asha_audio_get_encoding_enabled()

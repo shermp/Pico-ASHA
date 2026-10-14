@@ -425,7 +425,7 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     add_event_to_buffer(ha->conn_id, ev_pkt);
     if (!ha->other || !ha->other->is_streaming()) {
         asha_audio_set_encoding_enabled(false);
-        asha_audio_request_stream_reset();
+        asha_audio_request_reset(AudioResetSession);
     }
     if (ha->other && ha->other->is_streaming()) {
         ha->other->send_acp_status(ACPStatus::other_disconnected);
@@ -1216,7 +1216,7 @@ bool HearingAid::process_audio()
             case AudioState::Streaming:
                 if (!audio_streaming_enabled || !pcm_is_streaming) {
                     asha_audio_set_encoding_enabled(false);
-                    asha_audio_request_stream_reset();
+                    asha_audio_request_reset(AudioResetSession);
                     // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
                     //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
                     short_log(ha->conn_id, "PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
@@ -1252,12 +1252,12 @@ bool HearingAid::process_audio()
                         break;
                     }
                     if (ha->first_audio_send) {
-                        if (w_index <= ha->audio_start_index) {
-                            // Wait for an SDU made after this aid's decoder
-                            // reset and any mono/stereo transition.
+                        if (!asha_audio_get_reset_frame(ha->audio_reset_type,
+                                                        ha->audio_reset_request_id,
+                                                        &ha->curr_read_index)) {
+                            // Wait for the producer's first complete post-reset SDU.
                             break;
                         }
-                        ha->curr_read_index = w_index - 1;
 
                         // Ensure the volume is sent over CDC in case the control 
                         // app does not have the current value
@@ -1501,11 +1501,10 @@ void HearingAid::complete_acp()
     if (operation == ACPOperation::Start) {
         comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStart));
         audio_state = AudioState::Streaming;
-        audio_start_index = asha_audio_get_write_index() + (other_streaming ? 1u : 0u);
         asha_audio_set_encode_mono(!other_streaming);
-        if (!other_streaming) {
-            asha_audio_request_stream_reset();
-        }
+        // Preserve the existing right-side reset policy for a joining aid.
+        audio_reset_type = other_streaming ? AudioResetRight : AudioResetSession;
+        audio_reset_request_id = asha_audio_request_reset(audio_reset_type);
         asha_audio_set_encoding_enabled(true);
         if (other_streaming) {
             other->send_acp_status(ACPStatus::other_connected);
@@ -1518,7 +1517,7 @@ void HearingAid::complete_acp()
         audio_state = AudioState::Ready;
         if (!other_streaming) {
             asha_audio_set_encoding_enabled(false);
-            asha_audio_request_stream_reset();
+            asha_audio_request_reset(AudioResetSession);
         } else {
             other->send_acp_status(ACPStatus::other_disconnected);
         }
@@ -1621,7 +1620,8 @@ void HearingAid::reset()
     service_index = 0;
     chars_index = cached_chars_index;
     curr_read_index = 0U;
-    audio_start_index = 0U;
+    audio_reset_type = AudioResetSession;
+    audio_reset_request_id = 0U;
     first_audio_send = false;
     audio_data = nullptr;
     audio_tx_pending_ticks = 0U;

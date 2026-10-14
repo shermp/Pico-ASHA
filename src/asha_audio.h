@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,11 +99,24 @@ int16_t asha_audio_get_curr_usb_vol(enum AshaAudioSide side);
  */
 void asha_audio_set_encoding_enabled(bool enabled);
 
+enum AshaAudioReset {
+    AudioResetSession,
+    AudioResetLeft,
+    AudioResetRight,
+};
+
 /**
- * Discard any partial SDU and reset the codec/filter state before the next
- * encoded frame. This request is consumed by the PCM producer on core 0.
+ * Request from core 1; core 0 applies the reset. Returns its request ID.
+ * Session resets discard partial audio and reset codecs, FIR, and sequence.
+ * Side resets affect only that codec, at the next 20 ms frame boundary.
  */
-void asha_audio_request_stream_reset();
+uint32_t asha_audio_request_reset(enum AshaAudioReset reset);
+
+/**
+ * On core 1, return the first complete frame for this reset request ID.
+ * False until that frame is published, or if a newer request superseded it.
+ */
+bool asha_audio_get_reset_frame(enum AshaAudioReset reset, uint32_t request_id, uint32_t* index);
 
 /**
  * Get current encoding status
