@@ -1502,8 +1502,8 @@ void HearingAid::complete_acp()
         comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStart));
         audio_state = AudioState::Streaming;
         asha_audio_set_encode_mono(!other_streaming);
-        // Preserve the existing right-side reset policy for a joining aid.
-        audio_reset_type = other_streaming ? AudioResetRight : AudioResetSession;
+        audio_reset_type = !other_streaming ? AudioResetSession :
+                           rop.side() == Side::Left ? AudioResetLeft : AudioResetRight;
         audio_reset_request_id = asha_audio_request_reset(audio_reset_type);
         asha_audio_set_encoding_enabled(true);
         if (other_streaming) {
