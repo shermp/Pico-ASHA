@@ -101,10 +101,10 @@ struct HearingAid
 
     enum class AudioState {
         AudioUnset,
-        Ready     , ReadyInProgress,
-        Start     , StartInProgress,
-        Streaming , StreamingInProgress,
-        Stop      , StopInProgress
+        Ready,
+        Start,
+        Streaming,
+        Stop
     };
 
     bool connected = false;
@@ -273,7 +273,7 @@ private:
     // BTstack only retains a pointer to an outgoing SDU. Keep a per-aid copy
     // while the L2CAP send is pending so the encoder ring cannot overwrite it.
     std::array<uint8_t, ASHA_SDU_SIZE_BYTES> audio_tx_buffer = {};
-    uint8_t* audio_data = nullptr;
+    bool audio_tx_pending = false;
     uint32_t audio_tx_pending_ticks = 0U;
     uint32_t audio_sdu_gap_ticks = 0U;
     uint32_t l2cap_recovery_ticks = 0U;

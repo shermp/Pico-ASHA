@@ -957,41 +957,10 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
                 ha->process_state = ProcessState::EnASPNotification;
             }
             break;
-        case L2CAP_EVENT_CAN_SEND_NOW:
-            cid = l2cap_event_can_send_now_get_local_cid(packet);
-            ha = get_by_cid(cid);
-            // A can-send notification can be delivered after an ACP stop or
-            // disconnect. Only transmit the SDU for the active request.
-            if (!ha || !ha->is_streaming() || !ha->audio_data) {
-                if (ha) {
-                    short_log(ha->conn_id, "%s", "Ignoring stale L2CAP Tx ready");
-                }
-                break;
-            }
-#ifdef PICO_ASHA_L2CAP_TX_TRACE
-            short_log(ha->conn_id, "L2CAP Tx ready Cr:%u", (unsigned)ha->credits);
-            short_log(ha->conn_id, "L2CAP Tx send S:%u", (unsigned)ha->audio_data[0]);
-#endif
-            bt_status = l2cap_send(cid, ha->audio_data, ASHA_SDU_SIZE_BYTES);
-            if (bt_status != ERROR_CODE_SUCCESS) {
-                short_log(ha->conn_id, "L2CAP Tx err: 0x%02X Cr:%u",
-                          (unsigned)bt_status, (unsigned)ha->credits);
-                // Recover the audio transport without dropping the BLE link.
-                ha->close_l2cap_for_recovery();
-                break;
-            }
-            // Do not consume the encoder-ring entry until BTstack has
-            // accepted the SDU for this channel.
-            ++ha->curr_read_index;
-            // The next audio tick starts credit sampling; completion may be synchronous.
-            if (ha->process_state == ProcessState::Audio && ha->is_streaming()) {
-                ha->credit_average.active = true;
-            }
-            break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
             ha = get_by_cid(cid);
-            if (!ha) {
+            if (!ha || !ha->audio_tx_pending) {
                 break;
             }
 #ifdef PICO_ASHA_L2CAP_TX_TRACE
@@ -999,8 +968,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
 #endif
             ha->clear_audio_send_state();
             if (ha->process_state == ProcessState::Audio
-                && ha->audio_state == AudioState::StreamingInProgress) {
-                ha->audio_state = AudioState::Streaming;
+                && ha->is_streaming()) {
                 ha->l2cap_recovery_pending = false;
             }
             break;
@@ -1172,6 +1140,15 @@ bool HearingAid::process_audio()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         // Sample before scheduling audio, even while BTstack owns an SDU.
         ha->sample_audio_credits();
+        if (ha->audio_tx_pending) {
+            if (++ha->audio_tx_pending_ticks >= audio_tx_stuck_timeout_ticks) {
+                short_log(ha->conn_id, "L2 Tx t/o:%lu Cr:%u",
+                          (unsigned long)ha->audio_tx_pending_ticks,
+                          (unsigned)ha->credits);
+                ha->close_l2cap_for_recovery();
+            }
+            continue;
+        }
         switch (ha->audio_state) {
             case AudioState::Ready:
                 // After a zero-credit stop, wait up to the cooldown window for
@@ -1194,7 +1171,6 @@ bool HearingAid::process_audio()
                         // sentinel) gets baked into the first start after boot and
                         // some aids latch onto it, ignoring later volume writes.
                         ha->curr_vol = ha->rop.side() == Side::Left ? vol_l : vol_r;
-                        ha->audio_state = AudioState::ReadyInProgress;
                         ha->send_acp_start();
                 } else if (audio_requested && ha->credits < audio_start_credits) {
                     // Aid wedged with credits stuck below the start gate. Only a
@@ -1207,18 +1183,6 @@ bool HearingAid::process_audio()
                     }
                 } else {
                     ha->ready_stuck_ticks = 0;
-                }
-                break;
-            case AudioState::StreamingInProgress:
-                // The normal Streaming branch intentionally does not queue a
-                // second SDU while BTstack owns the first one. Without this
-                // watchdog, a missing CAN_SEND_NOW or PACKET_SENT event leaves
-                // the aid in streaming mode with no further audio indefinitely.
-                if (++ha->audio_tx_pending_ticks >= audio_tx_stuck_timeout_ticks) {
-                    short_log(ha->conn_id, "L2 Tx t/o:%lu Cr:%u",
-                              (unsigned long)ha->audio_tx_pending_ticks,
-                              (unsigned)ha->credits);
-                    ha->close_l2cap_for_recovery();
                 }
                 break;
             case AudioState::Streaming: {
@@ -1284,24 +1248,37 @@ bool HearingAid::process_audio()
                                   (unsigned long)ha->audio_tx_pending_ticks);
                     }
 
+                    // For LE CoC this checks the open channel and its free SDU
+                    // slot; BTstack handles credits/controller capacity after submission.
+                    if (!l2cap_can_send_packet_now(ha->cid)) {
+                        short_log(ha->conn_id, "%s", "L2CAP Tx slot unavailable");
+                        ha->close_l2cap_for_recovery();
+                        break;
+                    }
                     enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
                                                                                  : AshaAudioSide::AudioRight;
                     auto const* encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
                     memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
-                    ha->audio_data = ha->audio_tx_buffer.data();
+                    // PACKET_SENT can arrive inside l2cap_send().
+                    ha->audio_tx_pending = true;
                     ha->audio_tx_pending_ticks = 0;
-                    ha->audio_state = AudioState::StreamingInProgress;
 
 #ifdef PICO_ASHA_L2CAP_TX_TRACE
-                    short_log(ha->conn_id, "L2CAP Tx req S:%u Cr:%u",
-                              (unsigned)ha->audio_data[0], (unsigned)ha->credits);
+                    short_log(ha->conn_id, "L2CAP Tx send S:%u Cr:%u",
+                              (unsigned)ha->audio_tx_buffer[0], (unsigned)ha->credits);
 #endif
-                    uint8_t const tx_request_status = l2cap_request_can_send_now_event(ha->cid);
-                    if (tx_request_status != ERROR_CODE_SUCCESS) {
-                        short_log(ha->conn_id, "L2CAP Tx req err: 0x%02X Cr:%u",
-                                  (unsigned)tx_request_status, (unsigned)ha->credits);
+                    uint8_t const tx_status = l2cap_send(ha->cid, ha->audio_tx_buffer.data(), ASHA_SDU_SIZE_BYTES);
+                    if (tx_status != ERROR_CODE_SUCCESS) {
+                        // Rejection does not transfer ownership or consume a frame.
+                        ha->audio_tx_pending = false;
+                        short_log(ha->conn_id, "L2CAP Tx err: 0x%02X Cr:%u",
+                                  (unsigned)tx_status, (unsigned)ha->credits);
                         ha->close_l2cap_for_recovery();
                         break;
+                    }
+                    if (ha->process_state == ProcessState::Audio && ha->is_streaming()) {
+                        ++ha->curr_read_index;
+                        ha->credit_average.active = true;
                     }
                     enable_process_delay = true;
 #ifdef PICO_ASHA_ENC_STATS
@@ -1340,7 +1317,7 @@ bool HearingAid::AudioSession::process_streaming_state()
         if (ha->process_state != ProcessState::Audio) { continue; }
         // Wait for PACKET_SENT before Stop; the pending SDU still owns its buffer.
         if ((restarting || ha->credit_average.restart_pending)
-            && ha->audio_state == AudioState::Streaming) {
+            && ha->is_streaming() && !ha->audio_tx_pending) {
             if (restarting) {
                 comm::short_log(ha->conn_id, "%s", want_audio ? "Restarting shared stream" : "Stopping shared stream");
             }
@@ -1478,8 +1455,7 @@ bool HearingAid::is_connected()
 
 bool HearingAid::is_streaming()
 {
-    return audio_state == AudioState::Streaming || 
-           audio_state == AudioState::StreamingInProgress;
+    return audio_state == AudioState::Streaming;
 }
 
 void HearingAid::send_acp_start()
@@ -1632,15 +1608,15 @@ void HearingAid::sample_audio_credits()
 
 void HearingAid::clear_audio_send_state()
 {
-    // Bookkeeping only: BTstack may still own audio_tx_buffer during teardown.
-    audio_data = nullptr;
+    // Called when ownership is released, or before starting an idle stream.
+    audio_tx_pending = false;
     audio_tx_pending_ticks = 0U;
     audio_sdu_gap_ticks = 0U;
 }
 
 void HearingAid::restart_stream_for_recovery()
 {
-    if (audio_state != AudioState::Streaming || acp_operation != ACPOperation::None) {
+    if (!is_streaming() || audio_tx_pending || acp_operation != ACPOperation::None) {
         close_l2cap_for_recovery();
         return;
     }
@@ -1660,11 +1636,9 @@ void HearingAid::close_l2cap_for_recovery()
         return;
     }
     // Stop scheduling audio immediately. The old CoC may still hold a pointer
-    // to audio_tx_buffer until its close completes, so leave that storage in
-    // place and only reset its bookkeeping.
+    // to audio_tx_buffer until its close completes; retain its ownership flag.
     audio_state = AudioState::AudioUnset;
     credit_average = {};
-    clear_audio_send_state();
     l2cap_recovery_ticks = 0U;
     l2cap_recovery_pending = true;
     process_state = ProcessState::CloseL2CAP;
@@ -1686,7 +1660,6 @@ void HearingAid::disconnect()
     //LOG_INFO("%s: Disconnect requested", get_side_str());
     audio_state = AudioState::AudioUnset;
     credit_average = {};
-    clear_audio_send_state();
     // Keep ACP storage and ownership intact until completion or ACL teardown.
     process_state = ProcessState::Disconnect;
     gap_disconnect(conn_handle);
