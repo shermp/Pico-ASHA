@@ -1,4 +1,4 @@
-// Keep these values aligned with include/asha_comms.cpp in the firmware protocol.
+// Keep these values aligned with include/asha_comms.hpp in the firmware protocol.
 export const USB_FILTER = Object.freeze({ usbVendorId: 0xcafe, usbProductId: 16401 });
 
 export const PacketType = Object.freeze({
@@ -74,6 +74,7 @@ export const EventType = Object.freeze({
   MFIBatteryRead: 31,
   MFIBatteryNotificationsEnabled: 32,
   G722EncodeTimings: 33,
+  AudioCreditStats: 34,
 });
 
 export const EVENT_NAMES = Object.freeze(Object.fromEntries(

@@ -22,6 +22,11 @@ constexpr uint16_t audio_restart_credits = 8;
 constexpr uint32_t audio_credit_cooldown_ticks = 500;
 constexpr uint32_t audio_backlog_frame_limit = 2;
 
+// Compare complete, non-overlapping 3,000-tick credit averages against the
+// stream's first window. Tenths allow tuning the threshold to e.g. 15 (1.5).
+constexpr uint32_t audio_credit_window_ticks = 3000;
+constexpr uint32_t audio_credit_drift_threshold_tenths = 20;
+
 // How long the audio loop is allowed to sit in Ready with the host
 // actively delivering audio but L2CAP credits stuck below the start
 // gate, before recreating the L2CAP CoC to recover. Audio loop ticks
@@ -236,6 +241,14 @@ private:
     uint16_t credits = 0;
     uint32_t zero_credits_cooldown = 0;
     uint32_t ready_stuck_ticks = 0;
+    struct {
+        uint32_t baseline_sum = 0;
+        uint32_t window_sum = 0;
+        uint32_t samples = 0;
+        bool active = false;
+        bool baseline_ready = false;
+        bool restart_pending = false;
+    } credit_average;
     int8_t curr_vol = -128;
 
     // Array to store current AudioControlPoint command packet
@@ -282,6 +295,7 @@ private:
 
         bool process_streaming_state();
         void request_stream_restart();
+        void request_stream_restart(HearingAid& ha);
         void on_stream_started(HearingAid& ha);
         void on_stream_stopped(HearingAid& ha);
     };
@@ -303,6 +317,7 @@ private:
     bool acp_timed_out(uint32_t now_ms);
     void complete_acp();
     void send_volume(int8_t volume);
+    void sample_audio_credits();
     void clear_audio_send_state();
     void restart_stream_for_recovery();
     void close_l2cap_for_recovery();

@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "pico-asha-control-";
-const CACHE_NAME = `${CACHE_PREFIX}v5`;
+const CACHE_NAME = `${CACHE_PREFIX}v6`;
 const INDEX_URL = new URL("./index.html", self.location).href;
 
 const APP_SHELL = [
@@ -18,6 +18,7 @@ const APP_SHELL = [
   "./components/adapter-log.js",
   "./components/app-header.js",
   "./components/app-shell.js",
+  "./components/audio-credit-stats.js",
   "./components/component-styles.js",
   "./components/dialog-element.js",
   "./components/hci-capture-controls.js",

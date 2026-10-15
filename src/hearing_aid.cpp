@@ -983,6 +983,10 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             // Do not consume the encoder-ring entry until BTstack has
             // accepted the SDU for this channel.
             ++ha->curr_read_index;
+            // The next audio tick starts credit sampling; completion may be synchronous.
+            if (ha->process_state == ProcessState::Audio && ha->is_streaming()) {
+                ha->credit_average.active = true;
+            }
             break;
         case L2CAP_EVENT_PACKET_SENT:
             cid = l2cap_event_packet_sent_get_local_cid(packet);
@@ -1012,6 +1016,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha->clear_audio_send_state();
             ha->l2cap_recovery_ticks = 0U;
             ha->audio_state = AudioState::AudioUnset;
+            ha->credit_average = {};
             audio_session.on_stream_stopped(*ha);
             if (ha->process_state == ProcessState::Disconnect) { break; }
             if (ha->acp_operation != ACPOperation::None) {
@@ -1165,6 +1170,8 @@ bool HearingAid::process_audio()
             continue;
         }
         ha->credits = l2cap_cbm_available_credits(ha->cid);
+        // Sample before scheduling audio, even while BTstack owns an SDU.
+        ha->sample_audio_credits();
         switch (ha->audio_state) {
             case AudioState::Ready:
                 // After a zero-credit stop, wait up to the cooldown window for
@@ -1332,8 +1339,11 @@ bool HearingAid::AudioSession::process_streaming_state()
     for (auto ha : hearing_aids) {
         if (ha->process_state != ProcessState::Audio) { continue; }
         // Wait for PACKET_SENT before Stop; the pending SDU still owns its buffer.
-        if (restarting && ha->audio_state == AudioState::Streaming) {
-            comm::short_log(ha->conn_id, "%s", want_audio ? "Restarting shared stream" : "Stopping shared stream");
+        if ((restarting || ha->credit_average.restart_pending)
+            && ha->audio_state == AudioState::Streaming) {
+            if (restarting) {
+                comm::short_log(ha->conn_id, "%s", want_audio ? "Restarting shared stream" : "Stopping shared stream");
+            }
             ha->send_acp_stop();
         }
         busy |= ha->is_streaming() || ha->acp_operation != ACPOperation::None;
@@ -1354,6 +1364,12 @@ bool HearingAid::AudioSession::process_streaming_state()
 void HearingAid::AudioSession::request_stream_restart()
 {
     restarting = true;
+    process_streaming_state();
+}
+
+void HearingAid::AudioSession::request_stream_restart(HearingAid& ha)
+{
+    ha.credit_average.restart_pending = true;
     process_streaming_state();
 }
 
@@ -1507,6 +1523,7 @@ void HearingAid::send_acp_stop()
     acp_write_pending = true;
     acp_phase_started_ms = btstack_run_loop_get_time_ms();
     audio_state = AudioState::Stop;
+    credit_average = {};
     audio_sdu_gap_ticks = 0U;
     acp_cmd_packet[0] = ACPOpCode::stop;
     uint8_t res = gatt_client_write_value_of_characteristic(&HearingAid::handle_acp_write,
@@ -1588,6 +1605,31 @@ void HearingAid::send_volume(int8_t volume)
     }
 }
 
+void HearingAid::sample_audio_credits()
+{
+    if (!is_streaming() || !credit_average.active || credit_average.restart_pending
+        || audio_session.restarting) { return; }
+    credit_average.window_sum += credits;
+    if (++credit_average.samples != audio_credit_window_ticks) { return; }
+
+    if (!credit_average.baseline_ready) {
+        credit_average.baseline_sum = credit_average.window_sum;
+        credit_average.baseline_ready = true;
+    }
+    comm::EventPacket event(comm::EventType::AudioCreditStats);
+    event.data.credit_stats = {credit_average.baseline_sum, credit_average.window_sum, credit_average.samples};
+    comm::add_event_to_buffer(conn_id, event);
+
+    int32_t const difference = (int32_t)credit_average.window_sum - (int32_t)credit_average.baseline_sum;
+    uint32_t const magnitude = difference < 0 ? -difference : difference;
+    if ((uint64_t)magnitude * 10 >= (uint64_t)audio_credit_window_ticks * audio_credit_drift_threshold_tenths) {
+        comm::short_log(conn_id, "%s", "Credit drift: restart");
+        audio_session.request_stream_restart(*this);
+    }
+    credit_average.window_sum = 0;
+    credit_average.samples = 0;
+}
+
 void HearingAid::clear_audio_send_state()
 {
     // Bookkeeping only: BTstack may still own audio_tx_buffer during teardown.
@@ -1621,6 +1663,7 @@ void HearingAid::close_l2cap_for_recovery()
     // to audio_tx_buffer until its close completes, so leave that storage in
     // place and only reset its bookkeeping.
     audio_state = AudioState::AudioUnset;
+    credit_average = {};
     clear_audio_send_state();
     l2cap_recovery_ticks = 0U;
     l2cap_recovery_pending = true;
@@ -1642,6 +1685,7 @@ void HearingAid::disconnect()
     if (process_state == ProcessState::Disconnect) { return; }
     //LOG_INFO("%s: Disconnect requested", get_side_str());
     audio_state = AudioState::AudioUnset;
+    credit_average = {};
     clear_audio_send_state();
     // Keep ACP storage and ownership intact until completion or ACL teardown.
     process_state = ProcessState::Disconnect;
@@ -1665,6 +1709,7 @@ void HearingAid::reset()
     battery_level = 0;
     curr_vol = -128;
     credits = 0;
+    credit_average = {};
     zero_credits_cooldown = 0;
     ready_stuck_ticks = 0;
     paired_and_bonded = false;

@@ -9,6 +9,7 @@ import { componentStyles } from "./component-styles.js";
 import "./adapter-controls.js";
 import "./adapter-log.js";
 import "./app-header.js";
+import "./audio-credit-stats.js";
 import "./hci-capture-controls.js";
 import "./pairing-dialog.js";
 import "./remote-grid.js";
@@ -80,12 +81,14 @@ export class PicoAshaApp extends LitElement {
 
     adapter-controls,
     hci-capture-controls,
+    audio-credit-stats,
     adapter-log,
     remote-grid {
       display: block;
     }
 
     remote-grid,
+    audio-credit-stats,
     adapter-log {
       margin-top: 0.8rem;
     }
@@ -196,7 +199,7 @@ export class PicoAshaApp extends LitElement {
     }
 
     if (packet.kind === "event") {
-      if (packet.eventType === EventType.AudioVolume || packet.eventType === EventType.G722EncodeTimings) {
+      if ([EventType.AudioVolume, EventType.G722EncodeTimings, EventType.AudioCreditStats].includes(packet.eventType)) {
         return;
       }
       if (packet.eventType === 0 && packet.text) {
@@ -482,6 +485,7 @@ export class PicoAshaApp extends LitElement {
           ?hidden=${this.activeTab !== "diagnostics"}
         >
           <hci-capture-controls .ready=${this.connection.phase === "ready"} .hci=${this.hci} .busy=${this.busy}></hci-capture-controls>
+          <audio-credit-stats .remotes=${this.adapter.remotes}></audio-credit-stats>
           <adapter-log .entries=${this.logEntries} .timing=${this.adapter.timing}></adapter-log>
         </section>
         <settings-dialog .ready=${this.connection.phase === "ready"} .usbInfo=${this.adapter.usbInfo} .remotes=${this.adapter.remotes} .busy=${this.busy}></settings-dialog>

@@ -31,6 +31,7 @@ function remoteSkeleton(connectionId, address = "00:00:00:00:00:00") {
     volume: -128,
     muted: true,
     battery: 0,
+    creditStats: null,
     audioFormat: codecFormats[SELECTED_FIRMWARE_CODEC] ?? "Unknown",
   };
 }
@@ -194,11 +195,22 @@ export class AdapterState {
       case EventType.L2CAPConnected: updates.l2capCid = event.cid; break;
       case EventType.L2CAPDisconnected: updates.l2capCid = 0; updates.streaming = false; break;
       case EventType.ASPStart:
-      case EventType.StreamReady: updates.streaming = true; break;
+      case EventType.StreamReady: updates.streaming = true; updates.creditStats = null; break;
       case EventType.ASPStop:
       case EventType.StreamPause: updates.streaming = false; break;
       case EventType.AudioVolume: updates.volume = event.volume; updates.muted = event.volume === -128; break;
       case EventType.MFIBatteryRead: updates.battery = event.battery; break;
+      case EventType.AudioCreditStats: {
+        const { baselineSum, windowSum, sampleCount } = event.creditStats;
+        if (!sampleCount) { return; }
+        updates.creditStats = Object.freeze({
+          baseline: baselineSum / sampleCount,
+          average: windowSum / sampleCount,
+          difference: (windowSum - baselineSum) / sampleCount,
+          sampleCount,
+        });
+        break;
+      }
       default: return;
     }
     this.updateRemote(connectionId, updates);

@@ -125,6 +125,11 @@ function decodeEvent(bytes, header) {
     text: readString(data),
     battery: dataView.getUint8(0),
     encodeTimings: Array.from({ length: 10 }, (_, index) => dataView.getInt16(index * 2, true)),
+    creditStats: {
+      baselineSum: dataView.getUint32(0, true),
+      windowSum: dataView.getUint32(4, true),
+      sampleCount: dataView.getUint32(8, true),
+    },
   };
 }
 

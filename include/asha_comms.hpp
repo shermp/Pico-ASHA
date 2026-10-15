@@ -94,6 +94,7 @@ namespace comm
         MfiBatteryRead,
         MFIBatteryNotEnable,
         G722EncTimings,
+        AudioCreditStats,
     };
 
     enum class CmdType : uint8_t {
@@ -211,6 +212,12 @@ namespace comm
             char    str[32];
             uint8_t battery_level;
             int16_t encode_timings[10];
+            // AudioCreditStats: two equal-length windows, before division.
+            struct {
+                uint32_t baseline_sum;
+                uint32_t window_sum;
+                uint32_t sample_count;
+            } credit_stats;
         } data = {};
 
         EventPacket();
