@@ -62,6 +62,8 @@ static T get_val(const uint8_t *start)
 
 /* Public methods */
 
+HearingAid::AudioSession HearingAid::audio_session;
+
 HearingAid::HearingAid()
 {
     auth_req = SM_AUTHREQ_BONDING | SM_AUTHREQ_SECURE_CONNECTION;
@@ -74,7 +76,6 @@ HearingAid::HearingAid()
     }
     next_conn_id = comm::unset_conn_id;
     connections_allowed = true;
-    audio_streaming_enabled = true;
     auto_pair_enabled = false;
 }
 
@@ -185,10 +186,10 @@ void HearingAid::process()
                 }
                 ha->cached = true;
                 ha->process_state = Audio;
-                if (ha->other && ha->other->is_streaming()) {
-                    ha->other->stop_request_from_other = true;
-                }
                 ha->audio_state = AudioState::Ready;
+                if (ha->other && ha->other->is_streaming()) {
+                    audio_session.request_stream_restart();
+                }
             default:
                 break;
         }
@@ -242,7 +243,7 @@ void HearingAid::on_serial_host_connected()
     if (connections_allowed) {
         intro_flags |= IntroFlags::conn_allowed;
     }
-    if (audio_streaming_enabled) {
+    if (audio_session.enabled) {
         intro_flags |= IntroFlags::streaming_enabled;
     }
     send_intro_packet((int8_t)num_connected(), intro_flags);
@@ -315,7 +316,7 @@ void HearingAid::set_connections_allowed(bool allowed)
 
 void HearingAid::set_audio_streaming_enabled(bool enabled)
 {
-    audio_streaming_enabled = enabled;
+    audio_session.enabled = enabled;
 }
 
 void HearingAid::set_auto_pair_enabled(bool enabled)
@@ -423,13 +424,8 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     // }
     EventPacket ev_pkt(EventType::RemoteDisconnected, StatusType::ATTStatus, status, reason);
     add_event_to_buffer(ha->conn_id, ev_pkt);
-    if (!ha->other || !ha->other->is_streaming()) {
-        asha_audio_set_encoding_enabled(false);
-        asha_audio_request_reset(AudioResetSession);
-    }
-    if (ha->other && ha->other->is_streaming()) {
-        ha->other->send_acp_status(ACPStatus::other_disconnected);
-    }
+    ha->audio_state = AudioState::AudioUnset;
+    audio_session.on_stream_stopped(*ha);
     ha->process_state = ProcessState::Disconnect;
     ha->connected = false;
     set_other_side_ptrs();
@@ -1014,6 +1010,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             ha->audio_sdu_gap_ticks = 0U;
             ha->l2cap_close_ticks = 0U;
             ha->audio_state = AudioState::AudioUnset;
+            audio_session.on_stream_stopped(*ha);
             // Keep the ACL connection, then create a fresh CoC with the
             // existing PSM and service discovery data.
             ha->process_state = ProcessState::ConnectL2CAP;
@@ -1139,9 +1136,7 @@ bool HearingAid::process_audio()
     int8_t vol_r = (usb_vol_r == ASHA_USB_VOL_MUTE) ? volume_mute 
                                                     : (int8_t)(std::clamp(usb_vol_r, min_vol, max_vol) / ASHA_USB_VOL_RES);
     
-    bool pcm_is_streaming = asha_audio_get_pcm_streaming_enabled();
-
-    asha_audio_set_encode_mono(!(hearing_aids[0]->is_streaming() && hearing_aids[1]->is_streaming()));
+    bool const audio_requested = audio_session.process_streaming_state();
 
     bool enable_process_delay = false;
     uint32_t const now_ms = btstack_run_loop_get_time_ms();
@@ -1173,9 +1168,8 @@ bool HearingAid::process_audio()
                         break;
                     }
                 }
-                if ((!ha->other || !ha->other->stop_request_from_other)
-                    && audio_streaming_enabled
-                    && pcm_is_streaming
+                if (!audio_session.restarting
+                    && audio_requested
                     && ha->credits >= 4) {
                         // Sync curr_vol from the host volume so the start payload
                         // reflects what the host is currently asking for. Without
@@ -1186,7 +1180,7 @@ bool HearingAid::process_audio()
                         ha->audio_state = AudioState::ReadyInProgress;
                         ha->send_acp_start();
                         ha->ready_stuck_ticks = 0;
-                } else if (audio_streaming_enabled && pcm_is_streaming && ha->credits < 4) {
+                } else if (audio_requested && ha->credits < 4) {
                     // Aid wedged with credits stuck below the start gate. Only a
                     // fresh L2CAP CoC channel resets the credit window, so force
                     // a reconnect once the stuck timeout elapses.
@@ -1213,112 +1207,94 @@ bool HearingAid::process_audio()
                     ha->close_l2cap_for_recovery();
                 }
                 break;
-            case AudioState::Streaming:
-                if (!audio_streaming_enabled || !pcm_is_streaming) {
-                    asha_audio_set_encoding_enabled(false);
-                    asha_audio_request_reset(AudioResetSession);
-                    // LOG_INFO("%s: Stopping audio stream. PCM Streaming: %d, Credits: %d", 
-                    //           ha->get_side_str(), (int)pcm_is_streaming, (int)ha->credits);
-                    short_log(ha->conn_id, "PCM: %d - Cr: %d", (int)pcm_is_streaming, (int)ha->credits);
-                    ha->send_acp_stop();
-                } else if (ha->stop_request_from_other) {
-                    short_log(ha->conn_id, "%s", "Stop requested from other");
-                    ha->send_acp_stop();
-                } else {
-                    // Healthy streaming produces and hands an ASHA SDU to the
-                    // controller about every 10 ms. If no completed send occurs
-                    // for a sustained interval, credits alone cannot reveal the
-                    // failure: there may simply be no fresh encoded frame to
-                    // schedule. Stop cleanly so the hearing aid does not time
-                    // out and disconnect while it is left in streaming state.
-                    if (++ha->audio_sdu_gap_ticks >= audio_sdu_gap_timeout_ticks) {
-                        short_log(ha->conn_id, "Tx gap: %lums Cr:%u",
-                                  (unsigned long)ha->audio_sdu_gap_ticks,
-                                  (unsigned)ha->credits);
-                        ha->audio_sdu_gap_ticks = 0U;
-                        if (ha->other && ha->other->is_streaming()) {
-                            ha->other->stop_request_from_other = true;
-                        }
+            case AudioState::Streaming: {
+                // Healthy streaming produces and hands an ASHA SDU to the
+                // controller about every 20 ms. If no completed send occurs
+                // for a sustained interval, credits alone cannot reveal the
+                // failure: there may simply be no fresh encoded frame to
+                // schedule. Stop cleanly so the hearing aid does not time
+                // out and disconnect while it is left in streaming state.
+                if (++ha->audio_sdu_gap_ticks >= audio_sdu_gap_timeout_ticks) {
+                    short_log(ha->conn_id, "Tx gap: %lums Cr:%u",
+                              (unsigned long)ha->audio_sdu_gap_ticks,
+                              (unsigned)ha->credits);
+                    ha->audio_sdu_gap_ticks = 0U;
+                    audio_session.request_stream_restart();
+                    break;
+                }
+                // Retry rejected writes using the latest host volume.
+                int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
+                if (ha->curr_vol != v) {
+                    // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
+                    ha->send_volume(v);
+                }
+                if (w_index == 0) {
+                    break;
+                }
+                if (ha->first_audio_send) {
+                    if (!asha_audio_get_reset_frame(ha->audio_reset_type,
+                                                    ha->audio_reset_request_id,
+                                                    &ha->curr_read_index)) {
+                        // Wait for the producer's first complete post-reset SDU.
+                        break;
+                    }
+
+                    // Ensure the volume is sent over CDC in case the control
+                    // app does not have the current value
+                    auto vol_ev = EventPacket(EventType::AudioVolume);
+                    vol_ev.data.volume = ha->curr_vol;
+                    add_event_to_buffer(ha->conn_id, vol_ev);
+
+                    // add_event_to_buffer(ha->conn_id, )
+                    ha->first_audio_send = false;
+                }
+                if (ha->curr_read_index < w_index) {
+                    if (ha->credits == 0) {
+                        short_log(ha->conn_id, "%s", "Zero credits");
+                        // Wait long enough for a slow aid to replenish before
+                        // attempting to restart; see the Ready branch above.
+                        ha->zero_credits_cooldown = 500;
+                        // Credits can run out just before this aid disconnects.
+                        // Keep its partner's stream and predictor running.
                         ha->send_acp_stop();
                         break;
                     }
-                    // Retry rejected writes using the latest host volume.
-                    int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
-                    if (ha->curr_vol != v) {
-                        // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
-                        ha->send_volume(v);
-                    }
-                    if (w_index == 0) {
+                    // Restart stream if starting to fall behind
+                    if (w_index - ha->curr_read_index >= 2) {
+                        short_log(ha->conn_id, "%s", "Stream fell behind: restart");
+                        audio_session.request_stream_restart();
                         break;
                     }
-                    if (ha->first_audio_send) {
-                        if (!asha_audio_get_reset_frame(ha->audio_reset_type,
-                                                        ha->audio_reset_request_id,
-                                                        &ha->curr_read_index)) {
-                            // Wait for the producer's first complete post-reset SDU.
-                            break;
-                        }
 
-                        // Ensure the volume is sent over CDC in case the control 
-                        // app does not have the current value
-                        auto vol_ev = EventPacket(EventType::AudioVolume);
-                        vol_ev.data.volume = ha->curr_vol;
-                        add_event_to_buffer(ha->conn_id, vol_ev);
-
-                        // add_event_to_buffer(ha->conn_id, )
-                        ha->first_audio_send = false;
-                    }
-                    if (ha->curr_read_index < w_index) {
-                        if (ha->credits == 0) {
-                            short_log(ha->conn_id, "%s", "Zero credits");
-                            // Wait long enough for a slow aid to replenish before
-                            // attempting to restart; see the Ready branch above.
-                            ha->zero_credits_cooldown = 500;
-                            if (ha->other && ha->other->is_streaming()) {
-                                ha->other->stop_request_from_other = true;
-                            }
-                            ha->send_acp_stop();
-                            break;
-                        }
-                        // Restart stream if starting to fall behind
-                        if (w_index - ha->curr_read_index >= 2) {
-                            short_log(ha->conn_id, "%s", "Stream fell behind: restart");
-                            if (ha->other && ha->other->is_streaming()) {
-                                ha->other->stop_request_from_other = true;
-                            }
-                            ha->send_acp_stop();
-                            break;
-                        }
-
-                        enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
-                                                                                     : AshaAudioSide::AudioRight;
-                        auto const* encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
-                        memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
-                        ha->audio_data = ha->audio_tx_buffer.data();
-                        ha->audio_tx_pending_ticks = 0;
-                        ha->audio_state = AudioState::StreamingInProgress;
+                    enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
+                                                                                 : AshaAudioSide::AudioRight;
+                    auto const* encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
+                    memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
+                    ha->audio_data = ha->audio_tx_buffer.data();
+                    ha->audio_tx_pending_ticks = 0;
+                    ha->audio_state = AudioState::StreamingInProgress;
 
 #ifdef PICO_ASHA_L2CAP_TX_TRACE
-                        short_log(ha->conn_id, "L2CAP Tx req S:%u Cr:%u",
-                                  (unsigned)ha->audio_data[0], (unsigned)ha->credits);
+                    short_log(ha->conn_id, "L2CAP Tx req S:%u Cr:%u",
+                              (unsigned)ha->audio_data[0], (unsigned)ha->credits);
 #endif
-                        uint8_t const tx_request_status = l2cap_request_can_send_now_event(ha->cid);
-                        if (tx_request_status != ERROR_CODE_SUCCESS) {
-                            short_log(ha->conn_id, "L2CAP Tx req err: 0x%02X Cr:%u",
-                                      (unsigned)tx_request_status, (unsigned)ha->credits);
-                            ha->audio_data = nullptr;
-                            ha->audio_tx_pending_ticks = 0;
-                            ha->audio_state = AudioState::Streaming;
-                            ha->close_l2cap_for_recovery();
-                            break;
-                        }
-                        enable_process_delay = true;
-#ifdef PICO_ASHA_ENC_STATS
-                        send_enc_times = true;
-#endif
+                    uint8_t const tx_request_status = l2cap_request_can_send_now_event(ha->cid);
+                    if (tx_request_status != ERROR_CODE_SUCCESS) {
+                        short_log(ha->conn_id, "L2CAP Tx req err: 0x%02X Cr:%u",
+                                  (unsigned)tx_request_status, (unsigned)ha->credits);
+                        ha->audio_data = nullptr;
+                        ha->audio_tx_pending_ticks = 0;
+                        ha->audio_state = AudioState::Streaming;
+                        ha->close_l2cap_for_recovery();
+                        break;
                     }
+                    enable_process_delay = true;
+#ifdef PICO_ASHA_ENC_STATS
+                    send_enc_times = true;
+#endif
                 }
                 break;
+            }
             default:
                 break;
         }
@@ -1338,6 +1314,61 @@ bool HearingAid::process_audio()
 }
 
 /* Private methods */
+
+bool HearingAid::AudioSession::process_streaming_state()
+{
+    bool const want_audio = enabled && asha_audio_get_pcm_streaming_enabled();
+    // Keep a brief host pause or disable latched until all Stops finish.
+    if (!want_audio) { restarting = true; }
+    bool busy = false;
+    for (auto ha : hearing_aids) {
+        if (ha->process_state != ProcessState::Audio) { continue; }
+        // Wait for PACKET_SENT before Stop; the pending SDU still owns its buffer.
+        if (restarting && ha->audio_state == AudioState::Streaming) {
+            comm::short_log(ha->conn_id, "%s", want_audio ? "Restarting shared stream" : "Stopping shared stream");
+            ha->send_acp_stop();
+        }
+        busy |= ha->is_streaming() || ha->acp_operation != ACPOperation::None;
+    }
+    // A Start already in flight must finish and Stop before the restart.
+    if (!busy) { restarting = false; }
+    bool const first_streaming = hearing_aids[0]->is_streaming();
+    bool const second_streaming = hearing_aids[1]->is_streaming();
+    asha_audio_set_encode_mono(!(first_streaming && second_streaming));
+    if ((!want_audio || !(first_streaming || second_streaming))
+        && asha_audio_get_encoding_enabled()) {
+        asha_audio_set_encoding_enabled(false);
+        asha_audio_request_reset(AudioResetSession);
+    }
+    return want_audio;
+}
+
+void HearingAid::AudioSession::request_stream_restart()
+{
+    restarting = true;
+    process_streaming_state();
+}
+
+void HearingAid::AudioSession::on_stream_started(HearingAid& ha)
+{
+    bool const other_streaming = ha.other && ha.other->is_streaming();
+    asha_audio_set_encode_mono(!other_streaming);
+    ha.audio_reset_type = !other_streaming ? AudioResetSession :
+                         ha.rop.side() == Side::Left ? AudioResetLeft : AudioResetRight;
+    ha.audio_reset_request_id = asha_audio_request_reset(ha.audio_reset_type);
+    asha_audio_set_encoding_enabled(true);
+    if (other_streaming) {
+        ha.other->send_acp_status(ACPStatus::other_connected);
+    }
+}
+
+void HearingAid::AudioSession::on_stream_stopped(HearingAid& ha)
+{
+    if (ha.other && ha.other->is_streaming()) {
+        ha.other->send_acp_status(ACPStatus::other_disconnected);
+    }
+    process_streaming_state();
+}
 
 HearingAid* HearingAid::get_by_con_handle(hci_con_handle_t handle)
 {
@@ -1497,30 +1528,16 @@ void HearingAid::complete_acp()
     if (acp_operation == ACPOperation::Start && !acp_start_acked) { return; }
     auto const operation = acp_operation;
     acp_operation = ACPOperation::None;
-    bool const other_streaming = other && other->is_streaming();
     if (operation == ACPOperation::Start) {
         comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStart));
         audio_state = AudioState::Streaming;
-        asha_audio_set_encode_mono(!other_streaming);
-        audio_reset_type = !other_streaming ? AudioResetSession :
-                           rop.side() == Side::Left ? AudioResetLeft : AudioResetRight;
-        audio_reset_request_id = asha_audio_request_reset(audio_reset_type);
-        asha_audio_set_encoding_enabled(true);
-        if (other_streaming) {
-            other->send_acp_status(ACPStatus::other_connected);
-        }
+        audio_session.on_stream_started(*this);
         first_audio_send = true;
     } else {
         // Report Stop to the control app at GATT completion; ASP is optional.
         comm::add_event_to_buffer(conn_id, comm::EventPacket(comm::EventType::ASPStop));
-        stop_request_from_other = false;
         audio_state = AudioState::Ready;
-        if (!other_streaming) {
-            asha_audio_set_encoding_enabled(false);
-            asha_audio_request_reset(AudioResetSession);
-        } else {
-            other->send_acp_status(ACPStatus::other_disconnected);
-        }
+        audio_session.on_stream_stopped(*this);
     }
 }
 
@@ -1627,7 +1644,6 @@ void HearingAid::reset()
     audio_tx_pending_ticks = 0U;
     audio_sdu_gap_ticks = 0U;
     l2cap_close_ticks = 0U;
-    stop_request_from_other = false;
 
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));

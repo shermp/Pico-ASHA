@@ -257,8 +257,6 @@ private:
     uint32_t audio_sdu_gap_ticks = 0U;
     uint32_t l2cap_close_ticks = 0U;
 
-    bool stop_request_from_other = false;
-
     std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};
 
     uint16_t conn_id = comm::unset_conn_id;
@@ -266,8 +264,19 @@ private:
     inline static uint16_t next_conn_id;
 
     inline static bool connections_allowed;
-    inline static bool audio_streaming_enabled;
     inline static bool auto_pair_enabled;
+
+    // Shared intent and encoder decisions use the existing per-aid states.
+    struct AudioSession {
+        bool enabled = true;
+        bool restarting = false;
+
+        bool process_streaming_state();
+        void request_stream_restart();
+        void on_stream_started(HearingAid& ha);
+        void on_stream_stopped(HearingAid& ha);
+    };
+    static AudioSession audio_session;
 
     /* Member functions */
 
