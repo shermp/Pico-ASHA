@@ -15,13 +15,21 @@ namespace asha
 
 constexpr int ha_process_delay_ticks = 500;
 
+// Audio ticks are nominally 1 ms and SDUs contain 20 ms. Keep the established
+// 4/8-credit start gates and cooldown; never skip unread G.722 frames to catch up.
+constexpr uint16_t audio_start_credits = 4;
+constexpr uint16_t audio_restart_credits = 8;
+constexpr uint32_t audio_credit_cooldown_ticks = 500;
+constexpr uint32_t audio_backlog_frame_limit = 2;
+
 // How long the audio loop is allowed to sit in Ready with the host
 // actively delivering audio but L2CAP credits stuck below the start
 // gate, before recreating the L2CAP CoC to recover. Audio loop ticks
 // at 1 ms, so this is 3 seconds.
 constexpr uint32_t ready_stuck_timeout_ticks = 3000;
 
-// A queued ASHA SDU must be accepted and handed to the controller promptly.
+// Waiting for credits or a queued SDU must be bounded. The two-frame backlog
+// limit normally ends a credit wait sooner, when the next 20 ms SDU arrives.
 // The audio loop runs every millisecond; 120 ms is several connection events
 // but short enough to recover before a hearing aid's no-audio watchdog fires.
 constexpr uint32_t audio_tx_stuck_timeout_ticks = 120;
@@ -32,9 +40,9 @@ constexpr uint32_t audio_tx_stuck_timeout_ticks = 120;
 // the ACL connection. The audio loop runs every millisecond.
 constexpr uint32_t audio_sdu_gap_timeout_ticks = 500;
 
-// If a controlled CoC close does not complete, fall back to reconnecting the
-// BLE link rather than leaving the aid without a usable audio transport.
-constexpr uint32_t l2cap_close_stuck_timeout_ticks = 1000;
+// Bound each CoC recovery phase: closing, then reopening/registering notifications.
+// A failed phase or a second stall before PACKET_SENT falls back to ACL reconnect.
+constexpr uint32_t l2cap_recovery_timeout_ticks = 1000;
 
 // ACP deadlines use elapsed BTstack time, independently of audio timer ticks.
 constexpr uint32_t acp_timeout_ms = 1000;
@@ -255,7 +263,8 @@ private:
     uint8_t* audio_data = nullptr;
     uint32_t audio_tx_pending_ticks = 0U;
     uint32_t audio_sdu_gap_ticks = 0U;
-    uint32_t l2cap_close_ticks = 0U;
+    uint32_t l2cap_recovery_ticks = 0U;
+    bool l2cap_recovery_pending = false;
 
     std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};
 
@@ -294,6 +303,8 @@ private:
     bool acp_timed_out(uint32_t now_ms);
     void complete_acp();
     void send_volume(int8_t volume);
+    void clear_audio_send_state();
+    void restart_stream_for_recovery();
     void close_l2cap_for_recovery();
     void disconnect();
     void reset();
