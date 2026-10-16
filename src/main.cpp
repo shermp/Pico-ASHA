@@ -23,7 +23,7 @@ namespace asha
 {
 char pico_uid[pico_uid_size];
 
-RuntimeSettings runtime_settings = {};
+constinit RuntimeSettings runtime_settings;
 constinit StartupResult bt_startup;
 
 HearingAid ha_1 = HearingAid();

@@ -1,6 +1,7 @@
 #include <btstack.h>
 #include <pico/cyw43_arch.h>
 #include <hardware/watchdog.h>
+#include <hardware/sync.h>
 
 #include "asha_bt.hpp"
 #include "asha_comms.hpp"

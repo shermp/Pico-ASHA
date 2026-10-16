@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include <pico/mutex.h>
-
 #include <btstack_tlv.h>
 
 #include "asha_audio.hpp"
@@ -17,19 +15,17 @@ constexpr uint32_t str_to_tag(const char tag[5])
     return ((((uint32_t) tag[0]) << 24 ) | (((uint32_t) tag[1]) << 16) | (((uint32_t) tag[2]) << 8) | tag[3]);
 }
 
+// Access only on core 1: initialize before powering on Bluetooth, then use
+// the serialized Bluetooth callbacks. Core 0 receives a startup snapshot.
 struct RuntimeSettings
 {
-    RuntimeSettings() { mutex_init(&mtx); }
-
     [[nodiscard]] bool init();
 
-    bool get_hci_dump_enabled();
-    bool get_full_set_paired();
-    USBSettings get_usb_settings();
+    bool get_hci_dump_enabled() const;
+    bool get_full_set_paired() const;
+    USBSettings get_usb_settings() const;
 
-    bool set_hci_dump_enabled(bool is_enabled);
     bool set_full_set_paired(bool have_full_set);
-    bool set_usb_settings(USBSettings const& settings);
 
     // Store a pending setting in watchdog scratch registers so it can be
     // written to TLV after the watchdog reboot, avoiding a race between the
@@ -37,8 +33,6 @@ struct RuntimeSettings
     // before watchdog_enable().
     static void defer_hci_dump(bool enabled);
     static void defer_usb_settings(USBSettings const& settings);
-
-    explicit operator bool();
 
 private:
     enum Tag : uint32_t {
@@ -51,13 +45,9 @@ private:
     const btstack_tlv_t * tlv_impl = nullptr;
     void *                tlv_ctx = nullptr;
 
-    bool got_settings = false;
-
     bool hci_dump_enabled = false;
     bool full_set_paired = false;
     USBSettings usb_settings = {};
-
-    mutex_t mtx = {};
 
     void get_settings();
     void apply_pending_scratch();
