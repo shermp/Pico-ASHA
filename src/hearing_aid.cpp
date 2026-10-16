@@ -1602,7 +1602,7 @@ void HearingAid::sample_audio_credits()
     uint32_t const magnitude = difference < 0 ? -difference : difference;
     if ((uint64_t)magnitude * 10 >= (uint64_t)audio_credit_window_ticks * audio_credit_drift_threshold_tenths) {
         comm::short_log(conn_id, "%s", "Credit drift: restart");
-        audio_session.request_stream_restart(*this);
+        audio_session.request_stream_restart();
     }
     credit_average.window_sum = 0;
     credit_average.samples = 0;
