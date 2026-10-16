@@ -8,10 +8,14 @@
 #include <g722/g722_enc_dec.h>
 
 #include "asha_audio.h"
-#include "asha_fir.h"
+#include "asha_fir.hpp"
 
-static int16_t p_state_l[ASHA_FIR_STATE_SAMPLES];
-static int16_t p_state_r[ASHA_FIR_STATE_SAMPLES];
+static_assert(asha::fir_input_samples == ASHA_PCM_MAX_SAMPLES);
+static_assert(asha::fir_output_samples == ASHA_PCM_PACKET_SIZE);
+
+// Each channel's FIR history is owned exclusively by the core-0 producer.
+static asha::FirDecimator decimator_l;
+static asha::FirDecimator decimator_r;
 static uint16_t pcm_sample_count;
 
 struct AshaAudioEncBuffer {
@@ -71,8 +75,8 @@ static void reset_encoders()
 
 static void reset_decimators()
 {
-    asha_fir_reset(p_state_l);
-    asha_fir_reset(p_state_r);
+    decimator_l.reset();
+    decimator_r.reset();
 }
 
 static void reset_stream_encoder()
@@ -171,8 +175,8 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     int16_t* pcm_l = NULL;
     int16_t* pcm_r = NULL;
     if (count == ASHA_PCM_MAX_SAMPLES) {
-        asha_fir_decimate_48_to_16_q15(pcm_buff_l, pcm_buff_16khz_l, p_state_l);
-        asha_fir_decimate_48_to_16_q15(pcm_buff_r, pcm_buff_16khz_r, p_state_r);
+        decimator_l.process(pcm_buff_l, pcm_buff_16khz_l);
+        decimator_r.process(pcm_buff_r, pcm_buff_16khz_r);
         pcm_l = pcm_buff_16khz_l;
         pcm_r = pcm_buff_16khz_r;
     } else {

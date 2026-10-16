@@ -1,8 +1,6 @@
 #pragma once
 
-#include <stdint.h>
-
-#include "asha_fir.h"
+#include "asha_fir.hpp"
 
 /************ Only for inclusion by asha_fir.cpp *****************/
 
@@ -32,7 +30,10 @@
  *     worst rejection, 7.8 kHz .. 24 kHz: 66.8 dB
  */
 
-const int16_t asha_fir_coefficients[ASHA_FIR_NUM_TAPS] = {
+namespace asha
+{
+
+inline constexpr std::array<int16_t, fir_num_taps> fir_coefficients = {
        0,    0,    0,    0,    0,    0,    1,    0,   -1,   -1,   -1,    0,
        1,    1,    0,   -2,   -2,   -1,    2,    3,    2,   -2,   -4,   -3,
        1,    5,    5,    1,   -5,   -7,   -3,    5,    9,    6,   -3,  -11,
@@ -56,3 +57,5 @@ const int16_t asha_fir_coefficients[ASHA_FIR_NUM_TAPS] = {
        1,    0,   -1,   -1,   -1,    0,    1,    0,    0,    0,    0,    0,
        0
 };
+
+} // namespace asha
