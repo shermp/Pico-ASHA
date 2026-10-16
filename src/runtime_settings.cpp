@@ -17,13 +17,18 @@ namespace asha
 static constexpr uint32_t SCRATCH_CMD_HCI_DUMP     = 0x41534801u; // 'A','S','H',1
 static constexpr uint32_t SCRATCH_CMD_USB_SETTINGS = 0x41534802u; // 'A','S','H',2
 
-void RuntimeSettings::init()
+bool RuntimeSettings::init()
 {
     mutex_enter_blocking(&mtx);
     btstack_tlv_get_instance(&tlv_impl, &tlv_ctx);
+    if (!tlv_impl || !tlv_ctx) {
+        mutex_exit(&mtx);
+        return false;
+    }
     apply_pending_scratch();
     get_settings();
     mutex_exit(&mtx);
+    return true;
 }
 
 bool RuntimeSettings::get_hci_dump_enabled()

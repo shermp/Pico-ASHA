@@ -251,10 +251,11 @@ void HearingAid::on_serial_host_connected()
         intro_flags |= IntroFlags::streaming_enabled;
     }
     send_intro_packet((int8_t)num_connected(), intro_flags);
+    auto const settings = runtime_settings.get_usb_settings();
     USBInfo usb_info = {
-        .uac_vers = usb_settings.uac_version,
-        .min_vol = usb_settings.min_vol,
-        .max_vol = usb_settings.max_vol,
+        .uac_vers = settings.uac_version,
+        .min_vol = settings.min_vol,
+        .max_vol = settings.max_vol,
         .reserved = 0
     };
     send_usb_info_packet(usb_info);
@@ -1109,8 +1110,9 @@ bool HearingAid::process_audio()
     // Dividing the USB volume by usb_vol_res gives a volume that
     // matches the ASHA volume. Volume is clamped to the min/max volume
     // set in runtime settings
-    auto min_vol = usb_settings.min_vol;
-    auto max_vol = usb_settings.max_vol;
+    auto const settings = runtime_settings.get_usb_settings();
+    auto min_vol = settings.min_vol;
+    auto max_vol = settings.max_vol;
     int8_t vol_l = (usb_volume.left == usb_vol_mute) ? volume_mute
                           : (int8_t)(std::clamp(usb_volume.left, min_vol, max_vol) / usb_vol_res);
     int8_t vol_r = (usb_volume.right == usb_vol_mute) ? volume_mute

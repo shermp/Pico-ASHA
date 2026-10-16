@@ -15,5 +15,7 @@ namespace asha
         bool operator==(const USBSettings&) const = default;
     };
 
+    // Core 0 owns this copy after acquiring the startup snapshot. Core 1 uses
+    // RuntimeSettings instead.
     extern USBSettings usb_settings;
 }

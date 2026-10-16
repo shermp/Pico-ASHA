@@ -21,7 +21,7 @@ struct RuntimeSettings
 {
     RuntimeSettings() { mutex_init(&mtx); }
 
-    void init();
+    [[nodiscard]] bool init();
 
     bool get_hci_dump_enabled();
     bool get_full_set_paired();

@@ -2,7 +2,10 @@
 #include <pico/stdio.h>
 #include <pico/multicore.h>
 #include <pico/flash.h>
+#include <pico/bootrom.h>
+#include <pico/stdio_uart.h>
 #include <hardware/resets.h>
+#include <hardware/uart.h>
 // TinyUSB
 #include <bsp/board.h>
 #include <tusb.h>
@@ -14,12 +17,14 @@
 #include "runtime_settings.hpp"
 #include "hearing_aid.hpp"
 #include "usb_common.hpp"
+#include "startup.hpp"
 
 namespace asha
 {
 char pico_uid[pico_uid_size];
 
 RuntimeSettings runtime_settings = {};
+constinit StartupResult bt_startup;
 
 HearingAid ha_1 = HearingAid();
 HearingAid ha_2 = HearingAid();
@@ -28,6 +33,45 @@ HearingAid ha_2 = HearingAid();
 extern "C" void bt_main();
 
 void usb_main();
+
+[[noreturn]] static void startup_failed(StartupError error)
+{
+    // Stop a late core-1 completion before entering recovery. Never start USB
+    // with default or unpublished settings after a failure or timeout.
+    multicore_reset_core1();
+    stdio_uart_init();
+    // Use UART directly: USB is not running, and a stopped core could have
+    // held a stdio lock. BOOTSEL provides recovery without a reboot loop.
+    uart_puts(uart_default, "Pico-ASHA startup failed: ");
+    switch (error) {
+        case StartupError::CYW43:
+            uart_puts(uart_default, "CYW43 initialization");
+            break;
+        case StartupError::RuntimeSettings:
+            uart_puts(uart_default, "runtime settings initialization");
+            break;
+        default:
+            uart_puts(uart_default, "Bluetooth startup timed out");
+            break;
+    }
+    uart_puts(uart_default, "; entering BOOTSEL recovery\n");
+    uart_tx_wait_blocking(uart_default);
+    reset_usb_boot(0, 0);
+}
+
+static USBSettings wait_for_bt_startup()
+{
+    auto const deadline = make_timeout_time_ms(10000);
+    USBSettings settings;
+    StartupError error = StartupError::None;
+    for (;;) {
+        auto const status = bt_startup.read(settings, error);
+        if (status == StartupStatus::Ready) return settings;
+        if (status == StartupStatus::Failed) startup_failed(error);
+        if (time_reached(deadline)) startup_failed(StartupError::Timeout);
+        sleep_ms(1);
+    }
+}
 
 extern "C" int main()
 {
@@ -60,11 +104,7 @@ extern "C" int main()
     sleep_ms(250);
     multicore_launch_core1(bt_main);
 
-    while (!runtime_settings) {
-        sleep_ms(50);
-    }
-
-    usb_settings = runtime_settings.get_usb_settings();
+    usb_settings = wait_for_bt_startup();
 
     // Init TinyUSB before stdio init
     board_init();

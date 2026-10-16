@@ -7,6 +7,7 @@
 #include "asha_uuid.hpp"
 #include "hearing_aid.hpp"
 #include "util.hpp"
+#include "startup.hpp"
 
 namespace asha
 {
@@ -79,19 +80,33 @@ static void add_bonded_to_fal()
     }
 }
 
+[[noreturn]] static void fail_bt_startup(StartupError error)
+{
+    bt_startup.publish_failure(error);
+    // The core entry point must not return. Core 0 will report the failure
+    // and reset this core before entering BOOTSEL recovery.
+    for (;;) {
+        __wfe();
+    }
+}
+
 extern "C" void bt_main()
 {
     using namespace comm;
 
     if (cyw43_arch_init()) {
-        return;
+        fail_bt_startup(StartupError::CYW43);
     }
 
-    runtime_settings.init();
-    if (!runtime_settings) {
+    if (!runtime_settings.init()) {
         //LOG_ERROR("Runtime settings not initialised");
-        add_event_to_buffer(unset_conn_id, EventPacket(EventType::PicoASHAInit, StatusType::PAStatus, PAError::PARuntimeSettingsErr));
+        fail_bt_startup(StartupError::RuntimeSettings);
     }
+    auto const settings = runtime_settings.get_usb_settings();
+    if (!settings) {
+        fail_bt_startup(StartupError::RuntimeSettings);
+    }
+    bt_startup.publish_ready(settings);
 
     async_context_t *ctx = cyw43_arch_async_context();
 
