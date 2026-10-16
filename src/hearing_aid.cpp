@@ -1104,18 +1104,17 @@ bool HearingAid::process_audio()
 #endif
 
     uint32_t w_index = asha_audio_get_write_index();
-    int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AudioSide::Left);
-    int16_t usb_vol_r = asha_audio_get_curr_usb_vol(AudioSide::Right);
+    auto const usb_volume = asha_audio_get_curr_usb_vol();
 
     // Dividing the USB volume by usb_vol_res gives a volume that
     // matches the ASHA volume. Volume is clamped to the min/max volume
     // set in runtime settings
     auto min_vol = usb_settings.min_vol;
     auto max_vol = usb_settings.max_vol;
-    int8_t vol_l = (usb_vol_l == usb_vol_mute) ? volume_mute
-                          : (int8_t)(std::clamp(usb_vol_l, min_vol, max_vol) / usb_vol_res);
-    int8_t vol_r = (usb_vol_r == usb_vol_mute) ? volume_mute
-                          : (int8_t)(std::clamp(usb_vol_r, min_vol, max_vol) / usb_vol_res);
+    int8_t vol_l = (usb_volume.left == usb_vol_mute) ? volume_mute
+                          : (int8_t)(std::clamp(usb_volume.left, min_vol, max_vol) / usb_vol_res);
+    int8_t vol_r = (usb_volume.right == usb_vol_mute) ? volume_mute
+                          : (int8_t)(std::clamp(usb_volume.right, min_vol, max_vol) / usb_vol_res);
     
     bool const audio_requested = audio_session.process_streaming_state();
 
@@ -1203,7 +1202,7 @@ bool HearingAid::process_audio()
                 // Retry rejected writes using the latest host volume.
                 int8_t v = ha->rop.side() == Side::Left ? vol_l : vol_r;
                 if (ha->curr_vol != v) {
-                    // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_vol_l, (int)usb_vol_r);
+                    // short_log(ha->conn_id, "USB L:%d R:%d", (int)usb_volume.left, (int)usb_volume.right);
                     ha->send_volume(v);
                 }
                 if (w_index == 0) {

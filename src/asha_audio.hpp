@@ -102,15 +102,25 @@ asha_audio_get_encoded_at_index(AudioSide side, uint32_t index);
 asha_audio_get_encoding_time_at_index(uint32_t index);
 #endif
 
+struct USBVolume {
+    int16_t left;
+    int16_t right;
+};
+
 /**
- * Set the current volume, as provided by USB
+ * Set the current volume, as provided by USB.
+ *
+ * On core 0, select effective channel volumes and publish them together.
+ * Inputs include USB mute as usb_vol_mute.
  */
 void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol);
 
 /**
- * Get the current volume, as provided by USB
+ * Get the current volume, as provided by USB.
+ *
+ * On core 1, read one consistent pair per audio-processing pass.
  */
-[[nodiscard]] int16_t asha_audio_get_curr_usb_vol(AudioSide side);
+[[nodiscard]] USBVolume asha_audio_get_curr_usb_vol();
 
 /**
  * Set whether to enable encoding or not

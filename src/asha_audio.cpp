@@ -1,5 +1,6 @@
 #include <array>
 #include <atomic>
+#include <bit>
 
 #ifdef PICO_ASHA_ENC_STATS
 #include <pico/time.h>
@@ -59,9 +60,13 @@ struct EncoderReset {
 constinit std::array<EncoderReset, reset_index(AudioReset::Right) + 1u> encoder_resets;
 
 std::atomic_uint_fast32_t write_index{0};
-std::atomic_int_least16_t vol_m{0};
-std::atomic_int_least16_t vol_l{0};
-std::atomic_int_least16_t vol_r{0};
+
+constexpr uint32_t pack_usb_volume(int16_t left, int16_t right)
+{
+    return uint32_t(uint16_t(left)) | (uint32_t(uint16_t(right)) << 16u);
+}
+
+constinit std::atomic_uint32_t usb_volume{pack_usb_volume(usb_vol_min, usb_vol_min)};
 
 std::array<AshaAudioEncBuffer, audio_ring_size> enc_ring_buff;
 
@@ -236,8 +241,7 @@ void asha_audio_init()
         reset.applied_id = 0;
     }
     write_index = 0u;
-    vol_l = usb_vol_min;
-    vol_r = usb_vol_min;
+    usb_volume.store(pack_usb_volume(usb_vol_min, usb_vol_min));
     producer.initialize();
 }
 
@@ -270,25 +274,23 @@ asha_audio_get_encoding_time_at_index(uint32_t index)
 
 void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t right_vol)
 {
-    vol_m = main_vol;
-    vol_l = left_vol;
-    vol_r = right_vol;
+    // If volume levels are different for each side, user likely wants this.
+    if (left_vol == right_vol) {
+        // Choose the lowest volume. Some OS drivers seem to prefer setting the "main"
+        // channel (observed on MacOS with UAC1). Some set all the same (Windows UAC1)
+        // and some set the left/right pair (Windows UAC2). Channels that are not changed
+        // are often set to the loudest level - we don't want that!
+        left_vol = main_vol < left_vol ? main_vol : left_vol;
+        right_vol = left_vol;
+    }
+    usb_volume.store(pack_usb_volume(left_vol, right_vol));
 }
 
-int16_t asha_audio_get_curr_usb_vol(AudioSide side)
+USBVolume asha_audio_get_curr_usb_vol()
 {
-    int16_t vol;
-    if (vol_l != vol_r) {
-        // Volume levels are different for each side, user likely wants this
-        vol = side == AudioSide::Left ? vol_l : vol_r;
-    } else {
-        // Choose the lowest volume. Some OS drivers seem to prefer setting the "main"
-        // channel (observed on MacOS with UAC1). Some set all the same (Windows UAC1) 
-        // and some set the left/right pair (Windows UAC2). Channels that are not changed 
-        // are often set to the loudest level - we don't want that!
-        vol = (vol_m < vol_l) ? vol_m : vol_l;
-    }
-    return vol;
+    auto const packed = usb_volume.load();
+    return {std::bit_cast<int16_t>(uint16_t(packed)),
+            std::bit_cast<int16_t>(uint16_t(packed >> 16u))};
 }
 
 void asha_audio_set_encoding_enabled(bool enabled)
