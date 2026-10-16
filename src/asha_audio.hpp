@@ -152,14 +152,9 @@ enum class AudioReset {
 [[nodiscard]] bool asha_audio_get_encoding_enabled();
 
 /**
- * Set whether to encode audio as mono
+ * On core 1, request mono/stereo encoding. Core 0 applies it at a frame boundary.
  */
 void asha_audio_set_encode_mono(bool mono);
-
-/**
- * Gets if encoding audio as mono
- */
-[[nodiscard]] bool asha_audio_get_encode_mono();
 
 /**
  * Sets if PCM audio is playing

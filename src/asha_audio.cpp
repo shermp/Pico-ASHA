@@ -38,11 +38,9 @@ static_assert(sizeof(AshaAudioEncBuffer) == 2u * sdu_aligned_size_bytes
 static_assert(sizeof(AshaAudioEncBuffer) == 2u * sdu_aligned_size_bytes);
 #endif
 
-// Shared control and publication state retains sequentially consistent
-// operations, including counter read-modify-write.
+// Controls shared between core 1 and the core-0 producer.
 std::atomic_bool pcm_streaming{false};
 std::atomic_bool encode_audio{false};
-std::atomic_bool encode_mono{false};
 std::atomic_bool requested_encode_mono{false};
 
 constexpr std::size_t reset_index(AudioReset reset)
@@ -59,6 +57,7 @@ struct EncoderReset {
 
 constinit std::array<EncoderReset, reset_index(AudioReset::Right) + 1u> encoder_resets;
 
+// Only core 0 advances this index, publishing completed ring frames to core 1.
 std::atomic_uint_fast32_t write_index{0};
 
 constexpr uint32_t pack_usb_volume(int16_t left, int16_t right)
@@ -73,6 +72,7 @@ std::array<AshaAudioEncBuffer, audio_ring_size> enc_ring_buff;
 // All codec, FIR, input-buffer and partial-frame state belongs to core 0.
 struct AudioProducer {
     uint16_t pcm_sample_count{};
+    bool encode_mono{false};
     alignas(uint32_t) FirDecimator decimator_l;
     alignas(uint32_t) FirDecimator decimator_r;
     g722_encode_state_t enc_state_l{};
@@ -126,7 +126,7 @@ void AudioProducer::reset_stream_encoder()
     g_offset = 1;
     seq_num = 0;
     enc_time_index = 0;
-    encode_mono.store(requested_encode_mono.load());
+    encode_mono = requested_encode_mono.load(std::memory_order_acquire);
 }
 
 void AudioProducer::initialize()
@@ -141,14 +141,16 @@ void AudioProducer::encode(std::span<const PCMStereoSample> samples)
     absolute_time_t start_time = get_absolute_time();
 #endif
     auto const count = samples.size();
-    uint32_t const session_request_id = encoder_resets[reset_index(AudioReset::Session)].requested_id;
-    if (session_request_id != encoder_resets[reset_index(AudioReset::Session)].applied_id) {
+    uint32_t const w_index = write_index.load(std::memory_order_relaxed);
+    auto& session_reset = encoder_resets[reset_index(AudioReset::Session)];
+    uint32_t const session_request_id = session_reset.requested_id.load(std::memory_order_acquire);
+    if (session_request_id != session_reset.applied_id.load(std::memory_order_relaxed)) {
         // The hearing aid resets its decoder after an ACP stop/start. Reset on
         // this producer core so no partial SDU or stale predictor state leaks
         // into the next stream.
         reset_stream_encoder();
-        encoder_resets[reset_index(AudioReset::Session)].first_frame = write_index;
-        encoder_resets[reset_index(AudioReset::Session)].applied_id = session_request_id;
+        session_reset.first_frame = w_index;
+        session_reset.applied_id.store(session_request_id, std::memory_order_release);
     }
 
     if (count != pcm_sample_count) {
@@ -159,19 +161,19 @@ void AudioProducer::encode(std::span<const PCMStereoSample> samples)
     }
 
     bool enc_audio = encode_audio;
-    uint32_t w_index = write_index;
     if (!enc_audio) return;
     auto& buff = enc_ring_buff[ring_buff_index(w_index)];
 
     // Mode changes and per-side resets must not split an SDU.
     if (g_offset == 1) {
-        encode_mono.store(requested_encode_mono.load());
+        encode_mono = requested_encode_mono.load(std::memory_order_acquire);
         for (auto i = reset_index(AudioReset::Left); i <= reset_index(AudioReset::Right); ++i) {
-            uint32_t const request_id = encoder_resets[i].requested_id;
-            if (request_id != encoder_resets[i].applied_id) {
+            auto& reset = encoder_resets[i];
+            uint32_t const request_id = reset.requested_id.load(std::memory_order_acquire);
+            if (request_id != reset.applied_id.load(std::memory_order_relaxed)) {
                 g722_encode_init(i == reset_index(AudioReset::Left) ? &enc_state_l : &enc_state_r, 64000, G722_PACKED);
-                encoder_resets[i].first_frame = w_index;
-                encoder_resets[i].applied_id = request_id;
+                reset.first_frame = w_index;
+                reset.applied_id.store(request_id, std::memory_order_release);
             }
         }
     }
@@ -213,7 +215,7 @@ void AudioProducer::encode(std::span<const PCMStereoSample> samples)
         buff.r[0] = seq_num;
         ++seq_num;
         g_offset = 1;
-        write_index += 1;
+        write_index.store(w_index + 1u, std::memory_order_release);
         enc_time_index = 0;
     }
 }
@@ -233,7 +235,6 @@ void asha_audio_init()
     }
     pcm_streaming = false;
     encode_audio = false;
-    encode_mono = false;
     requested_encode_mono = false;
     for (auto& reset : encoder_resets) {
         reset.requested_id = 0;
@@ -247,8 +248,7 @@ void asha_audio_init()
 
 uint32_t asha_audio_get_write_index()
 {
-    uint32_t wi = write_index;
-    return wi;
+    return write_index.load(std::memory_order_acquire);
 }
 
 void asha_audio_encode_1ms_pcm(std::span<const PCMStereoSample> samples)
@@ -301,17 +301,22 @@ void asha_audio_set_encoding_enabled(bool enabled)
 uint32_t asha_audio_request_reset(AudioReset reset)
 {
     if (reset_index(reset) > reset_index(AudioReset::Right)) return 0;
-    return ++encoder_resets[reset_index(reset)].requested_id;
+    // Core 1 is the sole requester, so no atomic read-modify-write is needed.
+    auto& requested_id = encoder_resets[reset_index(reset)].requested_id;
+    uint32_t const next = requested_id.load(std::memory_order_relaxed) + 1u;
+    requested_id.store(next, std::memory_order_release);
+    return next;
 }
 
 bool asha_audio_get_reset_frame(AudioReset reset, uint32_t request_id, uint32_t& index)
 {
-    if (reset_index(reset) > reset_index(AudioReset::Right) || request_id == 0
-        || encoder_resets[reset_index(reset)].requested_id != request_id
-        || encoder_resets[reset_index(reset)].applied_id != request_id) return false;
-    index = encoder_resets[reset_index(reset)].first_frame;
+    if (reset_index(reset) > reset_index(AudioReset::Right) || request_id == 0) return false;
+    auto const& state = encoder_resets[reset_index(reset)];
+    if (state.requested_id.load(std::memory_order_relaxed) != request_id
+        || state.applied_id.load(std::memory_order_acquire) != request_id) return false;
+    index = state.first_frame;
     // The write index publishes complete SDUs; an applied reset alone is not enough.
-    return write_index > index;
+    return write_index.load(std::memory_order_acquire) > index;
 }
 
 bool asha_audio_get_encoding_enabled()
@@ -322,13 +327,7 @@ bool asha_audio_get_encoding_enabled()
 
 void asha_audio_set_encode_mono(bool mono)
 {
-    requested_encode_mono = mono;
-}
-
-bool asha_audio_get_encode_mono()
-{
-    bool mono = encode_mono;
-    return mono;
+    requested_encode_mono.store(mono, std::memory_order_release);
 }
 
 void asha_audio_set_pcm_streaming_enabled(bool enabled)
