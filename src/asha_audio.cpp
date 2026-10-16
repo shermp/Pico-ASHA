@@ -1,4 +1,4 @@
-#include <stdatomic.h>
+#include <atomic>
 #include <string.h>
 
 #ifdef PICO_ASHA_ENC_STATS
@@ -22,22 +22,22 @@ struct AshaAudioEncBuffer {
 #endif
 };
 
-static atomic_bool pcm_streaming;
-static atomic_bool encode_audio;
-static atomic_bool encode_mono;
-static atomic_bool requested_encode_mono;
+static std::atomic_bool pcm_streaming{false};
+static std::atomic_bool encode_audio{false};
+static std::atomic_bool encode_mono{false};
+static std::atomic_bool requested_encode_mono{false};
 // Core 1 requests/reads resets; core 0 publishes first_frame via applied_id.
 static struct {
-    atomic_uint_least32_t requested_id;
-    atomic_uint_least32_t applied_id;
-    uint32_t first_frame;
+    std::atomic_uint_least32_t requested_id{0};
+    std::atomic_uint_least32_t applied_id{0};
+    uint32_t first_frame{0};
 } encoder_resets[AudioResetRight + 1];
 
-static atomic_uint_fast32_t write_index;
+static std::atomic_uint_fast32_t write_index{0};
 
-static atomic_int_least16_t vol_m;
-static atomic_int_least16_t vol_l;
-static atomic_int_least16_t vol_r;
+static std::atomic_int_least16_t vol_m{0};
+static std::atomic_int_least16_t vol_l{0};
+static std::atomic_int_least16_t vol_r{0};
 
 g722_encode_state_t enc_state_l;
 g722_encode_state_t enc_state_r;
@@ -82,7 +82,7 @@ static void reset_stream_encoder()
     g_offset = 1;
     seq_num = 0;
     enc_time_index = 0;
-    encode_mono = requested_encode_mono;
+    encode_mono.store(requested_encode_mono.load());
 }
 
 void asha_audio_init()
@@ -141,7 +141,7 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 
     // Mode changes and per-side resets must not split an SDU.
     if (g_offset == 1) {
-        encode_mono = requested_encode_mono;
+        encode_mono.store(requested_encode_mono.load());
         for (unsigned i = AudioResetLeft; i <= AudioResetRight; ++i) {
             uint32_t const request_id = encoder_resets[i].requested_id;
             if (request_id != encoder_resets[i].applied_id) {

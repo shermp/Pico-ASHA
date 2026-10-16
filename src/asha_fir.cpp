@@ -5,9 +5,9 @@
 #include "asha_fir.h"
 #include "asha_audio_coefficients.h"
 
-_Static_assert((ASHA_FIR_NUM_TAPS % 4u) == 1u,
+static_assert((ASHA_FIR_NUM_TAPS % 4u) == 1u,
                "symmetric FIR length must be 4k+1");
-_Static_assert((ASHA_FIR_INPUT_SAMPLES % 3u) == 0u,
+static_assert((ASHA_FIR_INPUT_SAMPLES % 3u) == 0u,
                "input block must be divisible by the decimation factor");
 
 static inline int16_t saturate_q15(int32_t value)

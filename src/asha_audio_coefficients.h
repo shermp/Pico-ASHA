@@ -4,7 +4,7 @@
 
 #include "asha_fir.h"
 
-/************ Only for inclusion by asha_fir.c *****************/
+/************ Only for inclusion by asha_fir.cpp *****************/
 
 /*
  * G.722-shaped FIR decimator for the fixed 48 kHz to 16 kHz audio path.

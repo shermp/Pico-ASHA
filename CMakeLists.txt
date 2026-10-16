@@ -62,8 +62,8 @@ FetchContent_MakeAvailable(etl)
 set(ASHA_SRC
   src/main.cpp
   src/runtime_settings.cpp
-  src/asha_audio.c
-  src/asha_fir.c
+  src/asha_audio.cpp
+  src/asha_fir.cpp
   src/asha_bt.cpp
   src/asha_comms.cpp
   src/asha_led.cpp

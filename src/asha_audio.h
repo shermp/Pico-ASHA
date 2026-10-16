@@ -3,10 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define ASHA_G722_RING_SIZE 8u
 #define ASHA_G722_RING_SIZE_MASK 7u
 
@@ -142,7 +138,3 @@ void asha_audio_set_pcm_streaming_enabled(bool enabled);
  * Gets state of PCM audio
  */
 bool asha_audio_get_pcm_streaming_enabled();
-
-#ifdef __cplusplus
-}
-#endif
