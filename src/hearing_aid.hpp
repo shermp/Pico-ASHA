@@ -6,7 +6,7 @@
 
 #include <etl/string.h>
 
-#include "asha_audio.h"
+#include "asha_audio.hpp"
 #include "asha_bt.hpp"
 #include "asha_comms.hpp"
 
@@ -267,19 +267,19 @@ private:
     int error_count = 0;
 
     uint32_t curr_read_index = 0U;
-    AshaAudioReset audio_reset_type = AudioResetSession;
+    AudioReset audio_reset_type = AudioReset::Session;
     uint32_t audio_reset_request_id = 0U;
     bool first_audio_send = false;
     // BTstack only retains a pointer to an outgoing SDU. Keep a per-aid copy
     // while the L2CAP send is pending so the encoder ring cannot overwrite it.
-    std::array<uint8_t, ASHA_SDU_SIZE_BYTES> audio_tx_buffer = {};
+    alignas(uint32_t) std::array<uint8_t, sdu_size_bytes> audio_tx_buffer = {};
     bool audio_tx_pending = false;
     uint32_t audio_tx_pending_ticks = 0U;
     uint32_t audio_sdu_gap_ticks = 0U;
     uint32_t l2cap_recovery_ticks = 0U;
     bool l2cap_recovery_pending = false;
 
-    std::array<uint8_t, ASHA_SDU_SIZE_BYTES> recv_buff = {};
+    std::array<uint8_t, sdu_size_bytes> recv_buff = {};
 
     uint16_t conn_id = comm::unset_conn_id;
 

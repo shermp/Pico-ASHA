@@ -1104,18 +1104,18 @@ bool HearingAid::process_audio()
 #endif
 
     uint32_t w_index = asha_audio_get_write_index();
-    int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioLeft);
-    int16_t usb_vol_r = asha_audio_get_curr_usb_vol(AshaAudioSide::AudioRight);
+    int16_t usb_vol_l = asha_audio_get_curr_usb_vol(AudioSide::Left);
+    int16_t usb_vol_r = asha_audio_get_curr_usb_vol(AudioSide::Right);
 
-    // Dividing the USB volume by ASHA_USB_VOL_RES gives a volume that
+    // Dividing the USB volume by usb_vol_res gives a volume that
     // matches the ASHA volume. Volume is clamped to the min/max volume
     // set in runtime settings
     auto min_vol = usb_settings.min_vol;
     auto max_vol = usb_settings.max_vol;
-    int8_t vol_l = (usb_vol_l == ASHA_USB_VOL_MUTE) ? volume_mute 
-                                                    : (int8_t)(std::clamp(usb_vol_l, min_vol, max_vol) / ASHA_USB_VOL_RES);
-    int8_t vol_r = (usb_vol_r == ASHA_USB_VOL_MUTE) ? volume_mute 
-                                                    : (int8_t)(std::clamp(usb_vol_r, min_vol, max_vol) / ASHA_USB_VOL_RES);
+    int8_t vol_l = (usb_vol_l == usb_vol_mute) ? volume_mute
+                          : (int8_t)(std::clamp(usb_vol_l, min_vol, max_vol) / usb_vol_res);
+    int8_t vol_r = (usb_vol_r == usb_vol_mute) ? volume_mute
+                          : (int8_t)(std::clamp(usb_vol_r, min_vol, max_vol) / usb_vol_res);
     
     bool const audio_requested = audio_session.process_streaming_state();
 
@@ -1212,7 +1212,7 @@ bool HearingAid::process_audio()
                 if (ha->first_audio_send) {
                     if (!asha_audio_get_reset_frame(ha->audio_reset_type,
                                                     ha->audio_reset_request_id,
-                                                    &ha->curr_read_index)) {
+                                                    ha->curr_read_index)) {
                         // Wait for the producer's first complete post-reset SDU.
                         break;
                     }
@@ -1255,10 +1255,10 @@ bool HearingAid::process_audio()
                         ha->close_l2cap_for_recovery();
                         break;
                     }
-                    enum AshaAudioSide audio_side = ha->rop.side() == Side::Left ? AshaAudioSide::AudioLeft
-                                                                                 : AshaAudioSide::AudioRight;
-                    auto const* encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
-                    memcpy(ha->audio_tx_buffer.data(), encoded_audio, ASHA_SDU_SIZE_BYTES);
+                    AudioSide audio_side = ha->rop.side() == Side::Left ? AudioSide::Left
+                                                                      : AudioSide::Right;
+                    auto encoded_audio = asha_audio_get_encoded_at_index(audio_side, ha->curr_read_index);
+                    memcpy(ha->audio_tx_buffer.data(), encoded_audio.data(), encoded_audio.size());
                     // PACKET_SENT can arrive inside l2cap_send().
                     ha->audio_tx_pending = true;
                     ha->audio_tx_pending_ticks = 0;
@@ -1267,7 +1267,7 @@ bool HearingAid::process_audio()
                     short_log(ha->conn_id, "L2CAP Tx send S:%u Cr:%u",
                               (unsigned)ha->audio_tx_buffer[0], (unsigned)ha->credits);
 #endif
-                    uint8_t const tx_status = l2cap_send(ha->cid, ha->audio_tx_buffer.data(), ASHA_SDU_SIZE_BYTES);
+                    uint8_t const tx_status = l2cap_send(ha->cid, ha->audio_tx_buffer.data(), sdu_size_bytes);
                     if (tx_status != ERROR_CODE_SUCCESS) {
                         // Rejection does not transfer ownership or consume a frame.
                         ha->audio_tx_pending = false;
@@ -1296,8 +1296,9 @@ bool HearingAid::process_audio()
         auto enc_times = asha_audio_get_encoding_time_at_index(w_index == 0 ? 0 : w_index - 1);
         EventPacket pkt1(EventType::G722EncTimings);
         EventPacket pkt2(EventType::G722EncTimings);
-        memcpy(pkt1.data.encode_timings, enc_times, 20);
-        memcpy(pkt2.data.encode_timings, enc_times + 10, 20);
+        static_assert(2u * sizeof(pkt1.data.encode_timings) == pcm_blocks_per_sdu * sizeof(int16_t));
+        memcpy(pkt1.data.encode_timings, enc_times.data(), sizeof(pkt1.data.encode_timings));
+        memcpy(pkt2.data.encode_timings, enc_times.data() + 10, sizeof(pkt2.data.encode_timings));
         add_event_to_buffer(unset_conn_id, pkt1);
         add_event_to_buffer(unset_conn_id, pkt2);
     }
@@ -1333,7 +1334,7 @@ bool HearingAid::AudioSession::process_streaming_state()
     if ((!want_audio || !(first_streaming || second_streaming))
         && asha_audio_get_encoding_enabled()) {
         asha_audio_set_encoding_enabled(false);
-        asha_audio_request_reset(AudioResetSession);
+        (void)asha_audio_request_reset(AudioReset::Session);
     }
     return want_audio;
 }
@@ -1354,8 +1355,8 @@ void HearingAid::AudioSession::on_stream_started(HearingAid& ha)
 {
     bool const other_streaming = ha.other && ha.other->is_streaming();
     asha_audio_set_encode_mono(!other_streaming);
-    ha.audio_reset_type = !other_streaming ? AudioResetSession :
-                         ha.rop.side() == Side::Left ? AudioResetLeft : AudioResetRight;
+    ha.audio_reset_type = !other_streaming ? AudioReset::Session :
+                         ha.rop.side() == Side::Left ? AudioReset::Left : AudioReset::Right;
     ha.audio_reset_request_id = asha_audio_request_reset(ha.audio_reset_type);
     asha_audio_set_encoding_enabled(true);
     if (other_streaming) {
@@ -1691,7 +1692,7 @@ void HearingAid::reset()
     service_index = 0;
     chars_index = cached_chars_index;
     curr_read_index = 0U;
-    audio_reset_type = AudioResetSession;
+    audio_reset_type = AudioReset::Session;
     audio_reset_request_id = 0U;
     first_audio_send = false;
     clear_audio_send_state();

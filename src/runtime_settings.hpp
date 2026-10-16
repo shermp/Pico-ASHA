@@ -6,7 +6,7 @@
 
 #include <btstack_tlv.h>
 
-#include "asha_audio.h"
+#include "asha_audio.hpp"
 #include "usb_common.hpp"
 
 namespace asha

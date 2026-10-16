@@ -37,7 +37,7 @@
 #include "usb_descriptors.h"
 #include "usb_common.hpp"
 
-#include "asha_audio.h"
+#include "asha_audio.hpp"
 #include "asha_comms.hpp"
 
 namespace asha
@@ -58,8 +58,8 @@ static bool supported_sample_rate(uint32_t rate)
 
 static uint16_t samples_per_frame(uint32_t rate)
 {
-  return rate == 16'000u ? ASHA_PCM_PACKET_SIZE :
-         rate == 48'000u ? ASHA_PCM_MAX_SAMPLES : 0u;
+  return rate == 16'000u ? pcm_packet_samples :
+         rate == 48'000u ? pcm_max_samples : 0u;
 }
 
 static uint16_t bytes_per_frame(uint32_t rate)
@@ -78,9 +78,9 @@ static int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};       // +1 for
 static int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1] = {};    // +1 for master channel 0
 
 // Buffer for speaker data, can support up to 48KHz
-static PCMStereoSample spk_buf[ASHA_PCM_MAX_SAMPLES] = {};
+alignas(uint32_t) static std::array<PCMStereoSample, pcm_max_samples> spk_buf{};
 
-static PCMStereoSample silence_buff[ASHA_PCM_MAX_SAMPLES] = {};
+static const std::array<PCMStereoSample, pcm_max_samples> silence_buff{};
 
 // A counter for the number of consecutive silence audio packets
 // Note: this number will be approximately milliseconds
@@ -112,8 +112,8 @@ USBSettings usb_settings = {};
 USBSettings::operator bool() const
 {
   return (uac_version == 1 || uac_version == 2) 
-          && (min_vol <= ASHA_USB_VOL_MAX && min_vol >= ASHA_USB_VOL_MIN)
-          && (max_vol <= ASHA_USB_VOL_MAX && max_vol >= ASHA_USB_VOL_MIN)
+          && (min_vol <= usb_vol_max && min_vol >= usb_vol_min)
+          && (max_vol <= usb_vol_max && max_vol >= usb_vol_min)
           && (max_vol >= min_vol);
 }
 
@@ -327,7 +327,7 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
           case AUDIO10_CS_REQ_GET_RES:
             TU_LOG2("    Get Volume res of channel: %u\r\n", channelNum);
             {
-              int16_t res = ASHA_USB_VOL_RES;
+              int16_t res = usb_vol_res;
               return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &res, sizeof(res));
             }
             // Unknown/Unsupported control
@@ -432,7 +432,7 @@ static bool audio20_feature_unit_get_request(uint8_t rhport, tusb_control_reques
           .wNumSubRanges = tu_htole16(1),
           .subrange = {{.bMin = tu_htole16(usb_settings.min_vol),
                           .bMax = tu_htole16(usb_settings.max_vol), 
-                          .bRes = tu_htole16(ASHA_USB_VOL_RES)}}};
+                          .bRes = tu_htole16(usb_vol_res)}}};
       TU_LOG1("Get channel %u volume range (%d, %d, %u) \r\n", channel_num,
               range_vol.subrange[0].bMin, range_vol.subrange[0].bMax, range_vol.subrange[0].bRes);
       return tud_audio_buffer_and_schedule_control_xfer(rhport, request, &range_vol, sizeof(range_vol));
@@ -626,18 +626,18 @@ static void audio_task()
   next_audio_task_time = delayed_by_us(next_audio_task_time, 1'000);
 
   // Always get the current USB volume
-  asha_audio_set_curr_usb_vol(mute[0] ? ASHA_USB_VOL_MUTE : volume[0], 
-                              mute[1] ? ASHA_USB_VOL_MUTE : volume[1], 
-                              mute[2] ? ASHA_USB_VOL_MUTE : volume[2]);
+  asha_audio_set_curr_usb_vol(mute[0] ? usb_vol_mute : volume[0],
+                              mute[1] ? usb_vol_mute : volume[1],
+                              mute[2] ? usb_vol_mute : volume[2]);
 
   uint16_t const samples = samples_per_frame(current_sample_rate);
   uint16_t const frame_bytes = bytes_per_frame(current_sample_rate);
   absolute_time_t const now = get_absolute_time();
   if (samples && tud_audio_available() >= frame_bytes) {
-    uint16_t const bytes_read = tud_audio_read(spk_buf, frame_bytes);
+    uint16_t const bytes_read = tud_audio_read(spk_buf.data(), frame_bytes);
     if (bytes_read == frame_bytes) {
       last_pcm_packet_time = now;
-      if (std::all_of(spk_buf, spk_buf + samples, [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
+      if (std::all_of(spk_buf.begin(), spk_buf.begin() + samples, [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
         if (silence_counter < silence_timeout) {
           ++silence_counter;
         }
@@ -645,7 +645,7 @@ static void audio_task()
         silence_counter = 0;
       }
       asha_audio_set_pcm_streaming_enabled((silence_counter >= silence_timeout) ? false : true);
-      asha_audio_encode_1ms_pcm(spk_buf, samples);
+      asha_audio_encode_1ms_pcm(std::span{spk_buf}.first(samples));
       return;
     }
   }
@@ -657,7 +657,7 @@ static void audio_task()
     asha_audio_set_pcm_streaming_enabled(false);
   }
   // Continue encoding silence while the USB FIFO catches up or the host stops.
-  asha_audio_encode_1ms_pcm(silence_buff, samples);
+  asha_audio_encode_1ms_pcm(std::span{silence_buff}.first(samples));
 }
 
 } // namespace asha

@@ -8,7 +8,7 @@
 #include <tusb.h>
 
 #include "asha_unique_id.hpp"
-#include "asha_audio.h"
+#include "asha_audio.hpp"
 #include "asha_comms.hpp"
 
 #include "runtime_settings.hpp"

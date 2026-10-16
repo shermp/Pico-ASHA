@@ -1,5 +1,5 @@
+#include <array>
 #include <atomic>
-#include <string.h>
 
 #ifdef PICO_ASHA_ENC_STATS
 #include <pico/time.h>
@@ -7,79 +7,114 @@
 
 #include <g722/g722_enc_dec.h>
 
-#include "asha_audio.h"
+#include "asha_audio.hpp"
 #include "asha_fir.hpp"
 
-static_assert(asha::fir_input_samples == ASHA_PCM_MAX_SAMPLES);
-static_assert(asha::fir_output_samples == ASHA_PCM_PACKET_SIZE);
+namespace asha
+{
+namespace
+{
 
-// Each channel's FIR history is owned exclusively by the core-0 producer.
-static asha::FirDecimator decimator_l;
-static asha::FirDecimator decimator_r;
-static uint16_t pcm_sample_count;
+static_assert(fir_input_samples == pcm_max_samples);
+static_assert(fir_output_samples == pcm_packet_samples);
 
 struct AshaAudioEncBuffer {
-    uint8_t l[ASHA_SDU_SIZE_BYTES_ALIGNED];
-    uint8_t r[ASHA_SDU_SIZE_BYTES_ALIGNED];
+    alignas(uint32_t) std::array<uint8_t, sdu_aligned_size_bytes> l;
+    alignas(uint32_t) std::array<uint8_t, sdu_aligned_size_bytes> r;
 #ifdef PICO_ASHA_ENC_STATS
-    int16_t encode_times[20];
+    std::array<int16_t, pcm_blocks_per_sdu> encode_times;
 #endif
 };
 
-static std::atomic_bool pcm_streaming{false};
-static std::atomic_bool encode_audio{false};
-static std::atomic_bool encode_mono{false};
-static std::atomic_bool requested_encode_mono{false};
+static_assert(alignof(AshaAudioEncBuffer) >= alignof(uint32_t));
+static_assert(offsetof(AshaAudioEncBuffer, l) == 0u);
+static_assert(offsetof(AshaAudioEncBuffer, r) == sdu_aligned_size_bytes);
+#ifdef PICO_ASHA_ENC_STATS
+static_assert(offsetof(AshaAudioEncBuffer, encode_times) == 2u * sdu_aligned_size_bytes);
+static_assert(sizeof(AshaAudioEncBuffer) == 2u * sdu_aligned_size_bytes
+              + pcm_blocks_per_sdu * sizeof(int16_t));
+#else
+static_assert(sizeof(AshaAudioEncBuffer) == 2u * sdu_aligned_size_bytes);
+#endif
+
+// Shared control and publication state retains sequentially consistent
+// operations, including counter read-modify-write.
+std::atomic_bool pcm_streaming{false};
+std::atomic_bool encode_audio{false};
+std::atomic_bool encode_mono{false};
+std::atomic_bool requested_encode_mono{false};
+
+constexpr std::size_t reset_index(AudioReset reset)
+{
+    return static_cast<std::size_t>(reset);
+}
+
 // Core 1 requests/reads resets; core 0 publishes first_frame via applied_id.
-static struct {
+struct EncoderReset {
     std::atomic_uint_least32_t requested_id{0};
     std::atomic_uint_least32_t applied_id{0};
     uint32_t first_frame{0};
-} encoder_resets[AudioResetRight + 1];
+};
 
-static std::atomic_uint_fast32_t write_index{0};
+constinit std::array<EncoderReset, reset_index(AudioReset::Right) + 1u> encoder_resets;
 
-static std::atomic_int_least16_t vol_m{0};
-static std::atomic_int_least16_t vol_l{0};
-static std::atomic_int_least16_t vol_r{0};
+std::atomic_uint_fast32_t write_index{0};
+std::atomic_int_least16_t vol_m{0};
+std::atomic_int_least16_t vol_l{0};
+std::atomic_int_least16_t vol_r{0};
 
-g722_encode_state_t enc_state_l;
-g722_encode_state_t enc_state_r;
+std::array<AshaAudioEncBuffer, audio_ring_size> enc_ring_buff;
 
-static struct AshaAudioEncBuffer enc_ring_buff[ASHA_G722_RING_SIZE];
-static unsigned int g_offset;
-static unsigned int enc_time_index;
-static uint8_t seq_num;
+// All codec, FIR, input-buffer and partial-frame state belongs to core 0.
+struct AudioProducer {
+    uint16_t pcm_sample_count{};
+    alignas(uint32_t) FirDecimator decimator_l;
+    alignas(uint32_t) FirDecimator decimator_r;
+    g722_encode_state_t enc_state_l{};
+    g722_encode_state_t enc_state_r{};
+    unsigned int g_offset{};
+    unsigned int enc_time_index{};
+    uint8_t seq_num{};
+    alignas(uint32_t) std::array<int16_t, pcm_max_samples> pcm_buff_l{};
+    alignas(uint32_t) std::array<int16_t, pcm_max_samples> pcm_buff_r{};
+    alignas(uint32_t) std::array<int16_t, pcm_packet_samples> pcm_buff_16khz_l{};
+    alignas(uint32_t) std::array<int16_t, pcm_packet_samples> pcm_buff_16khz_r{};
 
-static int16_t pcm_buff_l[ASHA_PCM_MAX_SAMPLES];
-static int16_t pcm_buff_r[ASHA_PCM_MAX_SAMPLES];
+    void initialize();
+    void reset_encoders();
+    void reset_decimators();
+    void reset_stream_encoder();
+    void encode(std::span<const PCMStereoSample> samples);
+};
 
-static int16_t pcm_buff_16khz_l[ASHA_PCM_PACKET_SIZE];
-static int16_t pcm_buff_16khz_r[ASHA_PCM_PACKET_SIZE];
+static_assert(offsetof(AudioProducer, decimator_l) % alignof(uint32_t) == 0u);
+static_assert(offsetof(AudioProducer, decimator_r) % alignof(uint32_t) == 0u);
 
-static inline uint32_t ring_buff_index(const uint32_t index)
+constinit AudioProducer producer;
+
+uint32_t ring_buff_index(uint32_t index)
 {
-    return index & ASHA_G722_RING_SIZE_MASK;
+    return index & audio_ring_mask;
 }
 
-static inline int16_t get_mono_sample(struct PCMStereoSample sample)
+int16_t get_mono_sample(PCMStereoSample sample)
 {
-    return (int16_t)( ( (int32_t)sample.left + (int32_t)sample.right) / 2 );
+    return (int16_t)(((int32_t)sample.left + (int32_t)sample.right) / 2);
 }
 
-static void reset_encoders()
+void AudioProducer::reset_encoders()
 {
     g722_encode_init(&enc_state_l, 64000, G722_PACKED);
     g722_encode_init(&enc_state_r, 64000, G722_PACKED);
 }
 
-static void reset_decimators()
+void AudioProducer::reset_decimators()
 {
     decimator_l.reset();
     decimator_r.reset();
 }
 
-static void reset_stream_encoder()
+void AudioProducer::reset_stream_encoder()
 {
     reset_encoders();
     reset_decimators();
@@ -89,45 +124,26 @@ static void reset_stream_encoder()
     encode_mono.store(requested_encode_mono.load());
 }
 
-void asha_audio_init()
+void AudioProducer::initialize()
 {
-    memset(enc_ring_buff, 0, sizeof(enc_ring_buff));
-    pcm_streaming = false;
-    encode_audio = false;
-    encode_mono = false;
-    requested_encode_mono = false;
-    for (unsigned i = AudioResetSession; i <= AudioResetRight; ++i) {
-        encoder_resets[i].requested_id = 0;
-        encoder_resets[i].first_frame = 0;
-        encoder_resets[i].applied_id = 0;
-    }
-    write_index = 0u;
     pcm_sample_count = 0;
-    vol_l = ASHA_USB_VOL_MIN;
-    vol_r = ASHA_USB_VOL_MIN;
     reset_stream_encoder();
-
 }
 
-uint32_t asha_audio_get_write_index()
-{
-    uint32_t wi = write_index;
-    return wi;
-}
-
-void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
+void AudioProducer::encode(std::span<const PCMStereoSample> samples)
 {
 #ifdef PICO_ASHA_ENC_STATS
     absolute_time_t start_time = get_absolute_time();
 #endif
-    uint32_t const session_request_id = encoder_resets[AudioResetSession].requested_id;
-    if (session_request_id != encoder_resets[AudioResetSession].applied_id) {
+    auto const count = samples.size();
+    uint32_t const session_request_id = encoder_resets[reset_index(AudioReset::Session)].requested_id;
+    if (session_request_id != encoder_resets[reset_index(AudioReset::Session)].applied_id) {
         // The hearing aid resets its decoder after an ACP stop/start. Reset on
         // this producer core so no partial SDU or stale predictor state leaks
         // into the next stream.
         reset_stream_encoder();
-        encoder_resets[AudioResetSession].first_frame = write_index;
-        encoder_resets[AudioResetSession].applied_id = session_request_id;
+        encoder_resets[reset_index(AudioReset::Session)].first_frame = write_index;
+        encoder_resets[reset_index(AudioReset::Session)].applied_id = session_request_id;
     }
 
     if (count != pcm_sample_count) {
@@ -140,16 +156,15 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     bool enc_audio = encode_audio;
     uint32_t w_index = write_index;
     if (!enc_audio) return;
-    int buff_index = 0;
-    struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(w_index)];
+    auto& buff = enc_ring_buff[ring_buff_index(w_index)];
 
     // Mode changes and per-side resets must not split an SDU.
     if (g_offset == 1) {
         encode_mono.store(requested_encode_mono.load());
-        for (unsigned i = AudioResetLeft; i <= AudioResetRight; ++i) {
+        for (auto i = reset_index(AudioReset::Left); i <= reset_index(AudioReset::Right); ++i) {
             uint32_t const request_id = encoder_resets[i].requested_id;
             if (request_id != encoder_resets[i].applied_id) {
-                g722_encode_init(i == AudioResetLeft ? &enc_state_l : &enc_state_r, 64000, G722_PACKED);
+                g722_encode_init(i == reset_index(AudioReset::Left) ? &enc_state_l : &enc_state_r, 64000, G722_PACKED);
                 encoder_resets[i].first_frame = w_index;
                 encoder_resets[i].applied_id = request_id;
             }
@@ -161,41 +176,36 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     if (mono) {
         for (unsigned int i = 0; i < count; ++i) {
             int16_t sample = get_mono_sample(samples[i]);
-            pcm_buff_l[buff_index] = sample;
-            pcm_buff_r[buff_index] = sample;
-            ++buff_index;
+            pcm_buff_l[i] = sample;
+            pcm_buff_r[i] = sample;
         }       
     } else {
         for (unsigned int i = 0; i < count; ++i) {
-            pcm_buff_l[buff_index] = samples[i].left;
-            pcm_buff_r[buff_index] = samples[i].right;
-            ++buff_index;
+            pcm_buff_l[i] = samples[i].left;
+            pcm_buff_r[i] = samples[i].right;
         }
     }
-    int16_t* pcm_l = NULL;
-    int16_t* pcm_r = NULL;
-    if (count == ASHA_PCM_MAX_SAMPLES) {
+    std::span<const int16_t, pcm_packet_samples> pcm_l = std::span{pcm_buff_l}.first<pcm_packet_samples>();
+    std::span<const int16_t, pcm_packet_samples> pcm_r = std::span{pcm_buff_r}.first<pcm_packet_samples>();
+    if (count == pcm_max_samples) {
         decimator_l.process(pcm_buff_l, pcm_buff_16khz_l);
         decimator_r.process(pcm_buff_r, pcm_buff_16khz_r);
         pcm_l = pcm_buff_16khz_l;
         pcm_r = pcm_buff_16khz_r;
-    } else {
-        pcm_l = pcm_buff_l;
-        pcm_r = pcm_buff_r;
     }
 
-    g722_encode(&enc_state_l, buff->l + g_offset, pcm_l, ASHA_PCM_PACKET_SIZE);
-    g722_encode(&enc_state_r, buff->r + g_offset, pcm_r, ASHA_PCM_PACKET_SIZE);
+    g722_encode(&enc_state_l, buff.l.data() + g_offset, pcm_l.data(), pcm_packet_samples);
+    g722_encode(&enc_state_r, buff.r.data() + g_offset, pcm_r.data(), pcm_packet_samples);
     
-    g_offset += ASHA_G722_1MS_SIZE_BYTES;
+    g_offset += g722_1ms_bytes;
 #ifdef PICO_ASHA_ENC_STATS
     int64_t time_diff = absolute_time_diff_us(start_time, get_absolute_time());
-    buff->encode_times[enc_time_index] = (int16_t)time_diff;
+    buff.encode_times[enc_time_index] = (int16_t)time_diff;
     ++enc_time_index;
 #endif
-    if (g_offset >= ASHA_SDU_SIZE_BYTES) {
-        buff->l[0] = seq_num;
-        buff->r[0] = seq_num;
+    if (g_offset >= sdu_size_bytes) {
+        buff.l[0] = seq_num;
+        buff.r[0] = seq_num;
         ++seq_num;
         g_offset = 1;
         write_index += 1;
@@ -203,16 +213,58 @@ void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
     }
 }
 
-uint8_t* asha_audio_get_encoded_at_index(enum AshaAudioSide side, uint32_t index)
+} // namespace
+
+void asha_audio_init()
 {
-    struct AshaAudioEncBuffer* buff = &enc_ring_buff[ring_buff_index(index)];
-    return side == AudioLeft ? buff->l : buff->r;
+    // Initialize on core 0 before launching core 1, along with shared queues
+    // and the SDK flash-lockout registration.
+    for (auto& buff : enc_ring_buff) {
+        buff.l.fill(0);
+        buff.r.fill(0);
+#ifdef PICO_ASHA_ENC_STATS
+        buff.encode_times.fill(0);
+#endif
+    }
+    pcm_streaming = false;
+    encode_audio = false;
+    encode_mono = false;
+    requested_encode_mono = false;
+    for (auto& reset : encoder_resets) {
+        reset.requested_id = 0;
+        reset.first_frame = 0;
+        reset.applied_id = 0;
+    }
+    write_index = 0u;
+    vol_l = usb_vol_min;
+    vol_r = usb_vol_min;
+    producer.initialize();
+}
+
+uint32_t asha_audio_get_write_index()
+{
+    uint32_t wi = write_index;
+    return wi;
+}
+
+void asha_audio_encode_1ms_pcm(std::span<const PCMStereoSample> samples)
+{
+    if (samples.size() != pcm_packet_samples && samples.size() != pcm_max_samples) return;
+    producer.encode(samples);
+}
+
+std::span<const uint8_t, sdu_size_bytes>
+asha_audio_get_encoded_at_index(AudioSide side, uint32_t index)
+{
+    auto const& buff = enc_ring_buff[ring_buff_index(index)];
+    return std::span{side == AudioSide::Left ? buff.l : buff.r}.first<sdu_size_bytes>();
 }
 
 #ifdef PICO_ASHA_ENC_STATS
-int16_t* asha_audio_get_encoding_time_at_index(uint32_t index)
+std::span<const int16_t, pcm_blocks_per_sdu>
+asha_audio_get_encoding_time_at_index(uint32_t index)
 {
-    return (&enc_ring_buff[ring_buff_index(index)])->encode_times;
+    return enc_ring_buff[ring_buff_index(index)].encode_times;
 }
 #endif
 
@@ -223,12 +275,12 @@ void asha_audio_set_curr_usb_vol(int16_t main_vol, int16_t left_vol, int16_t rig
     vol_r = right_vol;
 }
 
-int16_t asha_audio_get_curr_usb_vol(enum AshaAudioSide side)
+int16_t asha_audio_get_curr_usb_vol(AudioSide side)
 {
     int16_t vol;
     if (vol_l != vol_r) {
         // Volume levels are different for each side, user likely wants this
-        vol = side == AudioLeft ? vol_l : vol_r;
+        vol = side == AudioSide::Left ? vol_l : vol_r;
     } else {
         // Choose the lowest volume. Some OS drivers seem to prefer setting the "main"
         // channel (observed on MacOS with UAC1). Some set all the same (Windows UAC1) 
@@ -244,20 +296,20 @@ void asha_audio_set_encoding_enabled(bool enabled)
     encode_audio = enabled;
 }
 
-uint32_t asha_audio_request_reset(enum AshaAudioReset reset)
+uint32_t asha_audio_request_reset(AudioReset reset)
 {
-    if ((unsigned)reset > AudioResetRight) return 0;
-    return ++encoder_resets[reset].requested_id;
+    if (reset_index(reset) > reset_index(AudioReset::Right)) return 0;
+    return ++encoder_resets[reset_index(reset)].requested_id;
 }
 
-bool asha_audio_get_reset_frame(enum AshaAudioReset reset, uint32_t request_id, uint32_t* index)
+bool asha_audio_get_reset_frame(AudioReset reset, uint32_t request_id, uint32_t& index)
 {
-    if ((unsigned)reset > AudioResetRight || request_id == 0
-        || encoder_resets[reset].requested_id != request_id
-        || encoder_resets[reset].applied_id != request_id) return false;
-    *index = encoder_resets[reset].first_frame;
+    if (reset_index(reset) > reset_index(AudioReset::Right) || request_id == 0
+        || encoder_resets[reset_index(reset)].requested_id != request_id
+        || encoder_resets[reset_index(reset)].applied_id != request_id) return false;
+    index = encoder_resets[reset_index(reset)].first_frame;
     // The write index publishes complete SDUs; an applied reset alone is not enough.
-    return write_index > *index;
+    return write_index > index;
 }
 
 bool asha_audio_get_encoding_enabled()
@@ -287,3 +339,5 @@ bool asha_audio_get_pcm_streaming_enabled()
     bool pcm = pcm_streaming;
     return pcm;
 }
+
+} // namespace asha
