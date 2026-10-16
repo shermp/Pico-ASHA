@@ -46,7 +46,7 @@ namespace asha
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
+constexpr tusb_desc_device_t desc_uac1_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -61,7 +61,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = static_cast<uint16_t>(static_cast<uint16_t>(0x0400) | usb_settings.uac_version),
+    .bcdDevice          = 0x0401,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -70,11 +70,20 @@ tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
+constexpr tusb_desc_device_t desc_uac2_device = [] {
+    auto descriptor = desc_uac1_device;
+    descriptor.bcdDevice = 0x0402;
+    return descriptor;
+}();
+
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 extern "C" uint8_t const * tud_descriptor_device_cb(void)
 {
-  return (uint8_t const *)&desc_device;
+  // Match the configuration selected from core 0's loaded startup settings.
+  // Both constant descriptors remain valid for the entire USB transfer.
+  auto const& descriptor = usb_settings.uac_version == 2 ? desc_uac2_device : desc_uac1_device;
+  return (uint8_t const *)&descriptor;
 }
 
 //--------------------------------------------------------------------+
