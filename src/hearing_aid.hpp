@@ -25,7 +25,7 @@ constexpr uint32_t audio_backlog_frame_limit = 2;
 // Compare complete, non-overlapping 3,000-tick credit averages against the
 // stream's first window. Tenths allow tuning the threshold to e.g. 15 (1.5).
 constexpr uint32_t audio_credit_window_ticks = 1000;
-constexpr uint32_t audio_credit_drift_threshold_tenths = 20;
+constexpr uint32_t audio_credit_drift_threshold_tenths = 15;
 
 // How long the audio loop is allowed to sit in Ready with the host
 // actively delivering audio but L2CAP credits stuck below the start
