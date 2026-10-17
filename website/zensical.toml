@@ -12,6 +12,9 @@ nav = [
 
 [project.theme]
 custom_dir = "overrides"
+features = [
+  "content.code.copy",
+]
 
 # Palette toggle for automatic mode
 [[project.theme.palette]]
@@ -35,3 +38,5 @@ toggle.name = "Switch to system preference"
 
 [project.markdown_extensions]
 admonition = {}
+pymdownx.highlight = {}
+pymdownx.superfences = {}
