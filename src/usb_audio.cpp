@@ -152,8 +152,15 @@ void usb_main(void)
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void)
+extern "C" void tud_mount_cb(void)
 {
+#if PICO_RP2040
+  // TinyUSB's E15 workaround times bulk IN transfers from the last SOF IRQ.
+  // With FIFO-count audio feedback, nothing keeps that IRQ enabled while CDC
+  // is idle. Keep it running so the next CDC transfer uses a current frame
+  // timestamp and cannot bypass the workaround with a stale one.
+  tud_sof_cb_enable(true);
+#endif
 }
 
 // Invoked when device is unmounted
