@@ -12,12 +12,6 @@ const att = {
   0x7f: "Timeout", 0xfc: "Write request rejected", 0xfd: "Descriptor improperly configured",
   0xfe: "Procedure already in progress", 0xff: "Out of range",
 };
-const l2cap = {
-  0x00: "Success", 0x02: "SPSM not supported", 0x04: "No resources available",
-  0x05: "Insufficient authentication", 0x06: "Insufficient authorization", 0x07: "Encryption key too short",
-  0x08: "Insufficient encryption", 0x09: "Invalid source CID", 0x0a: "Source CID already allocated",
-  0x0b: "Unacceptable parameters",
-};
 const security = {
   0x00: "Reserved", 0x01: "Passkey entry failed", 0x02: "Out-of-band data unavailable",
   0x03: "Authentication requirements", 0x04: "Confirm value failed", 0x05: "Pairing not supported",
@@ -77,7 +71,9 @@ export function describeStatus(statusType, status) {
     [StatusType.PicoASHA]: picoAsha,
     [StatusType.BTstack]: btstack,
     [StatusType.ATT]: att,
-    [StatusType.L2CAP]: l2cap,
+    // Channel-open callbacks contain BTstack's translated status, not the
+    // raw LE credit-based connection-response result from the peer.
+    [StatusType.L2CAP]: btstack,
     [StatusType.SecurityManager]: security,
   };
   return tables[statusType]?.[status] ?? `Unknown status 0x${status.toString(16).padStart(2, "0")}`;
