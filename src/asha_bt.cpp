@@ -322,7 +322,8 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 hci_con_handle_t handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
                 bd_addr_t addr = {};
                 gap_subevent_le_connection_complete_get_peer_address(packet, addr);
-                HearingAid::on_connected(addr, handle);
+                uint8_t const status = gap_subevent_le_connection_complete_get_status(packet);
+                HearingAid::on_connected(addr, handle, status);
             }
             break;
         case HCI_EVENT_LE_META:

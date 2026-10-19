@@ -89,6 +89,14 @@ void HearingAid::process()
         bool advanced_service_index = false;
         bool advanced_char_index = false;
         if (!ha->is_connected()) { continue; }
+        if (ha->l2cap_open_pending && ha->process_state == ConnectL2CAPInProgress
+            && btstack_run_loop_get_time_ms() - ha->l2cap_open_started_ms >= l2cap_open_timeout_ms) {
+            short_log(ha->conn_id, "%s", "CoC open timeout: ACL reset");
+            // BTstack owns the pending channel and receive buffer. ACL teardown
+            // cancels/frees it; do not clear the CID and allocate another one.
+            ha->disconnect();
+            continue;
+        }
         if (ha->process_delay_ticks > 0) {
             --ha->process_delay_ticks;
             continue;
@@ -144,9 +152,16 @@ void HearingAid::process()
                 break;
             }
             case ConnectL2CAP:
+                if (ha->cid != 0 || ha->l2cap_open_pending) {
+                    short_log(ha->conn_id, "%s", "CoC still owned: ACL reset");
+                    ha->disconnect();
+                    continue;
+                }
                 ev_type = EventType::L2CAPCon;
                 //LOG_INFO("%s: Create L2CAP CoC", ha->get_side_str());
                 ha->process_state = ConnectL2CAPInProgress;
+                ha->l2cap_open_started_ms = btstack_run_loop_get_time_ms();
+                ha->l2cap_open_pending = true;
                 res = l2cap_cbm_create_channel(&HearingAid::handle_l2cap_cbm, 
                                                ha->conn_handle, 
                                                ha->psm, 
@@ -185,6 +200,7 @@ void HearingAid::process()
                     start_scan();
                 }
                 ha->cached = true;
+                ha->error_count = 0;
                 ha->process_state = Audio;
                 ha->audio_state = AudioState::Ready;
                 if (ha->other && ha->other->is_streaming()) {
@@ -194,6 +210,13 @@ void HearingAid::process()
                 break;
         }
         if (res != ERROR_CODE_SUCCESS) {
+            if (revert_process_state == ConnectL2CAP) {
+                // A synchronous API error allocated no channel and produces
+                // no callback. Never retain a freed/failed CID for routing.
+                ha->cid = 0;
+                ha->l2cap_open_pending = false;
+                ha->l2cap_open_started_ms = 0;
+            }
             if (advanced_service_index) {
                 // A failed call produces no completion callback. Keep the
                 // index on the same item for the delayed retry.
@@ -367,12 +390,24 @@ void HearingAid::connect(const bd_addr_t addr, bd_addr_type_t addr_type)
     gap_connect(addr, addr_type);
 }
 
-void HearingAid::on_connected(bd_addr_t addr, hci_con_handle_t handle)
+void HearingAid::on_connected(bd_addr_t addr, hci_con_handle_t handle, uint8_t status)
 {
     using namespace comm;
 
+    if (status != ERROR_CODE_SUCCESS || handle == HCI_CON_HANDLE_INVALID) {
+        uint8_t const error = status != ERROR_CODE_SUCCESS ? status : ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER;
+        add_event_to_buffer(unset_conn_id, EventPacket(EventType::RemoteConnected, StatusType::BtstackStatus, error));
+        start_scan();
+        return;
+    }
+    if (get_by_con_handle(handle)) { return; }
     auto ha_cached = get_by_cached_addr(addr);
     if (ha_cached) {
+        if (ha_cached->is_connected()) {
+            // Do not overwrite a live ACL/CID with a duplicate connection.
+            gap_disconnect(handle);
+            return;
+        }
         //LOG_INFO("%s: Connected to cached HA", bd_addr_to_str(addr));
         ha_cached->connected = true;
         ha_cached->conn_handle = handle;
@@ -926,6 +961,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
 {
     using namespace comm;
 
+    if (packet_type != HCI_EVENT_PACKET || size < 2 || packet[1] + 2u > size) { return; }
     hci_con_handle_t handle = HCI_CON_HANDLE_INVALID;
     uint16_t cid = 0U;
     uint8_t bt_status = ERROR_CODE_SUCCESS;
@@ -933,13 +969,33 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
 
     switch (hci_event_packet_get_type(packet)) {
         case L2CAP_EVENT_CBM_CHANNEL_OPENED:
+            if (size < 23) { break; }
             handle = l2cap_event_cbm_channel_opened_get_handle(packet);
+            cid = l2cap_event_cbm_channel_opened_get_local_cid(packet);
             bt_status = l2cap_event_cbm_channel_opened_get_status(packet);
             ha = get_by_con_handle(handle);
-            if (!ha || ha->process_state != ProcessState::ConnectL2CAPInProgress) {
+            if (!ha || cid == 0 || ha->cid != cid) {
+                // A successful unclaimed completion still owns a BTstack
+                // channel. Close it, but never touch another aid's live CID.
+                if (bt_status == ERROR_CODE_SUCCESS && cid != 0 && !get_by_cid(cid)) {
+                    l2cap_disconnect(cid);
+                }
                 break;
             }
-            if (bt_status != ATT_ERROR_SUCCESS) {
+            if (!ha->l2cap_open_pending) { break; } // Duplicate/stale completion.
+            ha->l2cap_open_pending = false;
+            ha->l2cap_open_started_ms = 0;
+            if (bt_status != ERROR_CODE_SUCCESS) {
+                // BTstack discards failed opens after this callback. Drop the
+                // local reference before this ID can be reused by the other aid.
+                ha->cid = 0;
+                ha->credits = 0;
+            }
+            if (ha->process_state != ProcessState::ConnectL2CAPInProgress) {
+                if (bt_status == ERROR_CODE_SUCCESS) { l2cap_disconnect(cid); }
+                break;
+            }
+            if (bt_status != ERROR_CODE_SUCCESS) {
                 //LOG_ERROR("%s: Error creating L2CAP cbm connection: %s", ha->get_side_str(), bt_err_str(att_status));
                 add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPCon, StatusType::L2CapStatus, bt_status));
                 if (ha->l2cap_recovery_pending) {
@@ -959,6 +1015,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             }
             break;
         case L2CAP_EVENT_PACKET_SENT:
+            if (size < 4) { break; }
             cid = l2cap_event_packet_sent_get_local_cid(packet);
             ha = get_by_cid(cid);
             if (!ha || !ha->audio_tx_pending) {
@@ -974,6 +1031,7 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             }
             break;
         case L2CAP_EVENT_CHANNEL_CLOSED:
+            if (size < 4) { break; }
             cid = l2cap_event_channel_closed_get_local_cid(packet);
             ha = get_by_cid(cid);
             if (!ha) {
@@ -981,6 +1039,8 @@ void HearingAid::handle_l2cap_cbm(PACKET_HANDLER_PARAMS)
             }
             add_event_to_buffer(ha->conn_id, EventPacket(EventType::L2CAPDiscon));
             ha->cid = 0U;
+            ha->l2cap_open_pending = false;
+            ha->l2cap_open_started_ms = 0;
             ha->credits = 0U;
             ha->clear_audio_send_state();
             ha->l2cap_recovery_ticks = 0U;
@@ -1375,8 +1435,9 @@ void HearingAid::AudioSession::on_stream_stopped(HearingAid& ha)
 
 HearingAid* HearingAid::get_by_con_handle(hci_con_handle_t handle)
 {
+    if (handle == HCI_CON_HANDLE_INVALID) { return nullptr; }
     for (auto ha : hearing_aids) {
-        if (ha->conn_handle == handle) {
+        if (ha->is_connected() && ha->conn_handle == handle) {
             return ha;
         }
     }
@@ -1385,8 +1446,9 @@ HearingAid* HearingAid::get_by_con_handle(hci_con_handle_t handle)
 
 HearingAid* HearingAid::get_by_cid(uint16_t cid)
 {
+    if (cid == 0) { return nullptr; }
     for (auto ha : hearing_aids) {
-        if (ha->cid == cid) {
+        if (ha->is_connected() && ha->cid == cid) {
             return ha;
         }
     }
@@ -1664,7 +1726,12 @@ void HearingAid::disconnect()
     credit_average = {};
     // Keep ACP storage and ownership intact until completion or ACL teardown.
     process_state = ProcessState::Disconnect;
-    gap_disconnect(conn_handle);
+    uint8_t const result = gap_disconnect(conn_handle);
+    if (result == ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER) {
+        // The stack already has no ACL for this slot, so no completion event
+        // will follow. Clear stale application state and resume scanning.
+        on_disconnected(conn_handle, ERROR_CODE_SUCCESS, result);
+    }
 }
 
 void HearingAid::reset()
@@ -1699,6 +1766,8 @@ void HearingAid::reset()
     clear_audio_send_state();
     l2cap_recovery_ticks = 0U;
     l2cap_recovery_pending = false;
+    l2cap_open_pending = false;
+    l2cap_open_started_ms = 0;
 
     if (!cached) {
         memset(addr, 0U, sizeof(bd_addr_t));

@@ -22,7 +22,7 @@ constexpr uint16_t audio_restart_credits = 8;
 constexpr uint32_t audio_credit_cooldown_ticks = 500;
 constexpr uint32_t audio_backlog_frame_limit = 2;
 
-// Compare complete, non-overlapping 3,000-tick credit averages against the
+// Compare complete, non-overlapping credit averages against the
 // stream's first window. Tenths allow tuning the threshold to e.g. 15 (1.5).
 constexpr uint32_t audio_credit_window_ticks = 1000;
 constexpr uint32_t audio_credit_drift_threshold_tenths = 15;
@@ -48,6 +48,10 @@ constexpr uint32_t audio_sdu_gap_timeout_ticks = 500;
 // Bound each CoC recovery phase: closing, then reopening/registering notifications.
 // A failed phase or a second stall before PACKET_SENT falls back to ACL reconnect.
 constexpr uint32_t l2cap_recovery_timeout_ticks = 1000;
+
+// Bound an initial CoC open if the peer keeps the ACL alive without replying.
+// This BTstack version has no LE CoC response timer; its RTX timer is Classic-only.
+constexpr uint32_t l2cap_open_timeout_ms = 15000;
 
 // ACP deadlines use elapsed BTstack time, independently of audio timer ticks.
 constexpr uint32_t acp_timeout_ms = 1000;
@@ -119,6 +123,7 @@ struct HearingAid
 
     bd_addr_t addr = {};
     hci_con_handle_t conn_handle = HCI_CON_HANDLE_INVALID;
+    // Owned pending/open CoC. Retain until open failure, channel close or ACL teardown.
     uint16_t cid = 0U;
 
     /* Common BT vars */
@@ -162,7 +167,7 @@ struct HearingAid
     static void start_scan();
     static void on_ad_report(const AdvertisingReport& report);
     static void connect(const bd_addr_t addr, bd_addr_type_t addr_type);
-    static void on_connected(bd_addr_t addr, hci_con_handle_t handle);
+    static void on_connected(bd_addr_t addr, hci_con_handle_t handle, uint8_t status = ERROR_CODE_SUCCESS);
     static void on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_t reason);
     static void on_data_len_set(hci_con_handle_t handle, uint16_t rx_octets, uint16_t rx_time, uint16_t tx_octets, uint16_t tx_time);
     static void delete_pair();
@@ -278,6 +283,8 @@ private:
     uint32_t audio_sdu_gap_ticks = 0U;
     uint32_t l2cap_recovery_ticks = 0U;
     bool l2cap_recovery_pending = false;
+    uint32_t l2cap_open_started_ms = 0U;
+    bool l2cap_open_pending = false;
 
     std::array<uint8_t, sdu_size_bytes> recv_buff = {};
 
