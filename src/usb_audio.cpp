@@ -30,6 +30,12 @@
 
 #include <pico/time.h>
 
+#if PICO_RP2040
+#include <hardware/regs/usb.h>
+#include <hardware/structs/usb.h>
+#include <hardware/watchdog.h>
+#endif
+
 //#include <speex/speex_resampler.h>
 
 #include <tusb.h>
@@ -129,6 +135,30 @@ void tud_cdc_line_state_cb([[maybe_unused]] uint8_t itf,
                            [[maybe_unused]] bool rts)
 {}
 
+#if PICO_RP2040
+static uint32_t last_usb_sof_us = 0;
+
+extern "C" void tud_sof_cb(uint32_t /* frame_count */)
+{
+  last_usb_sof_us = time_us_32();
+}
+
+static void usb_stall_watchdog()
+{
+  uint32_t const now = time_us_32();
+  uint32_t const status = usb_hw->sie_status;
+  if (!tud_mounted() || tud_suspended()
+      || (status & USB_SIE_STATUS_SUSPENDED_BITS)
+      || !(status & USB_SIE_STATUS_BIT_STUFF_ERROR_BITS)) {
+    last_usb_sof_us = now;
+  } else if (now - last_usb_sof_us >= 1'000'000u) {
+    // Captured stall: bit-stuff error with no SOFs while configured/awake.
+    // Do not poll SOF_RD: reading it would acknowledge TinyUSB's SOF IRQ.
+    watchdog_reboot(0, 0, 0);
+  }
+}
+#endif
+
 /*------------- MAIN -------------*/
 void usb_main(void)
 {
@@ -138,6 +168,10 @@ void usb_main(void)
   while (1)
   {
     tud_task(); // TinyUSB device task
+
+#if PICO_RP2040
+    usb_stall_watchdog();
+#endif
 
     // Keep FIFO reads in the same foreground context as TinyUSB control
     // handling. In particular, this prevents a sample-rate interface change
@@ -155,6 +189,7 @@ void usb_main(void)
 extern "C" void tud_mount_cb(void)
 {
 #if PICO_RP2040
+  last_usb_sof_us = time_us_32();
   // TinyUSB's E15 workaround times bulk IN transfers from the last SOF IRQ.
   // With FIFO-count audio feedback, nothing keeps that IRQ enabled while CDC
   // is idle. Keep it running so the next CDC transfer uses a current frame
