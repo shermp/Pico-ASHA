@@ -29,6 +29,17 @@ FetchContent_MakeAvailable(tinyusb)
 
 SET(PICO_TINYUSB_PATH "${tinyusb_SOURCE_DIR}")
 
+# Pico SDK 2.3.1 BTstack with the upstream L2CAP CID fix
+FetchContent_Declare(
+  btstack
+  GIT_REPOSITORY https://github.com/shermp/btstack
+  GIT_TAG        picosdk-2-3-1-l2cap-cid
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(btstack)
+
+SET(PICO_BTSTACK_PATH "${btstack_SOURCE_DIR}")
+
 
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_C_FLAGS_RELEASE "-O2")
