@@ -16,5 +16,7 @@ namespace asha
 extern LEDManager led_mgr;
 extern LEDManager::Pattern none_connected;
 extern LEDManager::Pattern one_connected;
+// Connections to hearing aids are disabled (released), e.g. by the button
+extern LEDManager::Pattern connections_released;
 
 } // namespace asha

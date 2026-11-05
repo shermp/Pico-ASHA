@@ -143,6 +143,10 @@ struct HearingAid
     static void on_serial_host_connected();
     static bool is_addr_connected(const bd_addr_t addr);
     static void set_connections_allowed(bool allowed);
+    static bool get_connections_allowed() { return connections_allowed; }
+    // Toggle between connected and released. Used by the physical button.
+    // Tells an attached serial host (GUI / web app) about the new state.
+    static void toggle_connections_allowed(bool notify_host);
     static void set_audio_streaming_enabled(bool enabled);
     static void set_auto_pair_enabled(bool enabled);
     static void start_scan();

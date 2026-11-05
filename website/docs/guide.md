@@ -92,6 +92,32 @@ Once paired, streaming audio is incredibly simple. Just select `Pico-ASHA adapte
 sound devices in your OS. The OS volume control should be able to control the streaming audio volume 
 in your hearing device.
 
+## Status LED
+
+The Pico's on-board LED shows what Pico ASHA is doing:
+
+| LED | Meaning |
+|-----|---------|
+| Slow blink (4 per second) | Searching for hearing devices |
+| Fast blink | One hearing device connected, searching for the other |
+| Solid on | Both hearing devices connected and ready |
+| One short flash every 2 seconds | Connections released (see below) |
+
+## Release button (optional)
+
+You can wire a momentary push button between **GP14** (pin 19) and the **GND** pin next
+to it (pin 18). Pressing it toggles between connected and released:
+
+- **Release**: Pico ASHA disconnects the hearing devices and stops looking for them, so that
+  another device such as an Android phone can connect. The LED flashes once every 2 seconds.
+- **Press again**: Pico ASHA starts searching for the hearing devices again.
+
+If the GUI or web app is connected, its **Enable/Disable Connections** control follows the button.
+The Pico always starts in the connected state after being powered on.
+
+To use a different pin, or to disable the button, build with `-DPICO_ASHA_BUTTON_GPIO=<gpio>`
+(`-1` disables it).
+
 ## Updating firmware
 
 You can update firmware using steps 2 & 3 from the first start instructions. Your hearing devices 

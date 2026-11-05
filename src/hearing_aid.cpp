@@ -302,6 +302,7 @@ void HearingAid::set_connections_allowed(bool allowed)
     }
     if (connections_allowed && !allowed) {
         connections_allowed = false;
+        led_mgr.set_led_pattern(connections_released);
         gap_stop_scan();
         for (auto ha : hearing_aids) {
             if (ha->is_connected()) {
@@ -310,8 +311,28 @@ void HearingAid::set_connections_allowed(bool allowed)
         }
     } else if (!connections_allowed && allowed) {
         connections_allowed = true;
+        led_mgr.set_led_pattern(none_connected);
         start_scan();
     }
+}
+
+void HearingAid::toggle_connections_allowed(bool notify_host)
+{
+    set_connections_allowed(!connections_allowed);
+    if (!notify_host) {
+        return;
+    }
+    // Re-send the intro packet so a connected GUI / web app updates its
+    // "Enable / Disable Connections" state. Both already apply the intro
+    // flags whenever one arrives, so they need no changes.
+    uint16_t intro_flags = 0x00;
+    if (connections_allowed) {
+        intro_flags |= comm::IntroFlags::conn_allowed;
+    }
+    if (audio_streaming_enabled) {
+        intro_flags |= comm::IntroFlags::streaming_enabled;
+    }
+    comm::send_intro_packet((int8_t)num_connected(), intro_flags);
 }
 
 void HearingAid::set_audio_streaming_enabled(bool enabled)
@@ -436,7 +457,10 @@ void HearingAid::on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_
     set_other_side_ptrs();
     ha->reset();
     int num_c = num_connected();
-    if (num_c == 1) {
+    if (!connections_allowed) {
+        // Released on purpose (button or GUI): keep the "released" blink
+        led_mgr.set_led_pattern(connections_released);
+    } else if (num_c == 1) {
         led_mgr.set_led_pattern(one_connected);
     } else {
         led_mgr.set_led_pattern(none_connected);

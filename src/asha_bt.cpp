@@ -1,5 +1,6 @@
 #include <btstack.h>
 #include <pico/cyw43_arch.h>
+#include <hardware/gpio.h>
 #include <hardware/watchdog.h>
 
 #include "asha_bt.hpp"
@@ -34,6 +35,56 @@ LEDManager::Pattern one_connected = {
     .delay_ms = 0,
     .pattern = 0b10
 };
+
+// Connections released: one short flash every ~2 seconds
+LEDManager::Pattern connections_released = {
+    .len = 2,
+    .interval_ms = 100,
+    .delay_ms = 1900,
+    .pattern = 0b01
+};
+
+/* Optional release button. Wire a momentary push button between this GPIO
+   and GND (the Pico's internal pull-up is used). GP14 (pin 19) sits next to
+   a GND pin (pin 18), so a two-pin connector fits. Set to -1 at build time
+   (-DPICO_ASHA_BUTTON_GPIO=-1) to disable. */
+#ifndef PICO_ASHA_BUTTON_GPIO
+#define PICO_ASHA_BUTTON_GPIO 14
+#endif
+constexpr int release_button_gpio = PICO_ASHA_BUTTON_GPIO;
+constexpr uint32_t button_debounce_ms = 30;
+
+static bool button_down = false;
+static uint32_t button_change_ms = 0;
+
+static void button_init()
+{
+    if (release_button_gpio < 0) { return; }
+    gpio_init(release_button_gpio);
+    gpio_set_dir(release_button_gpio, GPIO_IN);
+    gpio_pull_up(release_button_gpio);
+    // Start from the current level so a button already held at power-up
+    // does not count as a press
+    sleep_us(100);
+    button_down = !gpio_get(release_button_gpio);
+    button_change_ms = to_ms_since_boot(get_absolute_time());
+}
+
+/* Called from the BTstack timer, on the same core as the serial commands,
+   so toggling the connection state needs no extra locking. */
+static void button_poll(bool notify_host)
+{
+    if (release_button_gpio < 0) { return; }
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    bool raw_down = !gpio_get(release_button_gpio);
+    if (raw_down != button_down && (now - button_change_ms) >= button_debounce_ms) {
+        button_down = raw_down;
+        button_change_ms = now;
+        if (button_down) {
+            HearingAid::toggle_connections_allowed(notify_host);
+        }
+    }
+}
 
 static btstack_packet_callback_registration_t hci_event_cb_reg;
 static btstack_packet_callback_registration_t sm_event_cb_reg;
@@ -96,6 +147,7 @@ extern "C" void bt_main()
     async_context_t *ctx = cyw43_arch_async_context();
 
     led_mgr.set_ctx(ctx);
+    button_init();
 
     if (runtime_settings.get_hci_dump_enabled()) {
         hci_dump_init(&pa_hci_dump_impl);
@@ -216,6 +268,7 @@ static void audio_timer_handler(btstack_timer_source_t* timer)
     }
 
     process_serial_cmds();
+    button_poll(usb_serial_is_connected);
     if (comm::usb_connected()) {
         if (enable_send_intro_packet) {
             HearingAid::on_serial_host_connected();
