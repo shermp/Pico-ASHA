@@ -1179,6 +1179,20 @@ bool HearingAid::process_audio()
         ha->credits = l2cap_cbm_available_credits(ha->cid);
         switch (ha->audio_state) {
             case AudioState::Ready:
+                // Android writes "connection parameters updated, interval 16" (03 02 10) to each
+                // aid soon after connecting. The aid uses it to set up its audio buffering, so
+                // do the same once per connection before any stream starts.
+                if (ha->need_conn_param_status) {
+                    // Try every 50 ms, and give up after about 1 s so a failure cannot spam events
+                    if (++ha->conn_param_ticks % 50U == 0U) {
+                        if (ha->send_acp_status(ACPStatus::conn_param_updated, 16) == ERROR_CODE_SUCCESS) {
+                            ha->need_conn_param_status = false;
+                        } else if (ha->conn_param_ticks >= 1000U) {
+                            ha->need_conn_param_status = false;
+                        }
+                    }
+                    break;
+                }
                 // After a zero-credit stop, wait up to the cooldown window for
                 // credits to fully replenish before restarting; starting at low
                 // credit counts immediately re-drains and produces audible
@@ -1518,20 +1532,26 @@ void HearingAid::send_acp_stop()
     }
 }
 
-void HearingAid::send_acp_status(uint8_t status)
+uint8_t HearingAid::send_acp_status(uint8_t status, int16_t param)
 {
     using namespace comm;
 
     acp_cmd_packet[0] = ACPOpCode::status;
     acp_cmd_packet[1] = status;
+    uint16_t len = 2u;
+    if (param >= 0) {
+        acp_cmd_packet[2] = (uint8_t)param;
+        len = 3u;
+    }
     auto res = gatt_client_write_value_of_characteristic_without_response(conn_handle,
                                                                           services.asha.acp.value_handle,
-                                                                          2u,
+                                                                          len,
                                                                           acp_cmd_packet.data());
     if (res != ERROR_CODE_SUCCESS) {
         //LOG_ERROR("%s: Updating status via ACP failed with %s", get_side_str(), bt_err_str(res));
         add_event_to_buffer(conn_id, EventPacket(EventType::ACPStatus, StatusType::BtstackStatus, res));
     }
+    return res;
 }
 
 void HearingAid::send_volume(int8_t volume)
@@ -1600,6 +1620,8 @@ void HearingAid::reset()
     credits = 0;
     zero_credits_cooldown = 0;
     ready_stuck_ticks = 0;
+    need_conn_param_status = true;
+    conn_param_ticks = 0U;
     paired_and_bonded = false;
     process_delay_ticks = 0;
     error_count = 0;
