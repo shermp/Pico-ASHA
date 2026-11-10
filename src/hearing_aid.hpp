@@ -151,6 +151,10 @@ struct HearingAid
     static void on_connected(bd_addr_t addr, hci_con_handle_t handle);
     static void on_disconnected(hci_con_handle_t handle, uint8_t status, uint8_t reason);
     static void on_data_len_set(hci_con_handle_t handle, uint16_t rx_octets, uint16_t rx_time, uint16_t tx_octets, uint16_t tx_time);
+#ifdef PICO_ASHA_LINK_STATS
+    // The controller reports that `count` packets to this connection were acknowledged by the aid
+    static void on_acl_completed(hci_con_handle_t handle, uint16_t count);
+#endif
     static void delete_pair();
     static void delete_pair(uint16_t conn_id);
     static void handle_sm(PACKET_HANDLER_PARAMS);
@@ -247,6 +251,20 @@ private:
     uint32_t audio_tx_pending_ticks = 0U;
     uint32_t audio_sdu_gap_ticks = 0U;
     uint32_t l2cap_close_ticks = 0U;
+
+#ifdef PICO_ASHA_LINK_STATS
+    // Per-second link statistics, reported to the host as a ShortLog so that
+    // audible dropouts can be located without manual marking.
+    uint32_t st_sent = 0U;            // SDUs completed this window
+    uint32_t st_gap_max_ms = 0U;      // longest gap between completed SDUs
+    uint32_t st_lat_max_ms = 0U;      // longest request-to-completed time
+    uint32_t st_last_sent_ms = 0U;    // time of previous completion
+    uint32_t st_req_ms = 0U;          // time of last send request
+    uint16_t st_credit_min = 0xFFFFU; // lowest credit count seen
+    uint32_t st_ack_count = 0U;       // packets the aid acknowledged this window
+    uint32_t st_ack_gap_max_ms = 0U;  // longest time between acknowledgements
+    uint32_t st_ack_last_ms = 0U;     // time of the previous acknowledgement
+#endif
 
     bool stop_request_from_other = false;
 

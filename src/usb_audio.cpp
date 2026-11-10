@@ -600,6 +600,11 @@ static void audio_task()
     return;
   }
 
+#ifdef PICO_ASHA_LINK_STATS
+  // How late this tick is compared to its schedule (diagnostics)
+  int64_t const late_us = absolute_time_diff_us(next_audio_task_time, get_absolute_time());
+#endif
+
   // Advance from the prior deadline rather than from now so task timing does
   // not accumulate drift when an iteration starts late.
   next_audio_task_time = delayed_by_us(next_audio_task_time, 1'000);
@@ -612,10 +617,34 @@ static void audio_task()
   uint16_t const samples = samples_per_frame(current_sample_rate);
   uint16_t const frame_bytes = bytes_per_frame(current_sample_rate);
   absolute_time_t const now = get_absolute_time();
+#ifdef PICO_ASHA_LINK_STATS
+  {
+    // Diagnostics: it is an underrun (silence inserted into live audio) when the FIFO
+    // is short of a full frame while audio was flowing within the last second.
+    uint32_t const fifo_frames = frame_bytes ? (uint32_t)(tud_audio_available() / frame_bytes) : 0u;
+    bool const live = absolute_time_diff_us(last_pcm_packet_time, now) < 1'000'000;
+    asha_usb_stats_note(fifo_frames, (live && samples && fifo_frames == 0u) ? 1 : 0,
+                        late_us > 0 ? (uint32_t)late_us : 0u);
+    asha_usb_stats_set_rate(current_sample_rate);
+  }
+#endif
   if (samples && tud_audio_available() >= frame_bytes) {
     uint16_t const bytes_read = tud_audio_read(spk_buf, frame_bytes);
     if (bytes_read == frame_bytes) {
       last_pcm_packet_time = now;
+#ifdef PICO_ASHA_LINK_STATS
+      {
+        // Diagnostics: loudest sample in this 1 ms of incoming audio
+        uint32_t peak = 0u;
+        for (uint16_t i = 0; i < samples; ++i) {
+          int32_t const l = spk_buf[i].left < 0 ? -(int32_t)spk_buf[i].left : spk_buf[i].left;
+          int32_t const r = spk_buf[i].right < 0 ? -(int32_t)spk_buf[i].right : spk_buf[i].right;
+          if ((uint32_t)l > peak) { peak = (uint32_t)l; }
+          if ((uint32_t)r > peak) { peak = (uint32_t)r; }
+        }
+        asha_usb_stats_note_peak(peak);
+      }
+#endif
       if (std::all_of(spk_buf, spk_buf + samples, [](PCMStereoSample s) {return s.left == 0 && s.right == 0; })) {
         if (silence_counter < silence_timeout) {
           ++silence_counter;

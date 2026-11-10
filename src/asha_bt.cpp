@@ -14,7 +14,18 @@ namespace asha
    Note, connection interval is in units of 1.25ms */
 constexpr uint16_t asha_conn_interval = 20 / 1.25f;
 
-constexpr uint16_t asha_conn_latency  = 10;
+/* Link settings requested when connecting. The defaults are the original
+   values (taken from Android). They can be overridden at build time with
+   -DPICO_ASHA_CONN_LATENCY=<events> and -DPICO_ASHA_SUPERVISION_TIMEOUT=<10 ms units>,
+   and -DPICO_ASHA_REQUEST_2M_PHY=ON asks the controller for the 2M PHY. */
+#ifndef PICO_ASHA_CONN_LATENCY
+#define PICO_ASHA_CONN_LATENCY 10
+#endif
+#ifndef PICO_ASHA_SUPERVISION_TIMEOUT
+#define PICO_ASHA_SUPERVISION_TIMEOUT 100
+#endif
+constexpr uint16_t asha_conn_latency  = PICO_ASHA_CONN_LATENCY;
+constexpr uint16_t asha_supervision_timeout = PICO_ASHA_SUPERVISION_TIMEOUT;
 
 static bool enable_send_intro_packet = false;
 static bool usb_serial_is_connected = false;
@@ -276,7 +287,7 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 add_bonded_to_fal();
                 // Set connection parameters including connection interval
                 // by default. Values taken from Android
-                gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, 100, 12, 12);
+                gap_set_connection_parameters(0x0030, 0x0030, asha_conn_interval, asha_conn_interval, asha_conn_latency, asha_supervision_timeout, 12, 12);
                 gap_local_bd_addr(local_addr);
                 //LOG_INFO("BTstack up and running on %s", bd_addr_to_str(local_addr));
                 if (!runtime_settings.get_full_set_paired()) {
@@ -306,10 +317,39 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 hci_con_handle_t handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
                 bd_addr_t addr = {};
                 gap_subevent_le_connection_complete_get_peer_address(packet, addr);
+#ifdef PICO_ASHA_LINK_STATS
+                // Report the link settings the hearing aid agreed to
+                comm::short_log(comm::unset_conn_id, "link %u/%u/%u",
+                                (unsigned)gap_subevent_le_connection_complete_get_conn_interval(packet),
+                                (unsigned)gap_subevent_le_connection_complete_get_conn_latency(packet),
+                                (unsigned)gap_subevent_le_connection_complete_get_supervision_timeout(packet));
+#endif
+#ifdef PICO_ASHA_REQUEST_2M_PHY
+                {
+                    [[maybe_unused]] uint8_t const phy_ret = gap_le_set_phy(handle, 0, 0x02, 0x02, 0);
+#ifdef PICO_ASHA_LINK_STATS
+                    // 0 = the controller accepted the request
+                    comm::short_log(comm::unset_conn_id, "setphy ret=%u", (unsigned)phy_ret);
+#endif
+                }
+#endif
                 HearingAid::on_connected(addr, handle);
             }
             break;
         case HCI_EVENT_LE_META:
+#ifdef PICO_ASHA_LINK_STATS
+            if (hci_event_le_meta_get_subevent_code(packet) == HCI_SUBEVENT_LE_PHY_UPDATE_COMPLETE) {
+                comm::short_log(comm::unset_conn_id, "phy st=%u tx=%u rx=%u",
+                                (unsigned)hci_subevent_le_phy_update_complete_get_status(packet),
+                                (unsigned)hci_subevent_le_phy_update_complete_get_tx_phy(packet),
+                                (unsigned)packet[7]);  // rx_phy: this BTstack has no getter for it
+            } else if (hci_event_le_meta_get_subevent_code(packet) == HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE) {
+                comm::short_log(comm::unset_conn_id, "upd %u/%u/%u",
+                                (unsigned)hci_subevent_le_connection_update_complete_get_conn_interval(packet),
+                                (unsigned)hci_subevent_le_connection_update_complete_get_conn_latency(packet),
+                                (unsigned)hci_subevent_le_connection_update_complete_get_supervision_timeout(packet));
+            }
+#endif
             if (hci_event_le_meta_get_subevent_code(packet) == HCI_SUBEVENT_LE_DATA_LENGTH_CHANGE) {
                 hci_con_handle_t handle = hci_subevent_le_data_length_change_get_connection_handle(packet);
                 uint16_t rx_octets = hci_subevent_le_data_length_change_get_max_rx_octets(packet);
@@ -319,6 +359,24 @@ static void hci_event_handler(PACKET_HANDLER_PARAMS)
                 HearingAid::on_data_len_set(handle, rx_octets, rx_time, tx_octets, tx_time);
             }
             break;
+#ifdef PICO_ASHA_LINK_STATS
+        case HCI_EVENT_NUMBER_OF_COMPLETED_PACKETS:
+        {
+            // The controller tells us when a hearing aid has acknowledged packets.
+            // Layout as delivered by this BTstack: num_handles, then (handle, count) pairs.
+            if (size >= 3U) {
+                uint16_t const num_handles = packet[2];
+                if (size == (3U + num_handles * 4U)) {
+                    for (uint16_t i = 0; i < num_handles; ++i) {
+                        hci_con_handle_t const h = little_endian_read_16(packet, 3U + i * 4U) & 0x0fffU;
+                        uint16_t const cnt = little_endian_read_16(packet, 5U + i * 4U);
+                        HearingAid::on_acl_completed(h, cnt);
+                    }
+                }
+            }
+            break;
+        }
+#endif
         case HCI_EVENT_DISCONNECTION_COMPLETE:
         {
             hci_con_handle_t handle = hci_event_disconnection_complete_get_connection_handle(packet);
