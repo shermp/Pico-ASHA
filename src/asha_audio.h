@@ -67,6 +67,34 @@ void asha_audio_init();
  */
 uint32_t asha_audio_get_write_index();
 
+#ifdef PICO_ASHA_LINK_STATS
+/**
+ * Diagnostics: record one USB audio task tick (core 0). fifo_frames is how many
+ * 1 ms frames were waiting in the USB FIFO, underrun is non-zero if the task
+ * had to insert silence because a frame was missing, late_us is how late the
+ * tick ran compared to its 1 ms schedule.
+ */
+void asha_usb_stats_note(uint32_t fifo_frames, int underrun, uint32_t late_us);
+
+/**
+ * Diagnostics: read and reset the USB audio counters (called from core 1).
+ */
+void asha_usb_stats_take(uint32_t* underruns, uint32_t* fifo_min, uint32_t* fifo_max, uint32_t* late_max_us);
+
+/**
+ * Diagnostics: record the largest absolute sample value (0..32768) seen in the
+ * incoming USB audio, and read-and-reset it from the other core.
+ */
+void asha_usb_stats_note_peak(uint32_t peak);
+uint32_t asha_usb_stats_take_peak(void);
+
+/**
+ * Diagnostics: record the USB audio sample rate in use (Hz).
+ */
+void asha_usb_stats_set_rate(uint32_t rate_hz);
+uint32_t asha_usb_stats_get_rate(void);
+#endif
+
 /**
  * Encode 1ms of 16-bit 16kHz PCM stereo audio to G.722
  */

@@ -90,6 +90,23 @@ if (ENABLE_L2CAP_TX_TRACE)
   list(APPEND pico_asha_defines "PICO_ASHA_L2CAP_TX_TRACE=1")
 endif(ENABLE_L2CAP_TX_TRACE)
 
+# Bluetooth link tuning. The defaults are the original behaviour.
+set(PICO_ASHA_CONN_LATENCY 10 CACHE STRING "Peripheral latency requested when connecting (connection events)")
+set(PICO_ASHA_SUPERVISION_TIMEOUT 100 CACHE STRING "Supervision timeout requested when connecting (10 ms units)")
+option(PICO_ASHA_REQUEST_2M_PHY "Ask the controller to use the 2M PHY after connecting" OFF)
+list(APPEND pico_asha_defines "PICO_ASHA_CONN_LATENCY=${PICO_ASHA_CONN_LATENCY}")
+list(APPEND pico_asha_defines "PICO_ASHA_SUPERVISION_TIMEOUT=${PICO_ASHA_SUPERVISION_TIMEOUT}")
+if (PICO_ASHA_REQUEST_2M_PHY)
+  list(APPEND pico_asha_defines "PICO_ASHA_REQUEST_2M_PHY=1")
+endif ()
+
+# Once-a-second link and USB audio statistics, sent to the host as ShortLog events
+# (see the troubleshooting page in the documentation). Off by default.
+option(PICO_ASHA_LINK_STATS "Report per-second link and USB audio statistics to the host" OFF)
+if (PICO_ASHA_LINK_STATS)
+  list(APPEND pico_asha_defines "PICO_ASHA_LINK_STATS=1")
+endif ()
+
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}")
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_MINOR=${CMAKE_PROJECT_VERSION_MINOR}")
 list(APPEND pico_asha_defines "PICO_ASHA_FW_VERS_PATCH=${CMAKE_PROJECT_VERSION_PATCH}")

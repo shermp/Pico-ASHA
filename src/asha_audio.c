@@ -95,6 +95,40 @@ uint32_t asha_audio_get_write_index()
     return wi;
 }
 
+#ifdef PICO_ASHA_LINK_STATS
+static atomic_uint usb_stat_underruns = 0u;
+static atomic_uint usb_stat_fifo_min = 0xFFFFu;
+static atomic_uint usb_stat_fifo_max = 0u;
+static atomic_uint usb_stat_late_max_us = 0u;
+
+void asha_usb_stats_note(uint32_t fifo_frames, int underrun, uint32_t late_us)
+{
+    if (underrun) { atomic_fetch_add(&usb_stat_underruns, 1u); }
+    if (fifo_frames < atomic_load(&usb_stat_fifo_min)) { atomic_store(&usb_stat_fifo_min, fifo_frames); }
+    if (fifo_frames > atomic_load(&usb_stat_fifo_max)) { atomic_store(&usb_stat_fifo_max, fifo_frames); }
+    if (late_us > atomic_load(&usb_stat_late_max_us)) { atomic_store(&usb_stat_late_max_us, late_us); }
+}
+
+static atomic_uint usb_stat_peak = 0u;
+void asha_usb_stats_note_peak(uint32_t peak)
+{
+    if (peak > atomic_load(&usb_stat_peak)) { atomic_store(&usb_stat_peak, peak); }
+}
+uint32_t asha_usb_stats_take_peak(void) { return atomic_exchange(&usb_stat_peak, 0u); }
+
+static atomic_uint usb_stat_rate_hz = 0u;
+void asha_usb_stats_set_rate(uint32_t rate_hz) { atomic_store(&usb_stat_rate_hz, rate_hz); }
+uint32_t asha_usb_stats_get_rate(void) { return atomic_load(&usb_stat_rate_hz); }
+
+void asha_usb_stats_take(uint32_t* underruns, uint32_t* fifo_min, uint32_t* fifo_max, uint32_t* late_max_us)
+{
+    *underruns = atomic_exchange(&usb_stat_underruns, 0u);
+    *fifo_min = atomic_exchange(&usb_stat_fifo_min, 0xFFFFu);
+    *fifo_max = atomic_exchange(&usb_stat_fifo_max, 0u);
+    *late_max_us = atomic_exchange(&usb_stat_late_max_us, 0u);
+}
+#endif // PICO_ASHA_LINK_STATS
+
 void asha_audio_encode_1ms_pcm(struct PCMStereoSample *samples, uint16_t count)
 {
 #ifdef PICO_ASHA_ENC_STATS
