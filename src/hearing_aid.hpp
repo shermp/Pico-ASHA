@@ -278,7 +278,12 @@ private:
     void set_data_langth();
     void send_acp_start();
     void send_acp_stop();
-    void send_acp_status(uint8_t status);
+    // Writes ACP "status" (opcode 3). If param >= 0 it is appended as a third byte, as
+    // Android does for "connection parameter updated" (value = interval in 1.25 ms units).
+    uint8_t send_acp_status(uint8_t status, int16_t param = -1);
+    // Android tells each aid the connection interval once, soon after connecting. Do the same.
+    bool need_conn_param_status = true;
+    uint16_t conn_param_ticks = 0U;
     void send_volume(int8_t volume);
     void close_l2cap_for_recovery();
     void disconnect();
